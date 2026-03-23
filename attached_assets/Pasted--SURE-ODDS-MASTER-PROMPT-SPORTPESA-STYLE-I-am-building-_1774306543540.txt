@@ -1,0 +1,329 @@
+# 🚀 SURE ODDS — MASTER PROMPT (SPORTPESA-STYLE)
+
+> I am building a **sports prediction SaaS platform called SURE ODDS** with a user experience inspired by **SportPesa**, but focused on **odds prediction and analytics (NOT placing bets)**.
+>
+> The platform must feel:
+>
+> * fast
+> * familiar to bettors
+> * mobile-first
+> * highly engaging
+>
+> It should mimic the **layout and interaction patterns of a betting site**, but instead of placing bets, users see:
+>
+> * predictions
+> * probabilities
+> * suggested bets
+> * performance history
+
+---
+
+# 🎨 FRONTEND (Next.js — Vercel)
+
+## 🧱 1. Layout — SportPesa Style
+
+Design a UI with:
+
+### 🔴 Top Bar
+
+* Logo: **SURE ODDS**
+* Balance-style UI (but shows “Prediction Score” or “Accuracy %” instead of money)
+* Buttons:
+
+  * Login
+  * Get Started
+
+---
+
+### ⚫ Main Layout (3 columns on desktop)
+
+#### LEFT SIDEBAR (like betting categories)
+
+* Football
+* Leagues:
+
+  * EPL
+  * La Liga
+  * Kenyan Premier League
+* Filters:
+
+  * Today
+  * Tomorrow
+  * Live (future feature)
+
+---
+
+#### CENTER (MAIN CONTENT — MOST IMPORTANT)
+
+Display matches in a **betting slip style card layout**:
+
+Each match should show:
+
+* Match time
+* Teams (Home vs Away)
+* Odds-style buttons (but for predictions):
+
+```bash id="grh4on"
+[ Home Win 1.85 ]
+[ Draw 3.20 ]
+[ Away Win 4.10 ]
+```
+
+👉 But these represent:
+
+* probabilities
+* confidence levels
+
+---
+
+Also show:
+
+* 🔥 “Best Pick” badge
+* Confidence %
+* Prediction type:
+
+  * 1X
+  * Over 2.5
+  * BTTS
+
+---
+
+#### RIGHT SIDEBAR (Prediction Slip)
+
+Like a betting slip, but:
+
+* Shows:
+
+  * selected predictions
+  * suggested stake
+  * confidence
+
+👉 Rename to:
+
+> “Prediction Slip”
+
+---
+
+## 📱 Mobile UI (CRITICAL)
+
+* Stack layout vertically
+* Sticky bottom bar:
+
+  * Predictions
+  * Results
+  * Account
+
+👉 Must feel like a betting app
+
+---
+
+# 📄 2. Pages
+
+## 🏠 Home
+
+* Featured matches
+* Top predictions
+* CTA: “Unlock Today’s Picks”
+
+---
+
+## 🔒 Predictions (PAID)
+
+* Today’s matches
+* Locked blur for free users
+* Show:
+
+  * probabilities
+  * best bets
+  * confidence
+
+---
+
+## 📊 Results (FREE — TRUST ENGINE)
+
+* Yesterday’s matches
+* Show:
+
+  * prediction vs actual
+  * ✅ WON / ❌ LOST
+* Show overall accuracy %
+
+---
+
+## 🤝 Become a Partner (Affiliate Page)
+
+* Explain 30% commission
+* Show referral link generator
+* Dashboard:
+
+  * clicks
+  * signups
+  * earnings
+
+---
+
+## 👤 Auth Pages
+
+* Login
+* Sign Up (Get Started)
+
+Use Supabase
+
+---
+
+## 🛠️ Admin Panel
+
+* View:
+
+  * users
+  * predictions
+  * revenue
+* Trigger:
+
+  * update fixtures
+  * run predictions
+  * update results
+
+---
+
+# 🧠 BACKEND (FastAPI — Render)
+
+## Core Responsibilities:
+
+* Fetch data from API-Football
+* Run prediction logic
+* Store in Neon
+* Handle referrals + earnings
+* Validate users via Supabase
+
+---
+
+## Prediction Engine
+
+Must output:
+
+* Home Win %
+* Draw %
+* Away Win %
+* Over 2.5
+* BTTS
+
+Display them as:
+
+> betting-style odds UI (SportPesa feel)
+
+---
+
+## Daily Automation
+
+Endpoints:
+
+```bash id="6gc8q3"
+/update-fixtures
+/run-predictions
+/update-results
+```
+
+---
+
+# 💰 REFERRAL SYSTEM (CORE GROWTH)
+
+* Each user gets:
+
+```bash id="t9h7kx"
+?ref=USER_ID
+```
+
+* Commission:
+
+```bash id="1eyyq9"
+30% of subscription revenue
+```
+
+* Dashboard:
+
+  * referrals
+  * earnings
+  * payouts
+
+---
+
+# 🔐 PAYWALL
+
+* Free users:
+
+  * see results (yesterday)
+
+* Paid users:
+
+  * see predictions (today)
+
+---
+
+# 🎯 UX REQUIREMENTS (VERY IMPORTANT)
+
+* Must feel like:
+
+  > “I’m about to place a bet”
+
+But actually:
+
+* showing predictions
+* guiding decisions
+
+---
+
+# ⚡ PERFORMANCE
+
+* Use cached DB data
+* No direct API calls from frontend
+* Fast load times
+
+---
+
+# 🔥 VISUAL STYLE
+
+* Dark theme (SportPesa-inspired)
+* High contrast buttons
+* Odds-style UI
+* Bold typography
+* Color coding:
+
+  * Green → good prediction
+  * Red → risky
+  * Yellow → medium
+
+---
+
+# 🚀 OUTPUT REQUIRED
+
+* Full Next.js frontend
+* Full FastAPI backend
+* Neon DB schema
+* Supabase auth integration
+* Referral system
+* Admin panel
+
+---
+
+# 💡 FINAL INSTRUCTION
+
+> Build a **high-converting betting-style prediction platform** that feels like a sportsbook but operates as an analytics SaaS.
+
+---
+
+# 🧠 Founder Insight (don’t ignore this)
+
+This design does one thing extremely well:
+
+👉 **Reduces learning curve to zero**
+
+Your users already understand:
+
+* odds
+* slips
+* match cards
+
+So adoption becomes instant.
+
+-

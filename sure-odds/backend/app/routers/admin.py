@@ -1,0 +1,107 @@
+from fastapi import APIRouter, Depends, HTTPException, Header
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from typing import List
+from app.core.database import get_db
+from app.models.models import User, Fixture, Prediction
+from app.services.fixtures_service import update_all_fixtures
+from app.services.results_service import update_results
+from app.services.prediction_engine import generate_prediction
+from app.core.config import settings
+from datetime import date
+from pydantic import BaseModel
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def verify_admin(x_admin_key: str = Header(None)):
+    if x_admin_key != settings.SECRET_KEY:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+
+class UserAdminOut(BaseModel):
+    id: str
+    email: str
+    isPaid: bool
+    createdAt: str
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/users", dependencies=[Depends(verify_admin)])
+async def list_users(db: Session = Depends(get_db)):
+    users = db.query(User).order_by(User.created_at.desc()).limit(100).all()
+    return [
+        {
+            "id": u.id,
+            "email": u.email,
+            "isPaid": u.subscription_status == "paid",
+            "createdAt": u.created_at.isoformat() if u.created_at else "",
+            "referralCode": u.referral_code,
+        }
+        for u in users
+    ]
+
+
+@router.get("/predictions", dependencies=[Depends(verify_admin)])
+async def list_predictions(db: Session = Depends(get_db)):
+    preds = (
+        db.query(Prediction, Fixture)
+        .join(Fixture, Prediction.fixture_id == Fixture.id)
+        .order_by(Fixture.kickoff.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        {
+            "id": p.id,
+            "fixture": f"{fix.home_team_name} vs {fix.away_team_name}",
+            "kickoff": fix.kickoff.isoformat(),
+            "bestPick": p.best_pick,
+            "confidence": p.confidence,
+            "isCorrect": p.is_correct,
+        }
+        for p, fix in preds
+    ]
+
+
+@router.post("/update-fixtures", dependencies=[Depends(verify_admin)])
+async def trigger_update_fixtures(db: Session = Depends(get_db)):
+    result = await update_all_fixtures(db)
+    return {"success": True, **result}
+
+
+@router.post("/run-predictions", dependencies=[Depends(verify_admin)])
+async def trigger_run_predictions(db: Session = Depends(get_db)):
+    today = date.today()
+    fixtures = (
+        db.query(Fixture)
+        .filter(func.date(Fixture.kickoff) == today, Fixture.status == "scheduled")
+        .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
+        .all()
+    )
+
+    created = 0
+    for fixture in fixtures:
+        try:
+            probabilities = await generate_prediction(
+                fixture.home_team_id,
+                fixture.away_team_id,
+                fixture.league_id,
+                fixture.season,
+            )
+            prediction = Prediction(fixture_id=fixture.id, **probabilities)
+            db.add(prediction)
+            created += 1
+        except Exception:
+            continue
+
+    db.commit()
+    return {"success": True, "predictions_created": created}
+
+
+@router.post("/update-results", dependencies=[Depends(verify_admin)])
+async def trigger_update_results(db: Session = Depends(get_db)):
+    result = await update_results(db)
+    return {"success": True, **result}
