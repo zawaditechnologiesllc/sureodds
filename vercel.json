@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "cd sure-odds/frontend && npm install && npm run build",
+  "outputDirectory": "sure-odds/frontend/.next",
+  "installCommand": "echo 'Skipping root install'"
+}
