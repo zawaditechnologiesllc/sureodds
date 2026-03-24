@@ -4,6 +4,7 @@ import { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileNav from "@/components/layout/MobileNav";
+import Footer from "@/components/layout/Footer";
 import MatchCard from "@/components/matches/MatchCard";
 import PredictionSlip from "@/components/matches/PredictionSlip";
 import type { Prediction, PredictionSlipItem } from "@/types";
@@ -159,6 +160,7 @@ export default function PredictionsPage() {
         />
       </div>
 
+      <Footer />
       <MobileNav />
       <div className="h-16 md:h-0" />
     </div>

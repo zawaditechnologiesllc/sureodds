@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   description:
     "Data-driven sports predictions with confidence ratings. Predictions, not bets.",
   keywords: "sports predictions, football predictions, sure odds, betting tips",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
   openGraph: {
     title: "Sure Odds",
     description: "Data-driven sports predictions",

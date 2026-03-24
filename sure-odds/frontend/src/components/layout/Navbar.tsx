@@ -29,22 +29,16 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-6">
-            <Link
-              href="/predictions"
-              className="text-sm text-gray-300 hover:text-white transition-colors font-medium"
-            >
+            <Link href="/predictions" className="text-sm text-gray-300 hover:text-white transition-colors font-medium">
               Predictions
             </Link>
-            <Link
-              href="/results"
-              className="text-sm text-gray-300 hover:text-white transition-colors font-medium"
-            >
+            <Link href="/results" className="text-sm text-gray-300 hover:text-white transition-colors font-medium">
               Results
             </Link>
-            <Link
-              href="/partner"
-              className="text-sm text-gray-300 hover:text-white transition-colors font-medium"
-            >
+            <Link href="/#pricing" className="text-sm text-gray-300 hover:text-white transition-colors font-medium">
+              Pricing
+            </Link>
+            <Link href="/partner" className="text-sm text-gray-300 hover:text-white transition-colors font-medium">
               Earn 30%
             </Link>
           </nav>
@@ -55,40 +49,26 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
               <div className="flex items-center gap-3">
                 <div className="hidden md:flex items-center gap-2 bg-brand-card border border-brand-border rounded px-3 py-1.5">
                   <TrendingUp className="w-3.5 h-3.5 text-brand-green" />
-                  <span className="text-brand-green font-bold text-sm">
-                    {user.accuracy}%
-                  </span>
+                  <span className="text-brand-green font-bold text-sm">{user.accuracy}%</span>
                   <span className="text-brand-muted text-xs">Accuracy</span>
                 </div>
-                <button
-                  onClick={onLogout}
-                  className="text-sm text-brand-muted hover:text-white transition-colors"
-                >
+                <button onClick={onLogout} className="text-sm text-brand-muted hover:text-white transition-colors">
                   Logout
                 </button>
               </div>
             ) : (
               <>
-                <Link
-                  href="/auth/login"
-                  className="hidden md:flex items-center gap-1.5 text-sm text-gray-300 hover:text-white transition-colors"
-                >
+                <Link href="/auth/login" className="hidden md:flex items-center gap-1.5 text-sm text-gray-300 hover:text-white transition-colors">
                   <LogIn className="w-4 h-4" />
                   Login
                 </Link>
-                <Link
-                  href="/auth/signup"
-                  className="bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-1.5 rounded transition-colors"
-                >
+                <Link href="/auth/signup" className="bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-1.5 rounded transition-colors">
                   Get Started
                 </Link>
               </>
             )}
 
-            <button
-              className="md:hidden text-gray-300"
-              onClick={() => setMobileOpen(!mobileOpen)}
-            >
+            <button className="md:hidden text-gray-300" onClick={() => setMobileOpen(!mobileOpen)}>
               {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
@@ -98,34 +78,24 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
       {/* Mobile Menu */}
       {mobileOpen && (
         <div className="md:hidden bg-brand-darker border-t border-brand-border">
-          <div className="px-4 py-3 flex flex-col gap-3">
-            <Link
-              href="/predictions"
-              className="text-sm text-gray-300 hover:text-white py-2"
-              onClick={() => setMobileOpen(false)}
-            >
-              Predictions
-            </Link>
-            <Link
-              href="/results"
-              className="text-sm text-gray-300 hover:text-white py-2"
-              onClick={() => setMobileOpen(false)}
-            >
-              Results
-            </Link>
-            <Link
-              href="/partner"
-              className="text-sm text-gray-300 hover:text-white py-2"
-              onClick={() => setMobileOpen(false)}
-            >
-              Earn 30% Commission
-            </Link>
-            {!user && (
+          <div className="px-4 py-3 flex flex-col gap-1">
+            {[
+              { href: "/predictions", label: "Predictions" },
+              { href: "/results", label: "Results" },
+              { href: "/#pricing", label: "Pricing" },
+              { href: "/partner", label: "Earn 30% Commission" },
+            ].map(({ href, label }) => (
               <Link
-                href="/auth/login"
-                className="text-sm text-gray-300 hover:text-white py-2"
+                key={href}
+                href={href}
+                className={cn("text-sm text-gray-300 hover:text-white py-2.5 border-b border-brand-border last:border-0")}
                 onClick={() => setMobileOpen(false)}
               >
+                {label}
+              </Link>
+            ))}
+            {!user && (
+              <Link href="/auth/login" className="text-sm text-gray-300 hover:text-white py-2.5" onClick={() => setMobileOpen(false)}>
                 Login
               </Link>
             )}
