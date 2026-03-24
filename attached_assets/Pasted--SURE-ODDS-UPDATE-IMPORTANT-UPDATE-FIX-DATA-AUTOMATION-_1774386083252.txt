@@ -1,0 +1,183 @@
+# 🔧 SURE ODDS — UPDATE
+
+> **IMPORTANT UPDATE — FIX DATA, AUTOMATION, AND PAYMENTS**
+>
+> The current system has the following issues:
+>
+> * It does NOT load past 5–7 days of match data
+> * It does NOT generate daily predictions automatically
+> * It relies on live API calls instead of cached database data
+>
+> These must be FIXED with the following implementation:
+
+---
+
+# 🧠 DATA STORAGE & HISTORY (MANDATORY)
+
+1. The backend must:
+
+   * Fetch and store **at least the last 7 days of completed matches**
+   * Fetch and store **upcoming fixtures (next 3–5 days)**
+
+2. Modify the fixtures table logic to:
+
+   * Prevent duplicates (use fixture_id as unique key)
+   * Store match status: `scheduled`, `finished`
+
+3. The frontend must:
+
+   * Display:
+
+     * **Today’s predictions (paid)**
+     * **Yesterday + past results (free)**
+
+---
+
+# 🔁 AUTOMATED DATA UPDATES (CRITICAL)
+
+Implement a background scheduler in FastAPI using:
+
+* `APScheduler` OR background thread
+
+---
+
+## ⏰ EVERY 6 HOURS:
+
+* Fetch fixtures (past + upcoming)
+* Update database
+* Do NOT overwrite existing valid records unnecessarily
+
+---
+
+## 🌅 DAILY (morning):
+
+* Run prediction engine
+* Store predictions in database
+
+---
+
+## 🌙 DAILY (night):
+
+* Fetch match results
+* Update:
+
+  * results table
+  * prediction_outcomes (won/lost)
+
+---
+
+# 🚫 DATABASE AS CACHE (STRICT RULE)
+
+* ALL frontend requests must read from database
+* NEVER call API-Football from frontend
+* Backend should ONLY call API-Football during scheduled jobs
+
+---
+
+# 🧠 PREDICTION ENGINE FIX
+
+Ensure:
+
+* Predictions are generated **once per day and stored**
+* Not recalculated on every request
+
+Add:
+
+```python
+if probability >= 0.7:
+    category = "high_confidence"
+```
+
+---
+
+# 💳 PAYMENTS — ADD PAYSTACK
+
+Integrate Paystack with:
+
+## Endpoints:
+
+* `/paystack/initialize`
+* `/paystack/verify`
+
+---
+
+## After successful payment:
+
+* If subscription:
+
+  * update user subscription status
+
+* If package:
+
+  * add credits to `user_packages`
+
+---
+
+# 🎯 PAY-AS-YOU-GO LOGIC
+
+Add support for:
+
+* 2 picks
+* 5 picks
+* 10 picks
+
+When user accesses a premium pick:
+
+```python
+if remaining_picks > 0:
+    allow_access
+    decrement
+else:
+    deny_access
+```
+
+---
+
+# ⚠️ PERFORMANCE FIXES
+
+* Do NOT fetch data on every request
+* Use indexed queries for fixtures and predictions
+* Load data by date range (today, yesterday, last 7 days)
+
+---
+
+# 🧪 ADMIN CONTROLS (ADD)
+
+Add endpoints:
+
+```bash
+/admin/run-update
+/admin/run-predictions
+/admin/run-results
+```
+
+These should manually trigger:
+
+* data fetch
+* predictions
+* results update
+
+---
+
+# 🔥 FINAL REQUIREMENT
+
+> The system must behave like a **fully automated prediction engine**:
+>
+> * updates every 6 hours
+> * generates predictions daily
+> * stores historical data
+> * supports Paystack payments
+> * serves data ONLY from database
+
+---
+
+# 🚀 WHAT THIS UPDATE FIXES
+
+* ✅ No more missing past data
+* ✅ No more empty predictions
+* ✅ No more live API dependency
+* ✅ Payments fully integrated
+* ✅ System becomes automated
+
+---
+
