@@ -4,6 +4,9 @@ from app.core.config import settings
 from app.core.database import Base, engine
 from app.routers import predictions, results, users, referrals, admin
 
+if settings.ENVIRONMENT == "production":
+    settings.validate_production()
+
 # Create tables
 Base.metadata.create_all(bind=engine)
 
