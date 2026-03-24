@@ -21,6 +21,9 @@ class Settings(BaseSettings):
         url = self.DATABASE_URL or os.environ.get("DATABASE_URL", "")
         if not url:
             raise ValueError("DATABASE_URL is not set.")
+        # SQLAlchemy requires "postgresql://" — Supabase/Heroku give "postgres://"
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
         return url
 
     @property

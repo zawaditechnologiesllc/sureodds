@@ -1,0 +1,50 @@
+2026-03-24T04:51:39.040110171Z     server.run()
+2026-03-24T04:51:39.040114612Z   File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 65, in run
+2026-03-24T04:51:39.040139103Z     return asyncio.run(self.serve(sockets=sockets))
+2026-03-24T04:51:39.040200347Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-24T04:51:39.040204657Z   File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
+2026-03-24T04:51:39.04073643Z     return runner.run(main)
+2026-03-24T04:51:39.04074119Z            ^^^^^^^^^^^^^^^^
+2026-03-24T04:51:39.04074579Z   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+2026-03-24T04:51:39.040846066Z     return self._loop.run_until_complete(task)
+2026-03-24T04:51:39.040853127Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-24T04:51:39.040856127Z   File "uvloop/loop.pyx", line 1518, in uvloop.loop.Loop.run_until_complete
+2026-03-24T04:51:39.041053309Z   File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 69, in serve
+2026-03-24T04:51:39.041158385Z     await self._serve(sockets)
+2026-03-24T04:51:39.041196348Z   File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 76, in _serve
+2026-03-24T04:51:39.041281813Z     config.load()
+2026-03-24T04:51:39.041285943Z   File "/usr/local/lib/python3.11/site-packages/uvicorn/config.py", line 434, in load
+2026-03-24T04:51:39.041429562Z     self.loaded_app = import_from_string(self.app)
+2026-03-24T04:51:39.041434192Z                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-24T04:51:39.041437212Z   File "/usr/local/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+2026-03-24T04:51:39.041531188Z     module = importlib.import_module(module_str)
+2026-03-24T04:51:39.041538438Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-24T04:51:39.041541379Z   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+2026-03-24T04:51:39.04205013Z     return _bootstrap._gcd_import(name[level:], package, level)
+2026-03-24T04:51:39.04205793Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-24T04:51:39.042071101Z   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+2026-03-24T04:51:39.042084102Z   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+2026-03-24T04:51:39.042087012Z   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+2026-03-24T04:51:39.042089552Z   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+2026-03-24T04:51:39.042091982Z   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+2026-03-24T04:51:39.042094512Z   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2026-03-24T04:51:39.042097372Z   File "/app/app/main.py", line 4, in <module>
+2026-03-24T04:51:39.042166227Z     from app.core.database import Base, engine
+2026-03-24T04:51:39.042170657Z   File "/app/app/core/database.py", line 12, in <module>
+2026-03-24T04:51:39.042266113Z     engine = create_engine(
+2026-03-24T04:51:39.042315726Z              ^^^^^^^^^^^^^^
+2026-03-24T04:51:39.042319716Z   File "<string>", line 2, in create_engine
+2026-03-24T04:51:39.042322806Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/deprecations.py", line 281, in warned
+2026-03-24T04:51:39.042373149Z     return fn(*args, **kwargs)  # type: ignore[no-any-return]
+2026-03-24T04:51:39.04237692Z            ^^^^^^^^^^^^^^^^^^^
+2026-03-24T04:51:39.04237966Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/create.py", line 550, in create_engine
+2026-03-24T04:51:39.042518508Z     entrypoint = u._get_entrypoint()
+2026-03-24T04:51:39.042523649Z                  ^^^^^^^^^^^^^^^^^^^
+2026-03-24T04:51:39.042527049Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/url.py", line 758, in _get_entrypoint
+2026-03-24T04:51:39.042728091Z     cls = registry.load(name)
+2026-03-24T04:51:39.042733291Z           ^^^^^^^^^^^^^^^^^^^
+2026-03-24T04:51:39.042736261Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py", line 375, in load
+2026-03-24T04:51:39.132682151Z     raise exc.NoSuchModuleError(
+2026-03-24T04:51:39.132707202Z sqlalchemy.exc.NoSuchModuleError: Can't load plugin: sqlalchemy.dialects:postgres
+2026-03-24T04:51:41.386580351Z ==> Exited with status 1
+2026-03-24T04:51:41.389530974Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
