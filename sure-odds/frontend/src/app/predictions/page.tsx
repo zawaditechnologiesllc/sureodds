@@ -108,11 +108,11 @@ export default function PredictionsPage() {
           {!loading && !error && predictions.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <CalendarX className="w-12 h-12 text-brand-border mb-4" />
-              <p className="text-white font-bold text-lg mb-1">No predictions yet</p>
-              <p className="text-brand-muted text-sm max-w-xs">
+              <p className="text-white font-bold text-lg mb-1">No matches scheduled</p>
+              <p className="text-brand-muted text-sm max-w-sm">
                 {filter === "today"
-                  ? "No predictions have been generated for today. Check back soon — our engine runs every morning."
-                  : "No predictions available for tomorrow yet. Check back later today."}
+                  ? "No fixtures found for today. This may be an international break or a rest day for the tracked leagues. Try switching to Tomorrow or check back later."
+                  : "No fixtures found for tomorrow yet. The schedule may not have been released, or there could be an international break. Check back later today."}
               </p>
             </div>
           )}

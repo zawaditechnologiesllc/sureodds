@@ -28,11 +28,13 @@ async def run_daily_pipeline():
         logger.info("Pipeline: updating fixtures...")
         await update_all_fixtures(db)
 
-        logger.info("Pipeline: generating predictions for today...")
+        logger.info("Pipeline: generating predictions for today and tomorrow...")
+        from datetime import timedelta
         today = date.today()
+        tomorrow = today + timedelta(days=1)
         fixtures_todo = (
             db.query(Fixture)
-            .filter(func.date(Fixture.kickoff) == today, Fixture.status == "scheduled")
+            .filter(func.date(Fixture.kickoff).in_([today, tomorrow]), Fixture.status == "scheduled")
             .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
             .all()
         )

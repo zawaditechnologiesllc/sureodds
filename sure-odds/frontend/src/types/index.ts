@@ -24,9 +24,10 @@ export interface Prediction {
   awayWinPct: number;
   over25Pct: number;
   bttsPct: number;
-  bestPick: "1" | "X" | "2" | "over25" | "btts";
-  confidence: "high" | "medium" | "low";
+  bestPick: "1" | "X" | "2" | "over25" | "btts" | "?";
+  confidence: "high" | "medium" | "low" | "computing";
   locked?: boolean;
+  computing?: boolean;
 }
 
 export interface PredictionResult {

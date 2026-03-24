@@ -53,22 +53,28 @@ export default function MatchCard({ prediction, onAddToSlip, selectedPick }: Mat
           <span className="text-xs text-brand-muted font-medium">{formatTime(match.kickoff)}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          {prediction.confidence === "high" && (
+          {prediction.confidence === "high" && !prediction.computing && (
             <span className="flex items-center gap-1 bg-green-950 text-brand-green text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-900">
               <Star className="w-2.5 h-2.5 fill-current" />
               BEST PICK
             </span>
           )}
-          <span
-            className={cn(
-              "text-xs font-bold px-2 py-0.5 rounded",
-              prediction.confidence === "high" && "bg-green-950 text-brand-green",
-              prediction.confidence === "medium" && "bg-yellow-950 text-brand-yellow",
-              prediction.confidence === "low" && "bg-orange-950 text-brand-orange"
-            )}
-          >
-            {prediction.confidence === "high" ? "HIGH" : prediction.confidence === "medium" ? "MED" : "LOW"}
-          </span>
+          {prediction.computing ? (
+            <span className="text-xs font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-400 animate-pulse">
+              COMPUTING
+            </span>
+          ) : (
+            <span
+              className={cn(
+                "text-xs font-bold px-2 py-0.5 rounded",
+                prediction.confidence === "high" && "bg-green-950 text-brand-green",
+                prediction.confidence === "medium" && "bg-yellow-950 text-brand-yellow",
+                prediction.confidence === "low" && "bg-orange-950 text-brand-orange"
+              )}
+            >
+              {prediction.confidence === "high" ? "HIGH" : prediction.confidence === "medium" ? "MED" : "LOW"}
+            </span>
+          )}
         </div>
       </div>
 
@@ -104,26 +110,26 @@ export default function MatchCard({ prediction, onAddToSlip, selectedPick }: Mat
             <button
               key={key}
               onClick={() => handlePick(key)}
-              disabled={prediction.locked}
+              disabled={prediction.locked || prediction.computing}
               className={cn(
                 "odds-btn relative",
                 localPick === key && "selected",
-                prediction.locked && "opacity-50 cursor-not-allowed blur-sm"
+                (prediction.locked || prediction.computing) && "opacity-50 cursor-not-allowed"
               )}
             >
-              {isBest(key) && !prediction.locked && (
+              {isBest(key) && !prediction.locked && !prediction.computing && (
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-brand-green rounded-full" />
               )}
               <span className="label">{subLabel}</span>
               <span className="value">
-                {prediction.locked ? "?" : getOddsFromProbability(pct)}
+                {prediction.locked || prediction.computing ? "?" : getOddsFromProbability(pct)}
               </span>
             </button>
           ))}
         </div>
 
         {/* Additional Markets */}
-        {!prediction.locked && (
+        {!prediction.locked && !prediction.computing && (
           <div className="grid grid-cols-2 gap-1.5 mt-2">
             <button
               onClick={() => handlePick("over25")}
