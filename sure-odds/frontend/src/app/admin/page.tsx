@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
-import { supabase } from "@/lib/supabase";
 import {
   RefreshCw,
   Users,
@@ -84,13 +82,6 @@ export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>("overview");
   const [applications, setApplications] = useState<PartnerApplication[]>(MOCK_APPLICATIONS);
   const [viewingApp, setViewingApp] = useState<PartnerApplication | null>(null);
-  const [session, setSession] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(!!data.session);
-    });
-  }, []);
 
   const [fixturesStatus, setFixturesStatus] = useState<ActionStatus>("idle");
   const [predictionsStatus, setPredictionsStatus] = useState<ActionStatus>("idle");
@@ -122,41 +113,6 @@ export default function AdminPage() {
   };
 
   const pendingCount = applications.filter((a) => a.status === "pending").length;
-
-  if (session === false) {
-    return (
-      <div className="min-h-screen bg-brand-dark flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-14 h-14 bg-red-950 border border-red-900 rounded-xl flex items-center justify-center mx-auto mb-5">
-            <AlertCircle className="w-7 h-7 text-brand-red" />
-          </div>
-          <h1 className="text-white font-black text-2xl mb-2">Admin Access Required</h1>
-          <p className="text-brand-muted text-sm mb-6">
-            You need to be logged in to access the admin panel.
-          </p>
-          <Link
-            href="/auth/login"
-            className="inline-flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold px-8 py-3.5 rounded-lg transition-colors"
-          >
-            Login to Admin
-          </Link>
-          <div className="mt-4">
-            <Link href="/" className="text-brand-muted text-sm hover:text-white transition-colors">
-              ← Back to home
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (session === null) {
-    return (
-      <div className="min-h-screen bg-brand-dark flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-brand-dark">
