@@ -1,0 +1,42 @@
+2026-03-24T02:35:16.052813026Z ==> Downloading cache...
+2026-03-24T02:35:16.091084301Z ==> Cloning from https://github.com/zawaditechnologiesllc/sureodds
+2026-03-24T02:35:16.658401217Z ==> Checking out commit 9f0d6f69ddc47ef173b5ca9f6137ab1ffe928250 in branch master
+2026-03-24T02:35:32.72340846Z ==> Downloaded 194MB in 4s. Extraction took 12s.
+2026-03-24T02:35:36.208880075Z ==> Using Node.js version 22.22.0 (default)
+2026-03-24T02:35:36.233549486Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-03-24T02:35:36.359167193Z ==> Running build command 'pnpm install --frozen-lockfile; pnpm run build'...
+2026-03-24T02:35:38.549619026Z 
+2026-03-24T02:35:38.549644557Z > workspace@0.0.0 build /opt/render/project/src
+2026-03-24T02:35:38.549648857Z > pnpm run typecheck && pnpm -r --if-present run build && pip install -r sure-odds/backend/requirements.txt
+2026-03-24T02:35:38.549651678Z 
+2026-03-24T02:35:38.862678009Z 
+2026-03-24T02:35:38.86269938Z > workspace@0.0.0 typecheck /opt/render/project/src
+2026-03-24T02:35:38.8627029Z > pnpm run typecheck:libs && pnpm -r --filter "./artifacts/**" --filter "./scripts" --if-present run typecheck
+2026-03-24T02:35:38.86270502Z 
+2026-03-24T02:35:39.181120772Z 
+2026-03-24T02:35:39.181143892Z > workspace@0.0.0 typecheck:libs /opt/render/project/src
+2026-03-24T02:35:39.181147232Z > tsc --build
+2026-03-24T02:35:39.181149803Z 
+2026-03-24T02:36:15.912524017Z error: externally-managed-environment
+2026-03-24T02:36:15.912544047Z 
+2026-03-24T02:36:15.912549317Z × This environment is externally managed
+2026-03-24T02:36:15.912554507Z ╰─> To install Python packages system-wide, try apt install
+2026-03-24T02:36:15.912558607Z     python3-xyz, where xyz is the package you are trying to
+2026-03-24T02:36:15.912563238Z     install.
+2026-03-24T02:36:15.912567358Z     
+2026-03-24T02:36:15.912571418Z     If you wish to install a non-Debian-packaged Python package,
+2026-03-24T02:36:15.912576148Z     create a virtual environment using python3 -m venv path/to/venv.
+2026-03-24T02:36:15.912580328Z     Then use path/to/venv/bin/python and path/to/venv/bin/pip. Make
+2026-03-24T02:36:15.912584608Z     sure you have python3-full installed.
+2026-03-24T02:36:15.912588778Z     
+2026-03-24T02:36:15.912592908Z     If you wish to install a non-Debian packaged Python application,
+2026-03-24T02:36:15.912597528Z     it may be easiest to use pipx install xyz, which will manage a
+2026-03-24T02:36:15.912601509Z     virtual environment for you. Make sure you have pipx installed.
+2026-03-24T02:36:15.912605719Z     
+2026-03-24T02:36:15.912609869Z     See /usr/share/doc/python3.11/README.venv for more information.
+2026-03-24T02:36:15.912613739Z 
+2026-03-24T02:36:15.912618779Z note: If you believe this is a mistake, please contact your Python installation or OS distribution provider. You can override this, at the risk of breaking your Python installation or OS, by passing --break-system-packages.
+2026-03-24T02:36:15.912622829Z hint: See PEP 668 for the detailed specification.
+2026-03-24T02:36:15.967096566Z  ELIFECYCLE  Command failed with exit code 1.
+2026-03-24T02:36:16.025960317Z ==> Build failed 😞
+2026-03-24T02:36:16.025976737Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
