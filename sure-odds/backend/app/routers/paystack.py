@@ -42,10 +42,10 @@ class VerifyRequest(BaseModel):
 
 
 def get_paystack_headers():
-    if not settings.PAYSTACK_SECRET_KEY:
+    if not settings.paystack_secret_key:
         raise HTTPException(status_code=503, detail="Payment service not configured")
     return {
-        "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+        "Authorization": f"Bearer {settings.paystack_secret_key}",
         "Content-Type": "application/json",
     }
 

@@ -11,8 +11,12 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = "placeholder-service-role-key"
     API_FOOTBALL_KEY: str = ""
 
-    PAYSTACK_SECRET_KEY: str = ""
+    LIVE_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = "pk_live_9c64461a7ca5eb52276189daf930f00dc7e24a6d"
+
+    @property
+    def paystack_secret_key(self) -> str:
+        return self.LIVE_SECRET_KEY
 
     SECRET_KEY: str = secrets.token_hex(32)
     ENVIRONMENT: str = "development"
@@ -42,8 +46,8 @@ class Settings(BaseSettings):
             errors.append("SUPABASE_SERVICE_ROLE_KEY")
         if not self.API_FOOTBALL_KEY:
             errors.append("API_FOOTBALL_KEY")
-        if not self.PAYSTACK_SECRET_KEY:
-            errors.append("PAYSTACK_SECRET_KEY")
+        if not self.LIVE_SECRET_KEY:
+            errors.append("LIVE_SECRET_KEY")
         if errors:
             raise EnvironmentError(
                 f"Missing required environment variables: {', '.join(errors)}"
