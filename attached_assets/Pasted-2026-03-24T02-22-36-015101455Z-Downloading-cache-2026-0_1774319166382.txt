@@ -1,0 +1,30 @@
+2026-03-24T02:22:36.015101455Z ==> Downloading cache...
+2026-03-24T02:22:36.054761809Z ==> Cloning from https://github.com/zawaditechnologiesllc/sureodds
+2026-03-24T02:22:36.637521504Z ==> Checking out commit ebec14c5dbde10010d36fd7ba908f593e66fc46a in branch master
+2026-03-24T02:22:52.643539909Z ==> Downloaded 194MB in 1s. Extraction took 15s.
+2026-03-24T02:22:55.359150307Z ==> Using Node.js version 22.22.0 (default)
+2026-03-24T02:22:55.384646841Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-03-24T02:22:55.512097007Z ==> Running build command 'pnpm install --frozen-lockfile; pnpm run build'...
+2026-03-24T02:22:57.757948362Z 
+2026-03-24T02:22:57.757974923Z > workspace@0.0.0 build /opt/render/project/src
+2026-03-24T02:22:57.757978984Z > pnpm run typecheck && pnpm -r --if-present run build
+2026-03-24T02:22:57.757981594Z 
+2026-03-24T02:22:58.130888541Z 
+2026-03-24T02:22:58.130904272Z > workspace@0.0.0 typecheck /opt/render/project/src
+2026-03-24T02:22:58.130907562Z > pnpm run typecheck:libs && pnpm -r --filter "./artifacts/**" --filter "./scripts" --if-present run typecheck
+2026-03-24T02:22:58.130914112Z 
+2026-03-24T02:22:58.481407459Z 
+2026-03-24T02:22:58.4814338Z > workspace@0.0.0 typecheck:libs /opt/render/project/src
+2026-03-24T02:22:58.481438571Z > tsc --build
+2026-03-24T02:22:58.481442751Z 
+2026-03-24T02:23:50.820823652Z ==> Uploading build...
+2026-03-24T02:24:05.797495884Z ==> Uploaded in 6.9s. Compression took 8.0s
+2026-03-24T02:24:05.864348512Z ==> Build successful 🎉
+2026-03-24T02:24:08.461155731Z ==> Deploying...
+2026-03-24T02:24:08.525095397Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-03-24T02:24:44.879278959Z ==> Running 'uvicorn app.main:app --host 0.0.0.0 --port $PORT'
+2026-03-24T02:24:44.967774835Z bash: line 1: uvicorn: command not found
+2026-03-24T02:24:46.446968891Z ==> Exited with status 127
+2026-03-24T02:24:46.450407636Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+2026-03-24T02:24:52.212246281Z ==> Running 'uvicorn app.main:app --host 0.0.0.0 --port $PORT'
+2026-03-24T02:24:52.219073394Z bash: line 1: uvicorn: command not found

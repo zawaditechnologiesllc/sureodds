@@ -1,9 +1,9 @@
 services:
   - type: web
     name: sure-odds-api
-    runtime: docker
-    rootDir: sure-odds/backend
-    dockerfilePath: ./Dockerfile
+    runtime: node
+    buildCommand: pnpm install --frozen-lockfile && pnpm run build
+    startCommand: bash start.sh
     envVars:
       - key: O_DATABASE_URL
         sync: false
