@@ -1,6 +1,3 @@
-# The active render.yaml is at the repository root.
-# Render reads from the repo root, so configuration lives there.
-# This file is kept for reference only.
 services:
   - type: web
     name: sure-odds-api
