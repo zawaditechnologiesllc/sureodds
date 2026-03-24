@@ -1,3 +1,3 @@
 #!/bin/bash
-cd sure-odds/backend
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
+cd /opt/render/project/src/sure-odds/backend
+python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT

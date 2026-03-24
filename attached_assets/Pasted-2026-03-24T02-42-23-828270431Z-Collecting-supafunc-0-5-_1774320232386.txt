@@ -1,0 +1,100 @@
+2026-03-24T02:42:23.828270431Z Collecting supafunc<0.5.0,>=0.3.1
+2026-03-24T02:42:23.83834493Z   Downloading supafunc-0.4.7-py3-none-any.whl (6.2 kB)
+2026-03-24T02:42:23.86611854Z Requirement already satisfied: six>=1.4.0 in /usr/lib/python3/dist-packages (from apscheduler==3.10.4->-r sure-odds/backend/requirements.txt (line 15)) (1.16.0)
+2026-03-24T02:42:23.919560785Z Collecting pytz
+2026-03-24T02:42:23.930434078Z   Downloading pytz-2026.1.post1-py2.py3-none-any.whl (510 kB)
+2026-03-24T02:42:23.942026633Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 510.5/510.5 kB 53.2 MB/s eta 0:00:00
+2026-03-24T02:42:23.973231468Z Collecting tzlocal!=3.*,>=2.0
+2026-03-24T02:42:23.982081109Z   Downloading tzlocal-5.3.1-py3-none-any.whl (18 kB)
+2026-03-24T02:42:24.129216612Z Collecting dnspython>=2.0.0
+2026-03-24T02:42:24.138536417Z   Downloading dnspython-2.8.0-py3-none-any.whl (331 kB)
+2026-03-24T02:42:24.146313425Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 331.1/331.1 kB 54.8 MB/s eta 0:00:00
+2026-03-24T02:42:24.192700104Z Collecting typer>=0.16.0
+2026-03-24T02:42:24.201526595Z   Downloading typer-0.24.1-py3-none-any.whl (56 kB)
+2026-03-24T02:42:24.205916709Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 56.1/56.1 kB 17.1 MB/s eta 0:00:00
+2026-03-24T02:42:24.237712262Z Collecting rich-toolkit>=0.14.8
+2026-03-24T02:42:24.2464784Z   Downloading rich_toolkit-0.19.7-py3-none-any.whl (32 kB)
+2026-03-24T02:42:24.265670988Z Collecting httpx[http2]<0.29,>=0.26
+2026-03-24T02:42:24.275347024Z   Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+2026-03-24T02:42:24.279842671Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 73.5/73.5 kB 21.7 MB/s eta 0:00:00
+2026-03-24T02:42:24.324394585Z Collecting pyjwt<3.0.0,>=2.10.1
+2026-03-24T02:42:24.334890986Z   Downloading pyjwt-2.12.1-py3-none-any.whl (29 kB)
+2026-03-24T02:42:24.45361589Z Collecting MarkupSafe>=2.0
+2026-03-24T02:42:24.462827822Z   Downloading markupsafe-3.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (22 kB)
+2026-03-24T02:42:24.497434201Z Collecting deprecation<3.0.0,>=2.1.0
+2026-03-24T02:42:24.506266371Z   Downloading deprecation-2.1.0-py2.py3-none-any.whl (11 kB)
+2026-03-24T02:42:24.519059183Z Collecting httpx[http2]<0.29,>=0.26
+2026-03-24T02:42:24.527720958Z   Downloading httpx-0.27.2-py3-none-any.whl (76 kB)
+2026-03-24T02:42:24.53205145Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 76.4/76.4 kB 25.7 MB/s eta 0:00:00
+2026-03-24T02:42:24.571846668Z Collecting strenum<0.5.0,>=0.4.9
+2026-03-24T02:42:24.580354088Z   Downloading StrEnum-0.4.15-py3-none-any.whl (8.9 kB)
+2026-03-24T02:42:24.619874918Z Collecting python-dateutil<3.0.0,>=2.8.1
+2026-03-24T02:42:24.628688488Z   Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+2026-03-24T02:42:24.635171676Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 229.9/229.9 kB 47.7 MB/s eta 0:00:00
+2026-03-24T02:42:24.648586587Z Collecting websockets>=10.4
+2026-03-24T02:42:24.658768058Z   Downloading websockets-12.0-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (130 kB)
+2026-03-24T02:42:24.663884235Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 130.9/130.9 kB 36.0 MB/s eta 0:00:00
+2026-03-24T02:42:24.859527512Z Requirement already satisfied: packaging in /usr/lib/python3/dist-packages (from deprecation<3.0.0,>=2.1.0->postgrest<0.17.0,>=0.14->supabase==2.5.3->-r sure-odds/backend/requirements.txt (line 12)) (23.0)
+2026-03-24T02:42:24.898394832Z Collecting httpx[http2]<0.29,>=0.26
+2026-03-24T02:42:24.910711189Z   Downloading httpx-0.27.1-py3-none-any.whl (76 kB)
+2026-03-24T02:42:24.915756463Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 76.4/76.4 kB 21.0 MB/s eta 0:00:00
+2026-03-24T02:42:24.957447919Z Collecting h2<5,>=3
+2026-03-24T02:42:24.966470995Z   Downloading h2-4.3.0-py3-none-any.whl (61 kB)
+2026-03-24T02:42:24.97087683Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 61.8/61.8 kB 19.0 MB/s eta 0:00:00
+2026-03-24T02:42:25.048092453Z Collecting click>=7.0
+2026-03-24T02:42:25.057909144Z   Downloading click-8.3.1-py3-none-any.whl (108 kB)
+2026-03-24T02:42:25.062921777Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 108.3/108.3 kB 31.1 MB/s eta 0:00:00
+2026-03-24T02:42:25.138114438Z Collecting rich>=13.7.1
+2026-03-24T02:42:25.14861886Z   Downloading rich-14.3.3-py3-none-any.whl (310 kB)
+2026-03-24T02:42:25.15550587Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 310.5/310.5 kB 59.4 MB/s eta 0:00:00
+2026-03-24T02:42:25.221222412Z Collecting shellingham>=1.3.0
+2026-03-24T02:42:25.22999165Z   Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+2026-03-24T02:42:25.260435202Z Collecting annotated-doc>=0.0.2
+2026-03-24T02:42:25.269389856Z   Downloading annotated_doc-0.0.4-py3-none-any.whl (5.3 kB)
+2026-03-24T02:42:25.316011363Z Collecting hyperframe<7,>=6.1
+2026-03-24T02:42:25.324815542Z   Downloading hyperframe-6.1.0-py3-none-any.whl (13 kB)
+2026-03-24T02:42:25.350690074Z Collecting hpack<5,>=4.1
+2026-03-24T02:42:25.360596467Z   Downloading hpack-4.1.0-py3-none-any.whl (34 kB)
+2026-03-24T02:42:25.408426011Z Collecting markdown-it-py>=2.2.0
+2026-03-24T02:42:25.418253832Z   Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+2026-03-24T02:42:25.423078369Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 87.3/87.3 kB 26.5 MB/s eta 0:00:00
+2026-03-24T02:42:25.459418762Z Collecting pygments<3.0.0,>=2.13.0
+2026-03-24T02:42:25.468065846Z   Downloading pygments-2.19.2-py3-none-any.whl (1.2 MB)
+2026-03-24T02:42:25.490310547Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 59.5 MB/s eta 0:00:00
+2026-03-24T02:42:25.572863003Z Collecting mdurl~=0.1
+2026-03-24T02:42:25.581938461Z   Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+2026-03-24T02:42:26.242323122Z Installing collected packages: strenum, pytz, websockets, uvloop, tzlocal, typing-extensions, sniffio, shellingham, schedule, rsa, pyyaml, python-multipart, python-dotenv, python-dateutil, pyjwt, pygments, psycopg2-binary, orjson, mdurl, MarkupSafe, hyperframe, httptools, hpack, h11, greenlet, dnspython, deprecation, click, annotated-types, annotated-doc, uvicorn, sqlalchemy, realtime, python-jose, pydantic-core, markdown-it-py, Mako, jinja2, httpcore, h2, email_validator, apscheduler, anyio, watchfiles, starlette, rich, pydantic, httpx, alembic, typer, rich-toolkit, pydantic-settings, supafunc, storage3, postgrest, gotrue, fastapi-cli, supabase, fastapi
+2026-03-24T02:42:26.579827451Z   WARNING: The scripts pyrsa-decrypt, pyrsa-encrypt, pyrsa-keygen, pyrsa-priv2pub, pyrsa-sign and pyrsa-verify are installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:26.579849861Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:26.658171258Z   WARNING: The script dotenv is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:26.658188499Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:27.208557513Z   WARNING: The script pygmentize is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:27.208579623Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:27.748013332Z   WARNING: The script uvicorn is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:27.748040033Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:28.601395809Z   WARNING: The script markdown-it is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:28.60141537Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:28.648721238Z   WARNING: The script mako-render is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:28.648732258Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:28.804808014Z   WARNING: The script email_validator is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:28.804824665Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:28.941350483Z   WARNING: The script watchfiles is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:28.941366384Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:29.393029096Z   WARNING: The script httpx is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:29.393047727Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:29.505132758Z   WARNING: The script alembic is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:29.505148318Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:29.540896942Z   WARNING: The script typer is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:29.540909582Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:29.707971135Z   WARNING: The script tests is installed in '/opt/render/.local/bin' which is not on PATH.
+2026-03-24T02:42:29.707986616Z   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2026-03-24T02:42:30.174379709Z Successfully installed Mako-1.3.10 MarkupSafe-3.0.3 alembic-1.13.2 annotated-doc-0.0.4 annotated-types-0.7.0 anyio-4.12.1 apscheduler-3.10.4 click-8.3.1 deprecation-2.1.0 dnspython-2.8.0 email_validator-2.3.0 fastapi-0.111.0 fastapi-cli-0.0.24 gotrue-2.12.4 greenlet-3.3.2 h11-0.16.0 h2-4.3.0 hpack-4.1.0 httpcore-1.0.9 httptools-0.7.1 httpx-0.27.0 hyperframe-6.1.0 jinja2-3.1.6 markdown-it-py-4.0.0 mdurl-0.1.2 orjson-3.11.7 postgrest-0.16.11 psycopg2-binary-2.9.9 pydantic-2.8.2 pydantic-core-2.20.1 pydantic-settings-2.3.4 pygments-2.19.2 pyjwt-2.12.1 python-dateutil-2.9.0.post0 python-dotenv-1.0.1 python-jose-3.3.0 python-multipart-0.0.9 pytz-2026.1.post1 pyyaml-6.0.3 realtime-1.0.6 rich-14.3.3 rich-toolkit-0.19.7 rsa-4.9.1 schedule-1.2.2 shellingham-1.5.4 sniffio-1.3.1 sqlalchemy-2.0.31 starlette-0.37.2 storage3-0.7.7 strenum-0.4.15 supabase-2.5.3 supafunc-0.4.7 typer-0.24.1 typing-extensions-4.15.0 tzlocal-5.3.1 uvicorn-0.30.1 uvloop-0.22.1 watchfiles-1.1.1 websockets-12.0
+2026-03-24T02:42:31.808795159Z ==> Uploading build...
+2026-03-24T02:42:45.760695386Z ==> Uploaded in 7.5s. Compression took 6.4s
+2026-03-24T02:42:45.807928121Z ==> Build successful 🎉
+2026-03-24T02:42:48.467061891Z ==> Deploying...
+2026-03-24T02:42:48.536175858Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-03-24T02:43:25.375350365Z ==> Running 'bash start.sh'
+2026-03-24T02:43:25.38244356Z bash: start.sh: No such file or directory
+2026-03-24T02:43:30.00828891Z ==> Exited with status 127
+2026-03-24T02:43:30.011651062Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
