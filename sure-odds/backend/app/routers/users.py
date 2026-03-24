@@ -3,14 +3,21 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.models import User
 from app.core.config import settings
-from supabase import create_client
 from pydantic import BaseModel
 import secrets
 import string
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+_supabase_client = None
+
+
+def get_supabase_client():
+    global _supabase_client
+    if _supabase_client is None:
+        from supabase import create_client
+        _supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+    return _supabase_client
 
 
 def generate_referral_code(length=8) -> str:
@@ -27,6 +34,7 @@ async def get_current_user(
 
     token = authorization.split(" ")[1]
     try:
+        supabase = get_supabase_client()
         user_response = supabase.auth.get_user(token)
         supabase_user = user_response.user
     except Exception:
