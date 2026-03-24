@@ -5,7 +5,6 @@ import secrets
 
 
 class Settings(BaseSettings):
-    O_DATABASE_URL: Optional[str] = None
     DATABASE_URL: Optional[str] = None
 
     SUPABASE_URL: str = "https://placeholder.supabase.co"
@@ -19,9 +18,9 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        url = self.O_DATABASE_URL or self.DATABASE_URL or os.environ.get("DATABASE_URL", "")
+        url = self.DATABASE_URL or os.environ.get("DATABASE_URL", "")
         if not url:
-            raise ValueError("No database URL configured. Set DATABASE_URL.")
+            raise ValueError("DATABASE_URL is not set.")
         return url
 
     @property
@@ -29,17 +28,19 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
 
     def validate_production(self):
-        """Call this on startup in production to catch missing env vars early."""
+        """Fail fast on startup in production if any required env var is missing."""
         errors = []
+        if not self.DATABASE_URL:
+            errors.append("DATABASE_URL")
         if "placeholder" in self.SUPABASE_URL:
-            errors.append("SUPABASE_URL is not set")
+            errors.append("SUPABASE_URL")
         if "placeholder" in self.SUPABASE_SERVICE_ROLE_KEY:
-            errors.append("SUPABASE_SERVICE_ROLE_KEY is not set")
+            errors.append("SUPABASE_SERVICE_ROLE_KEY")
         if not self.API_FOOTBALL_KEY:
-            errors.append("API_FOOTBALL_KEY is not set")
+            errors.append("API_FOOTBALL_KEY")
         if errors:
             raise EnvironmentError(
-                f"Missing required environment variables for production: {', '.join(errors)}"
+                f"Missing required environment variables: {', '.join(errors)}"
             )
 
     class Config:

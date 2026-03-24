@@ -3,7 +3,19 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
-engine = create_engine(settings.database_url)
+_connect_args = (
+    {"sslmode": "require"}
+    if settings.ENVIRONMENT == "production"
+    else {}
+)
+
+engine = create_engine(
+    settings.database_url,
+    connect_args=_connect_args,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
