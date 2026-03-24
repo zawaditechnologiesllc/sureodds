@@ -1,0 +1,100 @@
+2026-03-24T22:34:11.091126531Z #3 [auth] library/python:pull render-prod/docker-mirror-repository/library/python:pull token for us-west1-docker.pkg.dev
+2026-03-24T22:34:11.091130931Z #3 DONE 0.0s
+2026-03-24T22:34:11.240300548Z 
+2026-03-24T22:34:11.24033664Z #2 [internal] load metadata for docker.io/library/python:3.11-slim
+2026-03-24T22:34:11.310932821Z #2 DONE 0.6s
+2026-03-24T22:34:11.511856286Z 
+2026-03-24T22:34:11.511893218Z #4 [internal] load .dockerignore
+2026-03-24T22:34:11.511897179Z #4 transferring context: 2B done
+2026-03-24T22:34:11.511900179Z #4 DONE 0.0s
+2026-03-24T22:34:11.511903079Z 
+2026-03-24T22:34:11.511906769Z #5 importing cache manifest from local:4123983679045977796
+2026-03-24T22:34:11.511910679Z #5 inferred cache manifest type: application/vnd.oci.image.manifest.v1+json done
+2026-03-24T22:34:11.511913549Z #5 DONE 0.0s
+2026-03-24T22:34:11.51191602Z 
+2026-03-24T22:34:11.51191937Z #6 [1/5] FROM docker.io/library/python:3.11-slim@sha256:9358444059ed78e2975ada2c189f1c1a3144a5dab6f35bff8c981afb38946634
+2026-03-24T22:34:11.51192262Z #6 resolve docker.io/library/python:3.11-slim@sha256:9358444059ed78e2975ada2c189f1c1a3144a5dab6f35bff8c981afb38946634 0.0s done
+2026-03-24T22:34:11.51192557Z #6 DONE 0.0s
+2026-03-24T22:34:11.51192852Z 
+2026-03-24T22:34:11.51193137Z #7 [internal] load build context
+2026-03-24T22:34:11.511935031Z #7 transferring context: 61.68kB done
+2026-03-24T22:34:11.511937951Z #7 DONE 0.0s
+2026-03-24T22:34:11.511941571Z 
+2026-03-24T22:34:11.511945001Z #8 [2/5] WORKDIR /app
+2026-03-24T22:34:11.511947651Z #8 CACHED
+2026-03-24T22:34:11.511950202Z 
+2026-03-24T22:34:11.511953042Z #9 [3/5] COPY requirements.txt .
+2026-03-24T22:34:11.511955852Z #9 CACHED
+2026-03-24T22:34:11.511958452Z 
+2026-03-24T22:34:11.511961472Z #10 [4/5] RUN pip install --no-cache-dir -r requirements.txt
+2026-03-24T22:34:11.515911377Z #10 sha256:ec781dee3f4719c2ca0dd9e73cb1d4ed834ed1a406495eb6e44b6dfaad5d1f8f 26.21MB / 29.78MB 0.2s
+2026-03-24T22:34:11.730953676Z #10 sha256:ec781dee3f4719c2ca0dd9e73cb1d4ed834ed1a406495eb6e44b6dfaad5d1f8f 29.78MB / 29.78MB 0.2s done
+2026-03-24T22:34:11.730978338Z #10 extracting sha256:ec781dee3f4719c2ca0dd9e73cb1d4ed834ed1a406495eb6e44b6dfaad5d1f8f
+2026-03-24T22:34:12.441458568Z #10 extracting sha256:ec781dee3f4719c2ca0dd9e73cb1d4ed834ed1a406495eb6e44b6dfaad5d1f8f 0.9s done
+2026-03-24T22:34:12.631844552Z #10 sha256:6944007a5b45fe41656cd72b1691b1419bf9d39641e7afbc937f3a3abd07e575 1.29MB / 1.29MB 0.0s done
+2026-03-24T22:34:12.631869544Z #10 extracting sha256:6944007a5b45fe41656cd72b1691b1419bf9d39641e7afbc937f3a3abd07e575
+2026-03-24T22:34:12.827363019Z #10 extracting sha256:6944007a5b45fe41656cd72b1691b1419bf9d39641e7afbc937f3a3abd07e575 0.3s done
+2026-03-24T22:34:12.964872022Z #10 sha256:e35b92e2619d5152fbb45e6ccb02dbb1007c5784ad19a5e235bf05ca6e226a88 14.37MB / 14.37MB 0.1s done
+2026-03-24T22:34:13.120999715Z #10 extracting sha256:e35b92e2619d5152fbb45e6ccb02dbb1007c5784ad19a5e235bf05ca6e226a88
+2026-03-24T22:34:13.791090094Z #10 extracting sha256:e35b92e2619d5152fbb45e6ccb02dbb1007c5784ad19a5e235bf05ca6e226a88 0.8s done
+2026-03-24T22:34:13.896811697Z #10 sha256:7524aba74b8cc45ff3cf2f089fd9a638dfd58b001763194d0819c8d7c75d598f 250B / 250B done
+2026-03-24T22:34:13.896828908Z #10 extracting sha256:7524aba74b8cc45ff3cf2f089fd9a638dfd58b001763194d0819c8d7c75d598f 0.0s done
+2026-03-24T22:34:13.896840978Z #10 sha256:9d3863b18cf92b3de0117016151529b4a5d06ed1b958f0e67225d4d0160e644e 89B / 89B done
+2026-03-24T22:34:13.896843249Z #10 extracting sha256:9d3863b18cf92b3de0117016151529b4a5d06ed1b958f0e67225d4d0160e644e 0.0s done
+2026-03-24T22:34:13.896845349Z #10 sha256:a6f9726a42ed95282c6c59f4324c0483a9627fe5788038aa699f036fef071fbe 339B / 339B done
+2026-03-24T22:34:14.080433836Z #10 extracting sha256:a6f9726a42ed95282c6c59f4324c0483a9627fe5788038aa699f036fef071fbe 0.0s done
+2026-03-24T22:34:14.084089904Z #10 sha256:1545bd54e49f19316dbb39780f423c3f1869b2f7f3cfdee2bbae967fe789277c 33.55MB / 41.21MB 0.2s
+2026-03-24T22:34:14.322223839Z #10 sha256:1545bd54e49f19316dbb39780f423c3f1869b2f7f3cfdee2bbae967fe789277c 41.21MB / 41.21MB 0.2s done
+2026-03-24T22:34:14.32224636Z #10 extracting sha256:1545bd54e49f19316dbb39780f423c3f1869b2f7f3cfdee2bbae967fe789277c
+2026-03-24T22:34:16.617124019Z #10 extracting sha256:1545bd54e49f19316dbb39780f423c3f1869b2f7f3cfdee2bbae967fe789277c 2.4s done
+2026-03-24T22:34:16.727429792Z #10 CACHED
+2026-03-24T22:34:16.727453324Z 
+2026-03-24T22:34:16.727458974Z #11 [5/5] COPY . .
+2026-03-24T22:34:16.727463145Z #11 DONE 0.0s
+2026-03-24T22:34:16.727466975Z 
+2026-03-24T22:34:16.727471895Z #12 exporting to docker image format
+2026-03-24T22:34:16.727476935Z #12 exporting layers 0.1s done
+2026-03-24T22:34:16.906950348Z #12 exporting manifest sha256:ece1c02b37a69280416129b10ad2728be2cedc502daa8f0fc2cf59dfc6a73316 done
+2026-03-24T22:34:16.907254776Z #12 exporting config sha256:53d74d3323b381821716c83aa54d980b13b56ec8ec0e261e86f0c1a13f550c46 0.0s done
+2026-03-24T22:34:17.268394066Z #12 DONE 0.6s
+2026-03-24T22:34:17.268558286Z 
+2026-03-24T22:34:17.268723365Z #13 exporting cache to client directory
+2026-03-24T22:34:17.268762758Z #13 preparing build cache for export
+2026-03-24T22:34:17.364761926Z #13 writing cache image manifest sha256:eecb15a3d128c3c542fe982e86c0fd0a5dfa942838b198f711c376847b8ce831 done
+2026-03-24T22:34:17.364783987Z #13 DONE 0.1s
+2026-03-24T22:34:18.577949411Z Pushing image to registry...
+2026-03-24T22:34:20.109922074Z Upload succeeded
+2026-03-24T22:34:22.464865296Z ==> Deploying...
+2026-03-24T22:34:22.551941155Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-03-24T22:34:35.484467635Z INFO:     Started server process [7]
+2026-03-24T22:34:35.484522596Z INFO:     Waiting for application startup.
+2026-03-24T22:34:36.938475234Z ERROR:    Traceback (most recent call last):
+2026-03-24T22:34:36.938498994Z   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 732, in lifespan
+2026-03-24T22:34:36.938504354Z     async with self.lifespan_context(app) as maybe_state:
+2026-03-24T22:34:36.938508354Z   File "/usr/local/lib/python3.11/contextlib.py", line 210, in __aenter__
+2026-03-24T22:34:36.938512044Z     return await anext(self.gen)
+2026-03-24T22:34:36.938515514Z            ^^^^^^^^^^^^^^^^^^^^^
+2026-03-24T22:34:36.938518964Z   File "/app/app/main.py", line 142, in lifespan
+2026-03-24T22:34:36.938522634Z     settings.validate_production()
+2026-03-24T22:34:36.938525654Z   File "/app/app/core/config.py", line 52, in validate_production
+2026-03-24T22:34:36.938528844Z     raise EnvironmentError(
+2026-03-24T22:34:36.938532064Z OSError: Missing required environment variables: LIVE_SECRET_KEY
+2026-03-24T22:34:36.938534495Z 
+2026-03-24T22:34:36.938547385Z ERROR:    Application startup failed. Exiting.
+2026-03-24T22:34:40.468726302Z ==> Exited with status 3
+2026-03-24T22:34:40.476760364Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+2026-03-24T22:34:48.319493839Z INFO:     Started server process [7]
+2026-03-24T22:34:48.31953099Z INFO:     Waiting for application startup.
+2026-03-24T22:34:49.77862865Z ERROR:    Traceback (most recent call last):
+2026-03-24T22:34:49.77865019Z   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 732, in lifespan
+2026-03-24T22:34:49.77865992Z     async with self.lifespan_context(app) as maybe_state:
+2026-03-24T22:34:49.77866501Z   File "/usr/local/lib/python3.11/contextlib.py", line 210, in __aenter__
+2026-03-24T22:34:49.77866932Z     return await anext(self.gen)
+2026-03-24T22:34:49.77867344Z            ^^^^^^^^^^^^^^^^^^^^^
+2026-03-24T22:34:49.77867734Z   File "/app/app/main.py", line 142, in lifespan
+2026-03-24T22:34:49.77868082Z     settings.validate_production()
+2026-03-24T22:34:49.77868477Z   File "/app/app/core/config.py", line 52, in validate_production
+2026-03-24T22:34:49.778688371Z     raise EnvironmentError(
+2026-03-24T22:34:49.778692371Z OSError: Missing required environment variables: LIVE_SECRET_KEY
+2026-03-24T22:34:49.778696011Z 
+2026-03-24T22:34:49.778705391Z ERROR:    Application startup failed. Exiting.

@@ -46,8 +46,6 @@ class Settings(BaseSettings):
             errors.append("SUPABASE_SERVICE_ROLE_KEY")
         if not self.API_FOOTBALL_KEY:
             errors.append("API_FOOTBALL_KEY")
-        if not self.LIVE_SECRET_KEY:
-            errors.append("LIVE_SECRET_KEY")
         if errors:
             raise EnvironmentError(
                 f"Missing required environment variables: {', '.join(errors)}"
