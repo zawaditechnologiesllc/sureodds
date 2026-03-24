@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, cast, Date
+from datetime import date, timedelta
 from typing import List
 from app.core.database import get_db
 from app.models.models import User, Fixture, Prediction
@@ -8,7 +9,6 @@ from app.services.fixtures_service import update_all_fixtures
 from app.services.results_service import update_results
 from app.services.prediction_engine import generate_prediction
 from app.core.config import settings
-from datetime import date
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -66,18 +66,53 @@ async def list_predictions(db: Session = Depends(get_db)):
     ]
 
 
+@router.get("/stats", dependencies=[Depends(verify_admin)])
+async def get_stats(db: Session = Depends(get_db)):
+    total_users = db.query(User).count()
+    paid_users = db.query(User).filter(User.subscription_status == "paid").count()
+    today = date.today()
+    today_predictions = (
+        db.query(Prediction)
+        .join(Fixture, Prediction.fixture_id == Fixture.id)
+        .filter(cast(Fixture.kickoff, Date) == today)
+        .count()
+    )
+    total_fixtures = db.query(Fixture).count()
+    return {
+        "total_users": total_users,
+        "paid_users": paid_users,
+        "free_users": total_users - paid_users,
+        "today_predictions": today_predictions,
+        "total_fixtures": total_fixtures,
+    }
+
+
+# /admin/run-update — alias for update-fixtures (as specified in requirements)
+@router.post("/run-update", dependencies=[Depends(verify_admin)])
+async def trigger_run_update(db: Session = Depends(get_db)):
+    """Manually trigger fixture data fetch (past 7 days + next 5 days)."""
+    result = await update_all_fixtures(db)
+    return {"success": True, **result}
+
+
 @router.post("/update-fixtures", dependencies=[Depends(verify_admin)])
 async def trigger_update_fixtures(db: Session = Depends(get_db)):
     result = await update_all_fixtures(db)
     return {"success": True, **result}
 
 
+# /admin/run-predictions — generate predictions for today and tomorrow
 @router.post("/run-predictions", dependencies=[Depends(verify_admin)])
 async def trigger_run_predictions(db: Session = Depends(get_db)):
     today = date.today()
+    tomorrow = today + timedelta(days=1)
+
     fixtures = (
         db.query(Fixture)
-        .filter(func.date(Fixture.kickoff) == today, Fixture.status == "scheduled")
+        .filter(
+            cast(Fixture.kickoff, Date).in_([today, tomorrow]),
+            Fixture.status == "scheduled",
+        )
         .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
         .all()
     )
@@ -99,6 +134,14 @@ async def trigger_run_predictions(db: Session = Depends(get_db)):
 
     db.commit()
     return {"success": True, "predictions_created": created}
+
+
+# /admin/run-results — update results for past 7 days
+@router.post("/run-results", dependencies=[Depends(verify_admin)])
+async def trigger_run_results(db: Session = Depends(get_db)):
+    """Manually trigger results update for the past 7 days."""
+    result = await update_results(db)
+    return {"success": True, **result}
 
 
 @router.post("/update-results", dependencies=[Depends(verify_admin)])

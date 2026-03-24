@@ -7,9 +7,10 @@ import MobileNav from "@/components/layout/MobileNav";
 import Footer from "@/components/layout/Footer";
 import MatchCard from "@/components/matches/MatchCard";
 import PredictionSlip from "@/components/matches/PredictionSlip";
+import PaystackModal from "@/components/payment/PaystackModal";
 import type { Prediction, PredictionSlipItem } from "@/types";
 import { fetchPredictions } from "@/lib/api";
-import { Loader2, AlertCircle, CalendarX } from "lucide-react";
+import { Loader2, AlertCircle, CalendarX, Lock, Zap } from "lucide-react";
 
 function getDateStr(filter: "today" | "tomorrow"): string {
   const d = new Date();
@@ -24,6 +25,10 @@ export default function PredictionsPage() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  const lockedCount = predictions.filter((p) => p.locked).length;
+  const unlockedCount = predictions.filter((p) => !p.locked).length;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +48,16 @@ export default function PredictionsPage() {
     load();
   }, [load]);
 
+  // Check for returning from Paystack payment redirect
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("reference") || params.get("trxref");
+    if (ref) {
+      setShowPaywall(true);
+    }
+  }, []);
+
   const handleAddToSlip = (item: PredictionSlipItem) => {
     setSlipItems((prev) => {
       const existing = prev.findIndex((i) => i.matchId === item.matchId);
@@ -57,6 +72,11 @@ export default function PredictionsPage() {
 
   const handleRemove = (matchId: number) => {
     setSlipItems((prev) => prev.filter((i) => i.matchId !== matchId));
+  };
+
+  const handlePaymentSuccess = () => {
+    setShowPaywall(false);
+    load();
   };
 
   const label = filter === "today" ? "Today's" : "Tomorrow's";
@@ -118,16 +138,43 @@ export default function PredictionsPage() {
           )}
 
           {!loading && !error && predictions.length > 0 && (
-            <div className="space-y-3">
-              {predictions.map((prediction) => (
-                <MatchCard
-                  key={prediction.matchId}
-                  prediction={prediction}
-                  onAddToSlip={handleAddToSlip}
-                  selectedPick={slipItems.find((i) => i.matchId === prediction.matchId)?.pick}
-                />
-              ))}
-            </div>
+            <>
+              <div className="space-y-3">
+                {predictions.map((prediction) => (
+                  <MatchCard
+                    key={prediction.matchId}
+                    prediction={prediction}
+                    onAddToSlip={handleAddToSlip}
+                    selectedPick={slipItems.find((i) => i.matchId === prediction.matchId)?.pick}
+                    onUnlockClick={() => setShowPaywall(true)}
+                  />
+                ))}
+              </div>
+
+              {/* Paywall Banner */}
+              {lockedCount > 0 && (
+                <div className="mt-4 bg-gradient-to-r from-red-950 to-brand-card border border-brand-red/40 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <Lock className="w-5 h-5 text-brand-red shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-white font-bold text-sm">
+                        {lockedCount} more {lockedCount === 1 ? "pick" : "picks"} available
+                      </p>
+                      <p className="text-brand-muted text-xs mt-0.5">
+                        You&apos;re seeing {unlockedCount} free picks. Unlock all {predictions.length} with a premium plan.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowPaywall(true)}
+                    className="shrink-0 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors"
+                  >
+                    <Zap className="w-4 h-4" />
+                    Unlock Now
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </main>
 
@@ -141,6 +188,13 @@ export default function PredictionsPage() {
       <Footer />
       <MobileNav />
       <div className="h-16 md:h-0" />
+
+      {showPaywall && (
+        <PaystackModal
+          onClose={() => setShowPaywall(false)}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
     </div>
   );
 }

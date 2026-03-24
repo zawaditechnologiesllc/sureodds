@@ -1,63 +1,64 @@
 """
 Prediction Engine — calculates match probabilities based on historical data.
-In production, this fetches real stats from API-Football.
+Predictions are generated once per day and stored in the database.
+They are NEVER recalculated on every request — serve from DB only.
 """
 
 import httpx
+import logging
 from typing import Optional
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 
 API_FOOTBALL_BASE = "https://v3.football.api-sports.io"
 
 
-async def fetch_fixture_stats(fixture_id: int) -> dict:
-    """Fetch fixture stats from API-Football."""
-    headers = {"x-apisports-key": settings.API_FOOTBALL_KEY}
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{API_FOOTBALL_BASE}/fixtures",
-            headers=headers,
-            params={"id": fixture_id},
-        )
-        data = resp.json()
-        return data.get("response", [{}])[0]
-
-
 async def fetch_head_to_head(team1_id: int, team2_id: int) -> list:
-    """Fetch head-to-head records."""
+    if not settings.API_FOOTBALL_KEY:
+        return []
     headers = {"x-apisports-key": settings.API_FOOTBALL_KEY}
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{API_FOOTBALL_BASE}/fixtures/headtohead",
-            headers=headers,
-            params={"h2h": f"{team1_id}-{team2_id}", "last": 10},
-        )
-        data = resp.json()
-        return data.get("response", [])
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{API_FOOTBALL_BASE}/fixtures/headtohead",
+                headers=headers,
+                params={"h2h": f"{team1_id}-{team2_id}", "last": 10},
+                timeout=30,
+            )
+            data = resp.json()
+            return data.get("response", [])
+    except Exception as e:
+        logger.warning(f"H2H fetch failed: {e}")
+        return []
 
 
 async def fetch_team_form(team_id: int, league_id: int, season: int) -> list:
-    """Fetch last 5 matches for a team."""
+    if not settings.API_FOOTBALL_KEY:
+        return []
     headers = {"x-apisports-key": settings.API_FOOTBALL_KEY}
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{API_FOOTBALL_BASE}/fixtures",
-            headers=headers,
-            params={
-                "team": team_id,
-                "league": league_id,
-                "season": season,
-                "last": 5,
-                "status": "FT",
-            },
-        )
-        data = resp.json()
-        return data.get("response", [])
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{API_FOOTBALL_BASE}/fixtures",
+                headers=headers,
+                params={
+                    "team": team_id,
+                    "league": league_id,
+                    "season": season,
+                    "last": 5,
+                    "status": "FT",
+                },
+                timeout=30,
+            )
+            data = resp.json()
+            return data.get("response", [])
+    except Exception as e:
+        logger.warning(f"Team form fetch failed: {e}")
+        return []
 
 
 def calculate_form_score(fixtures: list, team_id: int) -> float:
-    """Calculate a 0-1 form score from recent matches."""
     if not fixtures:
         return 0.5
     points = 0
@@ -80,7 +81,6 @@ def calculate_form_score(fixtures: list, team_id: int) -> float:
 
 
 def calculate_h2h_advantage(h2h_fixtures: list, home_team_id: int, away_team_id: int) -> float:
-    """Returns home advantage score from h2h (-1 to 1, positive = home advantage)."""
     if not h2h_fixtures:
         return 0.0
     home_wins = 0
@@ -112,34 +112,24 @@ def compute_probabilities(
     h2h_advantage: float,
     home_advantage: float = 0.05,
 ) -> dict:
-    """
-    Compute raw probabilities for 1X2, Over 2.5, and BTTS.
-    All values are percentages (0-100).
-    """
-    # Base probabilities using form + h2h
     home_strength = home_form * 0.6 + (h2h_advantage + 1) / 2 * 0.3 + home_advantage * 0.1
     away_strength = away_form * 0.6 + (1 - (h2h_advantage + 1) / 2) * 0.3
 
-    total = home_strength + away_strength + 0.25  # 0.25 for draw
+    total = home_strength + away_strength + 0.25
     home_win_pct = round((home_strength / total) * 100, 1)
     away_win_pct = round((away_strength / total) * 100, 1)
     draw_pct = round(100 - home_win_pct - away_win_pct, 1)
 
-    # Over 2.5: based on both teams' attacking form
     combined_attack = (home_form + away_form) / 2
     over25_pct = round(40 + combined_attack * 35, 1)
-
-    # BTTS: based on both teams' ability to score
     btts_pct = round(35 + home_form * 20 + away_form * 20, 1)
 
-    # Clamp values
     home_win_pct = max(5, min(90, home_win_pct))
     draw_pct = max(5, min(50, draw_pct))
     away_win_pct = max(5, min(90, away_win_pct))
     over25_pct = max(20, min(85, over25_pct))
     btts_pct = max(20, min(80, btts_pct))
 
-    # Determine best pick
     picks = {
         "1": home_win_pct,
         "X": draw_pct,
@@ -150,8 +140,12 @@ def compute_probabilities(
     best_pick = max(picks, key=lambda k: picks[k])
     best_pct = picks[best_pick]
 
-    # Confidence level
-    if best_pct >= 65:
+    # Probability-based confidence categories
+    # Convert best_pct to 0-1 probability for threshold checks
+    best_prob = best_pct / 100.0
+    if best_prob >= 0.70:
+        confidence = "high_confidence"
+    elif best_pct >= 65:
         confidence = "high"
     elif best_pct >= 50:
         confidence = "medium"
@@ -175,7 +169,7 @@ async def generate_prediction(
     league_id: int,
     season: int,
 ) -> dict:
-    """Full prediction pipeline for a single fixture."""
+    """Full prediction pipeline for a single fixture. Called once per fixture per day."""
     home_form_data = await fetch_team_form(home_team_id, league_id, season)
     away_form_data = await fetch_team_form(away_team_id, league_id, season)
     h2h_data = await fetch_head_to_head(home_team_id, away_team_id)

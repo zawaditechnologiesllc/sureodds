@@ -1,16 +1,16 @@
 import logging
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqlalchemy import func
+from sqlalchemy import func, cast, Date
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.models.models import Fixture, Prediction
-from app.routers import predictions, results, users, referrals, admin
+from app.routers import predictions, results, users, referrals, admin, paystack
 from app.services.fixtures_service import update_all_fixtures
 from app.services.results_service import update_results
 from app.services.prediction_engine import generate_prediction
@@ -21,23 +21,37 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler(timezone="UTC")
 
 
-async def run_daily_pipeline():
-    """Fetch fixtures → generate predictions → update yesterday's results."""
+async def run_fixtures_update():
+    """Every 6 hours: fetch past 7 days + next 5 days of fixtures."""
     db = SessionLocal()
     try:
-        logger.info("Pipeline: updating fixtures...")
-        await update_all_fixtures(db)
+        logger.info("Scheduler: updating fixtures (6-hour job)...")
+        result = await update_all_fixtures(db)
+        logger.info(f"Scheduler: fixtures update done — {result}")
+    except Exception as e:
+        logger.error(f"Scheduler: fixtures update error: {e}", exc_info=True)
+    finally:
+        db.close()
 
-        logger.info("Pipeline: generating predictions for today and tomorrow...")
-        from datetime import timedelta
+
+async def run_daily_predictions():
+    """Daily at 06:00 UTC: generate predictions for today and tomorrow."""
+    db = SessionLocal()
+    try:
+        logger.info("Scheduler: generating daily predictions...")
         today = date.today()
         tomorrow = today + timedelta(days=1)
+
         fixtures_todo = (
             db.query(Fixture)
-            .filter(func.date(Fixture.kickoff).in_([today, tomorrow]), Fixture.status == "scheduled")
+            .filter(
+                cast(Fixture.kickoff, Date).in_([today, tomorrow]),
+                Fixture.status == "scheduled",
+            )
             .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
             .all()
         )
+
         created = 0
         for fixture in fixtures_todo:
             try:
@@ -51,14 +65,71 @@ async def run_daily_pipeline():
                 created += 1
             except Exception as e:
                 logger.warning(f"Prediction failed for fixture {fixture.id}: {e}")
-        db.commit()
-        logger.info(f"Pipeline: {created} predictions created.")
 
-        logger.info("Pipeline: updating yesterday's results...")
-        result = await update_results(db)
-        logger.info(f"Pipeline: results updated — {result}")
+        db.commit()
+        logger.info(f"Scheduler: {created} predictions created.")
     except Exception as e:
-        logger.error(f"Pipeline error: {e}", exc_info=True)
+        logger.error(f"Scheduler: prediction error: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+async def run_nightly_results():
+    """Daily at 01:00 UTC: update results and mark prediction outcomes."""
+    db = SessionLocal()
+    try:
+        logger.info("Scheduler: updating results (nightly job)...")
+        result = await update_results(db)
+        logger.info(f"Scheduler: results updated — {result}")
+    except Exception as e:
+        logger.error(f"Scheduler: results update error: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+async def run_startup_pipeline():
+    """On startup: fetch fixtures + generate predictions for today."""
+    db = SessionLocal()
+    try:
+        logger.info("Startup: fetching fixtures...")
+        await update_all_fixtures(db)
+
+        logger.info("Startup: generating predictions for today and tomorrow...")
+        today = date.today()
+        tomorrow = today + timedelta(days=1)
+
+        fixtures_todo = (
+            db.query(Fixture)
+            .filter(
+                cast(Fixture.kickoff, Date).in_([today, tomorrow]),
+                Fixture.status == "scheduled",
+            )
+            .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
+            .all()
+        )
+
+        created = 0
+        for fixture in fixtures_todo:
+            try:
+                probs = await generate_prediction(
+                    fixture.home_team_id,
+                    fixture.away_team_id,
+                    fixture.league_id,
+                    fixture.season,
+                )
+                db.add(Prediction(fixture_id=fixture.id, **probs))
+                created += 1
+            except Exception as e:
+                logger.warning(f"Prediction failed for fixture {fixture.id}: {e}")
+
+        db.commit()
+        logger.info(f"Startup: {created} predictions created.")
+
+        logger.info("Startup: updating yesterday's results...")
+        result = await update_results(db)
+        logger.info(f"Startup: results updated — {result}")
+    except Exception as e:
+        logger.error(f"Startup pipeline error: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -71,11 +142,26 @@ async def lifespan(app: FastAPI):
         settings.validate_production()
 
     logger.info("Running startup data pipeline...")
-    await run_daily_pipeline()
+    await run_startup_pipeline()
 
-    scheduler.add_job(run_daily_pipeline, "cron", hour=1, minute=0, id="daily_pipeline", replace_existing=True)
+    # Every 6 hours: fetch fixtures (past 7 days + next 5 days)
+    scheduler.add_job(
+        run_fixtures_update, "interval", hours=6,
+        id="fixtures_update", replace_existing=True
+    )
+    # Daily at 06:00 UTC: generate predictions
+    scheduler.add_job(
+        run_daily_predictions, "cron", hour=6, minute=0,
+        id="daily_predictions", replace_existing=True
+    )
+    # Daily at 01:00 UTC: update match results
+    scheduler.add_job(
+        run_nightly_results, "cron", hour=1, minute=0,
+        id="nightly_results", replace_existing=True
+    )
+
     scheduler.start()
-    logger.info("Scheduler started — daily pipeline at 01:00 UTC.")
+    logger.info("Scheduler started — fixtures every 6h, predictions at 06:00 UTC, results at 01:00 UTC.")
 
     yield
 
@@ -86,7 +172,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sure Odds API",
     description="Sports prediction SaaS backend",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -103,11 +189,12 @@ app.include_router(results.router)
 app.include_router(users.router)
 app.include_router(referrals.router)
 app.include_router(admin.router)
+app.include_router(paystack.router)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "sure-odds-api"}
+    return {"status": "ok", "service": "sure-odds-api", "version": "2.0.0"}
 
 
 @app.get("/")

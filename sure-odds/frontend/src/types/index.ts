@@ -25,7 +25,7 @@ export interface Prediction {
   over25Pct: number;
   bttsPct: number;
   bestPick: "1" | "X" | "2" | "over25" | "btts" | "?";
-  confidence: "high" | "medium" | "low" | "computing";
+  confidence: "high_confidence" | "high" | "medium" | "low" | "computing";
   locked?: boolean;
   computing?: boolean;
 }

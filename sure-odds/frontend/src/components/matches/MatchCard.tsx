@@ -9,6 +9,7 @@ interface MatchCardProps {
   prediction: Prediction;
   onAddToSlip?: (item: PredictionSlipItem) => void;
   selectedPick?: string;
+  onUnlockClick?: () => void;
 }
 
 const PICK_LABELS: Record<string, string> = {
@@ -19,7 +20,7 @@ const PICK_LABELS: Record<string, string> = {
   btts: "BTTS",
 };
 
-export default function MatchCard({ prediction, onAddToSlip, selectedPick }: MatchCardProps) {
+export default function MatchCard({ prediction, onAddToSlip, selectedPick, onUnlockClick }: MatchCardProps) {
   const [localPick, setLocalPick] = useState<string | null>(selectedPick || null);
   const { match } = prediction;
 
@@ -53,10 +54,10 @@ export default function MatchCard({ prediction, onAddToSlip, selectedPick }: Mat
           <span className="text-xs text-brand-muted font-medium">{formatTime(match.kickoff)}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          {prediction.confidence === "high" && !prediction.computing && (
+          {(prediction.confidence === "high_confidence" || prediction.confidence === "high") && !prediction.computing && (
             <span className="flex items-center gap-1 bg-green-950 text-brand-green text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-900">
               <Star className="w-2.5 h-2.5 fill-current" />
-              BEST PICK
+              {prediction.confidence === "high_confidence" ? "BEST PICK ★" : "BEST PICK"}
             </span>
           )}
           {prediction.computing ? (
@@ -67,12 +68,13 @@ export default function MatchCard({ prediction, onAddToSlip, selectedPick }: Mat
             <span
               className={cn(
                 "text-xs font-bold px-2 py-0.5 rounded",
+                prediction.confidence === "high_confidence" && "bg-green-950 text-brand-green",
                 prediction.confidence === "high" && "bg-green-950 text-brand-green",
                 prediction.confidence === "medium" && "bg-yellow-950 text-brand-yellow",
                 prediction.confidence === "low" && "bg-orange-950 text-brand-orange"
               )}
             >
-              {prediction.confidence === "high" ? "HIGH" : prediction.confidence === "medium" ? "MED" : "LOW"}
+              {prediction.confidence === "high_confidence" ? "HIGH ★" : prediction.confidence === "high" ? "HIGH" : prediction.confidence === "medium" ? "MED" : "LOW"}
             </span>
           )}
         </div>
@@ -87,10 +89,13 @@ export default function MatchCard({ prediction, onAddToSlip, selectedPick }: Mat
             <span className="text-white font-bold text-sm">{match.awayTeam.name}</span>
           </div>
           {prediction.locked ? (
-            <div className="flex flex-col items-center gap-1 text-brand-muted">
+            <button
+              onClick={onUnlockClick}
+              className="flex flex-col items-center gap-1 text-brand-muted hover:text-brand-red transition-colors"
+            >
               <Lock className="w-5 h-5" />
               <span className="text-xs">Unlock</span>
-            </div>
+            </button>
           ) : (
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-1">

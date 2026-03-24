@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = "placeholder-service-role-key"
     API_FOOTBALL_KEY: str = ""
 
+    PAYSTACK_SECRET_KEY: str = ""
+    PAYSTACK_PUBLIC_KEY: str = "pk_live_9c64461a7ca5eb52276189daf930f00dc7e24a6d"
+
     SECRET_KEY: str = secrets.token_hex(32)
     ENVIRONMENT: str = "development"
 
@@ -21,7 +24,6 @@ class Settings(BaseSettings):
         url = self.DATABASE_URL or os.environ.get("DATABASE_URL", "")
         if not url:
             raise ValueError("DATABASE_URL is not set.")
-        # SQLAlchemy requires "postgresql://" — Supabase/Heroku give "postgres://"
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
         return url
@@ -31,7 +33,6 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
 
     def validate_production(self):
-        """Fail fast on startup in production if any required env var is missing."""
         errors = []
         if not self.DATABASE_URL:
             errors.append("DATABASE_URL")
@@ -41,6 +42,8 @@ class Settings(BaseSettings):
             errors.append("SUPABASE_SERVICE_ROLE_KEY")
         if not self.API_FOOTBALL_KEY:
             errors.append("API_FOOTBALL_KEY")
+        if not self.PAYSTACK_SECRET_KEY:
+            errors.append("PAYSTACK_SECRET_KEY")
         if errors:
             raise EnvironmentError(
                 f"Missing required environment variables: {', '.join(errors)}"

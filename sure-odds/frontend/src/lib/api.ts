@@ -45,6 +45,26 @@ export const fetchUserProfile = async () => {
   return res.data;
 };
 
+export const fetchPaymentStatus = async () => {
+  const res = await api.get("/paystack/status");
+  return res.data;
+};
+
+export const fetchPaymentPlans = async () => {
+  const res = await api.get("/paystack/plans");
+  return res.data;
+};
+
+export const initializePayment = async (plan: string, callbackUrl?: string) => {
+  const res = await api.post("/paystack/initialize", { plan, callback_url: callbackUrl });
+  return res.data;
+};
+
+export const verifyPayment = async (reference: string) => {
+  const res = await api.post("/paystack/verify", { reference });
+  return res.data;
+};
+
 export const fetchAdminUsers = async () => {
   const res = await api.get("/admin/users");
   return res.data;
@@ -55,8 +75,13 @@ export const fetchAdminPredictions = async () => {
   return res.data;
 };
 
+export const fetchAdminStats = async () => {
+  const res = await api.get("/admin/stats");
+  return res.data;
+};
+
 export const triggerUpdateFixtures = async () => {
-  const res = await api.post("/admin/update-fixtures");
+  const res = await api.post("/admin/run-update");
   return res.data;
 };
 
@@ -66,6 +91,6 @@ export const triggerRunPredictions = async () => {
 };
 
 export const triggerUpdateResults = async () => {
-  const res = await api.post("/admin/update-results");
+  const res = await api.post("/admin/run-results");
   return res.data;
 };
