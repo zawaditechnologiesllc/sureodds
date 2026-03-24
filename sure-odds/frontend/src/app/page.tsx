@@ -19,6 +19,8 @@ import Navbar from "@/components/layout/Navbar";
 import MobileNav from "@/components/layout/MobileNav";
 import Footer from "@/components/layout/Footer";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 const FEATURES = [
   {
     icon: Brain,
@@ -40,13 +42,6 @@ const FEATURES = [
     title: "Daily Updates",
     desc: "Predictions are updated 24 hours before kick-off and refreshed when team news breaks. You always get the freshest data.",
   },
-];
-
-const STATS = [
-  { label: "Accuracy This Month", value: "73%", color: "text-brand-green" },
-  { label: "Predictions Made", value: "1,240+", color: "text-white" },
-  { label: "Active Members", value: "4,800+", color: "text-white" },
-  { label: "Commission Paid Out", value: "$12,400", color: "text-brand-yellow" },
 ];
 
 const HOW_IT_WORKS = [
@@ -129,14 +124,6 @@ const PRICING_PLANS = [
   },
 ];
 
-const RECENT_RESULTS = [
-  { home: "Man City", away: "Wolves", score: "3–1", prediction: "Home Win", won: true, league: "Premier League" },
-  { home: "Liverpool", away: "Brentford", score: "1–1", prediction: "Home Win", won: false, league: "Premier League" },
-  { home: "Real Madrid", away: "Sevilla", score: "2–1", prediction: "Over 2.5", won: true, league: "La Liga" },
-  { home: "Gor Mahia", away: "Sofapaka", score: "2–0", prediction: "Home Win", won: true, league: "Kenyan Premier League" },
-  { home: "Inter Milan", away: "Napoli", score: "1–0", prediction: "Under 2.5", won: true, league: "Serie A" },
-];
-
 const FAQS = [
   {
     q: "Are these predictions guaranteed?",
@@ -144,7 +131,7 @@ const FAQS = [
   },
   {
     q: "How are predictions generated?",
-    a: "Our Python + FastAPI backend fetches live fixture data, then runs a machine-learning model trained on thousands of historical matches. It considers form, head-to-head records, home/away performance, and more.",
+    a: "Our Python + FastAPI backend fetches live fixture data, then runs a model based on thousands of historical matches. It considers form, head-to-head records, home/away performance, and more.",
   },
   {
     q: "What leagues do you cover?",
@@ -164,8 +151,70 @@ const FAQS = [
   },
 ];
 
-export default function HomePage() {
-  const wonCount = RECENT_RESULTS.filter((r) => r.won).length;
+const CONFIDENCE_BADGE: Record<string, string> = {
+  high: "bg-green-950 text-brand-green border-green-900",
+  medium: "bg-yellow-950 text-brand-yellow border-yellow-900",
+  low: "bg-gray-900 text-gray-400 border-gray-700",
+};
+
+const PICK_LABELS: Record<string, string> = {
+  "1": "Home Win",
+  X: "Draw",
+  "2": "Away Win",
+  over25: "Over 2.5",
+  btts: "BTTS",
+};
+
+async function getFeaturedPicks() {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const res = await fetch(`${API_URL}/predictions?date=${today}`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data as any[]).slice(0, 4);
+  } catch {
+    return [];
+  }
+}
+
+async function getRecentResults() {
+  try {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dateStr = yesterday.toISOString().split("T")[0];
+    const res = await fetch(`${API_URL}/results?date=${dateStr}`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export default async function HomePage() {
+  const [featuredPicks, recentResultsData] = await Promise.all([
+    getFeaturedPicks(),
+    getRecentResults(),
+  ]);
+
+  const recentResults: any[] = (recentResultsData?.results ?? []).slice(0, 5);
+  const wonCount = recentResults.filter((r: any) => r.won).length;
+  const hasRealResults = recentResults.length > 0;
+  const hasRealPicks = featuredPicks.length > 0;
+
+  const STATS = [
+    {
+      label: "Accuracy (Last 7 Days)",
+      value: hasRealResults ? `${Math.round((wonCount / recentResults.length) * 100)}%` : "—",
+      color: "text-brand-green",
+    },
+    { label: "Predictions Made", value: "1,240+", color: "text-white" },
+    { label: "Active Members", value: "4,800+", color: "text-white" },
+    { label: "Commission Paid Out", value: "$12,400", color: "text-brand-yellow" },
+  ];
 
   return (
     <div className="min-h-screen bg-brand-dark">
@@ -237,93 +286,121 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-3">
-          {[
-            { league: "Premier League", time: "20:00", home: "Man City", away: "Arsenal", confidence: "HIGH 78%", badgeClass: "bg-green-950 text-brand-green border-green-900", locked: false },
-            { league: "La Liga", time: "21:00", home: "Real Madrid", away: "Barcelona", confidence: "MED 62%", badgeClass: "bg-yellow-950 text-brand-yellow border-yellow-900", locked: false },
-            { league: "Serie A", time: "19:45", home: "Inter Milan", away: "Juventus", confidence: "HIGH 71%", badgeClass: "bg-green-950 text-brand-green border-green-900", locked: true },
-            { league: "Bundesliga", time: "18:30", home: "Bayern Munich", away: "Dortmund", confidence: "MED 58%", badgeClass: "bg-yellow-950 text-brand-yellow border-yellow-900", locked: true },
-          ].map((match, i) => (
-            <div key={i} className="bg-brand-card border border-brand-border rounded-lg p-4 relative overflow-hidden">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <p className="text-brand-muted text-xs mb-1">{match.league} · {match.time}</p>
-                  <p className="text-white font-bold">{match.home} vs {match.away}</p>
-                </div>
-                <span className={`text-[10px] font-black px-2 py-1 rounded border ${match.badgeClass}`}>
-                  {match.confidence}
-                </span>
-              </div>
-              {!match.locked ? (
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[`Home`, `Draw`, `Away`].map((label, j) => (
-                    <div key={label} className={`odds-btn ${j === 0 ? "selected" : ""}`}>
-                      <span className="label">{label}</span>
-                      <span className="value">{["1.92", "3.40", "4.20"][j]}</span>
+        {hasRealPicks ? (
+          <div className="grid md:grid-cols-2 gap-3">
+            {featuredPicks.map((p: any, i: number) => {
+              const kickoff = new Date(p.match.kickoff);
+              const timeStr = kickoff.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+              const badgeClass = CONFIDENCE_BADGE[p.confidence] ?? CONFIDENCE_BADGE.low;
+              const confidenceLabel = `${p.confidence.toUpperCase()} ${Math.max(p.homeWinPct, p.drawPct, p.awayWinPct)}%`;
+
+              return (
+                <div key={p.matchId} className="bg-brand-card border border-brand-border rounded-lg p-4 relative overflow-hidden">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <p className="text-brand-muted text-xs mb-1">{p.match.league} · {timeStr} UTC</p>
+                      <p className="text-white font-bold">{p.match.homeTeam.name} vs {p.match.awayTeam.name}</p>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="relative">
-                  <div className="grid grid-cols-3 gap-1.5 blur-sm opacity-60 select-none pointer-events-none">
-                    {["Home ?", "Draw ?", "Away ?"].map((btn) => (
-                      <div key={btn} className="odds-btn">
-                        <span className="label">{btn.split(" ")[0]}</span>
-                        <span className="value">{btn.split(" ")[1]}</span>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded border ${badgeClass}`}>
+                      {confidenceLabel}
+                    </span>
+                  </div>
+                  {!p.locked ? (
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { label: "Home", pct: p.homeWinPct, pick: "1" },
+                        { label: "Draw", pct: p.drawPct, pick: "X" },
+                        { label: "Away", pct: p.awayWinPct, pick: "2" },
+                      ].map(({ label, pct, pick }) => (
+                        <div key={label} className={`odds-btn ${p.bestPick === pick ? "selected" : ""}`}>
+                          <span className="label">{label}</span>
+                          <span className="value">{pct}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="grid grid-cols-3 gap-1.5 blur-sm opacity-60 select-none pointer-events-none">
+                        {["Home ?", "Draw ?", "Away ?"].map((btn) => (
+                          <div key={btn} className="odds-btn">
+                            <span className="label">{btn.split(" ")[0]}</span>
+                            <span className="value">{btn.split(" ")[1]}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Link
-                      href="/auth/signup"
-                      className="flex items-center gap-1.5 bg-brand-red hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded transition-colors"
-                    >
-                      <Lock className="w-3 h-3" />
-                      Unlock Predictions
-                    </Link>
-                  </div>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Link
+                          href="/auth/signup"
+                          className="flex items-center gap-1.5 bg-brand-red hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded transition-colors"
+                        >
+                          <Lock className="w-3 h-3" />
+                          Unlock Predictions
+                        </Link>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bg-brand-card border border-brand-border rounded-xl p-8 text-center">
+            <p className="text-brand-muted text-sm mb-3">No predictions available yet for today.</p>
+            <Link href="/predictions" className="text-brand-red text-sm font-bold hover:text-red-400">
+              Check the predictions page →
+            </Link>
+          </div>
+        )}
       </section>
 
-      {/* Last 5 Games Results */}
+      {/* Last 5 Results */}
       <section className="max-w-5xl mx-auto px-4 py-10 border-t border-brand-border">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-white font-black text-xl mb-1">Our Last 5 Results</h2>
-            <p className="text-brand-muted text-xs">
-              {wonCount}/5 correct &nbsp;·&nbsp;
-              <span className="text-brand-green font-bold">{Math.round((wonCount / 5) * 100)}% accuracy</span>
-            </p>
+            <h2 className="text-white font-black text-xl mb-1">Our Recent Results</h2>
+            {hasRealResults && (
+              <p className="text-brand-muted text-xs">
+                {wonCount}/{recentResults.length} correct yesterday &nbsp;·&nbsp;
+                <span className="text-brand-green font-bold">
+                  {Math.round((wonCount / recentResults.length) * 100)}% accuracy
+                </span>
+              </p>
+            )}
           </div>
           <Link href="/results" className="text-brand-red text-sm font-bold hover:text-red-400 flex items-center gap-1">
             Full History <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
-        <div className="space-y-2">
-          {RECENT_RESULTS.map((r, i) => (
-            <div key={i} className="bg-brand-card border border-brand-border rounded-lg px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-4 min-w-0">
-                <span className="text-brand-muted text-[11px] shrink-0 hidden sm:block">{r.league}</span>
-                <span className="text-white text-sm font-bold truncate">
-                  {r.home} <span className="text-brand-muted font-normal">vs</span> {r.away}
-                </span>
+        {hasRealResults ? (
+          <div className="space-y-2">
+            {recentResults.map((r: any) => (
+              <div key={r.matchId} className="bg-brand-card border border-brand-border rounded-lg px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-4 min-w-0">
+                  <span className="text-brand-muted text-[11px] shrink-0 hidden sm:block">{r.match.league}</span>
+                  <span className="text-white text-sm font-bold truncate">
+                    {r.match.homeTeam.name} <span className="text-brand-muted font-normal">vs</span> {r.match.awayTeam.name}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 ml-4">
+                  <span className="text-brand-muted text-xs font-mono">{r.homeScore}–{r.awayScore}</span>
+                  <span className="text-white text-xs">→ <span className="text-brand-muted">{r.prediction}</span></span>
+                  <span className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded border ${r.won ? "bg-green-950 text-brand-green border-green-900" : "bg-red-950 text-brand-red border-red-900"}`}>
+                    {r.won ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                    {r.won ? "WON" : "LOST"}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-3 shrink-0 ml-4">
-                <span className="text-brand-muted text-xs font-mono">{r.score}</span>
-                <span className="text-white text-xs">→ <span className="text-brand-muted">{r.prediction}</span></span>
-                <span className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded border ${r.won ? "bg-green-950 text-brand-green border-green-900" : "bg-red-950 text-brand-red border-red-900"}`}>
-                  {r.won ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                  {r.won ? "WON" : "LOST"}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-brand-card border border-brand-border rounded-xl p-8 text-center">
+            <p className="text-brand-muted text-sm mb-3">Results appear here after yesterday&apos;s matches finish.</p>
+            <Link href="/results" className="text-brand-red text-sm font-bold hover:text-red-400">
+              View full history →
+            </Link>
+          </div>
+        )}
       </section>
 
       {/* How It Works */}
@@ -472,7 +549,7 @@ export default function HomePage() {
         <div className="bg-gradient-to-r from-red-950 to-brand-card border border-red-900 rounded-xl p-10 text-center">
           <h2 className="text-white font-black text-3xl mb-3">Ready to Bet Smarter?</h2>
           <p className="text-gray-400 mb-6 max-w-md mx-auto">
-            Join 4,800+ members who get daily predictions from a system that shows its work.
+            Join thousands of members who get daily predictions from a system that shows its work.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
