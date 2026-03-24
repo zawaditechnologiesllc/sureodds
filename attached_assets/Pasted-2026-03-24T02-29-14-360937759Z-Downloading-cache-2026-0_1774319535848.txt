@@ -1,0 +1,30 @@
+2026-03-24T02:29:14.360937759Z ==> Downloading cache...
+2026-03-24T02:29:14.413804784Z ==> Cloning from https://github.com/zawaditechnologiesllc/sureodds
+2026-03-24T02:29:14.968994557Z ==> Checking out commit ebec14c5dbde10010d36fd7ba908f593e66fc46a in branch master
+2026-03-24T02:29:32.087465175Z ==> Downloaded 194MB in 3s. Extraction took 14s.
+2026-03-24T02:29:59.527683793Z ==> Using Node.js version 22.22.0 (default)
+2026-03-24T02:29:59.554165177Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-03-24T02:29:59.6878532Z ==> Running build command 'pnpm install --frozen-lockfile; pnpm run build'...
+2026-03-24T02:30:01.846468011Z 
+2026-03-24T02:30:01.846496791Z > workspace@0.0.0 build /opt/render/project/src
+2026-03-24T02:30:01.846501802Z > pnpm run typecheck && pnpm -r --if-present run build
+2026-03-24T02:30:01.846504652Z 
+2026-03-24T02:30:02.142014234Z 
+2026-03-24T02:30:02.142042525Z > workspace@0.0.0 typecheck /opt/render/project/src
+2026-03-24T02:30:02.142047555Z > pnpm run typecheck:libs && pnpm -r --filter "./artifacts/**" --filter "./scripts" --if-present run typecheck
+2026-03-24T02:30:02.142053525Z 
+2026-03-24T02:30:02.449148126Z 
+2026-03-24T02:30:02.449203887Z > workspace@0.0.0 typecheck:libs /opt/render/project/src
+2026-03-24T02:30:02.449216367Z > tsc --build
+2026-03-24T02:30:02.449220688Z 
+2026-03-24T02:30:37.563979848Z ==> Uploading build...
+2026-03-24T02:30:52.966244079Z ==> Uploaded in 8.9s. Compression took 6.5s
+2026-03-24T02:30:53.014548537Z ==> Build successful 🎉
+2026-03-24T02:30:55.418091376Z ==> Deploying...
+2026-03-24T02:30:55.475874361Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-03-24T02:31:28.690200812Z ==> Running 'bash start.sh'
+2026-03-24T02:31:28.784625609Z bash: start.sh: No such file or directory
+2026-03-24T02:31:32.799670239Z ==> Exited with status 127
+2026-03-24T02:31:32.802751725Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+2026-03-24T02:31:39.767706065Z ==> Running 'bash start.sh'
+2026-03-24T02:31:39.85955406Z bash: start.sh: No such file or directory
