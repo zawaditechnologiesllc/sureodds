@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart2, CheckCircle, User } from "lucide-react";
+import { BarChart2, CheckCircle, CreditCard, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function MobileNav() {
@@ -11,6 +11,7 @@ export default function MobileNav() {
   const tabs = [
     { href: "/predictions", label: "Predictions", icon: BarChart2 },
     { href: "/results", label: "Results", icon: CheckCircle },
+    { href: "/packages", label: "Credits", icon: CreditCard },
     { href: "/auth/login", label: "Account", icon: User },
   ];
 

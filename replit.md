@@ -68,14 +68,47 @@ Two workflows run in parallel:
 
 ## Key Features
 
-- **Predictions page**: Shows today's match predictions with 1X2, Over 2.5, BTTS probabilities
+- **Predictions page**: Shows today's match predictions with 1X2, Over 2.5, BTTS probabilities. Free users see 2 picks, rest are locked.
 - **Results page**: Historical prediction results with win/loss record
 - **Auth**: Sign up / login via Supabase
 - **Admin panel**: Trigger fixture updates, run predictions, view users
 - **Partner/Affiliate program**: 30% commission referral system
+
+## Pay-as-You-Go Credits System
+
+Users can buy pick credits to unlock locked predictions. No subscription required.
+
+**Packages (seeded on startup):**
+| Package | Picks | Price (KES) |
+|---------|-------|-------------|
+| Starter Pack | 2 picks | KES 10 |
+| Value Pack | 5 picks | KES 20 |
+| Pro Pack | 10 picks | KES 100 |
+
+**Flow:**
+1. User visits `/packages`, selects a package, enters email
+2. Redirected to Paystack payment page
+3. After payment, Paystack redirects back to `/packages?reference=...`
+4. Frontend calls `/paystack/verify?reference=...` → credits added to `user_packages` table
+5. On predictions page, locked picks show "Buy Credits" → user can use credits to unlock
+
+**Key Endpoints:**
+- `GET /packages` — list available packages (public)
+- `POST /paystack/initialize` — start payment (`{package_id, email, callback_url}`)
+- `GET /paystack/verify?reference=` — verify and credit account
+- `GET /user-credits` — authenticated user's remaining picks
+- `GET /high-confidence-picks` — today's high_confidence predictions (locked metadata)
+- `POST /unlock-pick` — consume 1 credit to unlock full prediction details
+
+## API Proxy (Dev vs Production)
+
+- **Dev (Replit)**: `next.config.js` rewrites `/api-proxy/*` → `http://localhost:8000/*`. The frontend's `api.ts` defaults to `/api-proxy` when `NEXT_PUBLIC_API_URL` is not set.
+- **Production (Vercel)**: `NEXT_PUBLIC_API_URL` is set to the Render backend URL (e.g. `https://sure-odds.onrender.com`). No rewrite needed.
 
 ## Backend Config Notes
 
 - The backend config (`sure-odds/backend/app/core/config.py`) uses `DATABASE_URL` env var (Replit's auto-provisioned PostgreSQL) as a fallback for `O_DATABASE_URL`
 - Supabase client is lazily initialized — the server starts even without valid Supabase keys, but auth features require real Supabase credentials
 - CORS is configured to allow localhost and the Replit dev domain
+- Paystack secret key is `LIVE_SECRET_KEY` env var (NOT `PAYSTACK_SECRET_KEY`)
+- Pick packages are seeded automatically on backend startup via `seed_packages()`

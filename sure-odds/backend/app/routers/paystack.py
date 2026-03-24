@@ -1,20 +1,20 @@
 """
 Paystack payment integration.
-Supports subscriptions and pay-as-you-go pick packages.
+Supports pay-as-you-go pick packages purchased with credits.
 """
 
 import httpx
 import logging
 import secrets
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.models import User, Payment, UserPackage
+from app.models.models import User, UserPackage, Package, Transaction
 from app.routers.users import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -23,27 +23,16 @@ router = APIRouter(prefix="/paystack", tags=["paystack"])
 
 PAYSTACK_BASE = "https://api.paystack.co"
 
-# Plan definitions: name → (amount in kobo/pesewas, picks granted, is_subscription)
-PLANS = {
-    "subscription": {"amount": 99900, "label": "Monthly Subscription", "picks": 0, "is_sub": True},
-    "picks_2":       {"amount": 19900, "label": "2 Premium Picks",      "picks": 2,  "is_sub": False},
-    "picks_5":       {"amount": 39900, "label": "5 Premium Picks",      "picks": 5,  "is_sub": False},
-    "picks_10":      {"amount": 69900, "label": "10 Premium Picks",     "picks": 10, "is_sub": False},
-}
-
 
 class InitializeRequest(BaseModel):
-    plan: str
+    package_id: int
+    email: str
     callback_url: Optional[str] = None
-
-
-class VerifyRequest(BaseModel):
-    reference: str
 
 
 def get_paystack_headers():
     if not settings.paystack_secret_key:
-        raise HTTPException(status_code=503, detail="Payment service not configured")
+        raise HTTPException(status_code=503, detail="Payment service not configured. Please contact support.")
     return {
         "Authorization": f"Bearer {settings.paystack_secret_key}",
         "Content-Type": "application/json",
@@ -53,25 +42,28 @@ def get_paystack_headers():
 @router.post("/initialize")
 async def initialize_payment(
     body: InitializeRequest,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Initialize a Paystack payment transaction."""
-    if body.plan not in PLANS:
-        raise HTTPException(status_code=400, detail=f"Invalid plan. Valid plans: {list(PLANS.keys())}")
+    """
+    Initialize a Paystack payment for a pick package.
+    Does not require auth so the email can be used directly.
+    """
+    package = db.query(Package).filter(Package.id == body.package_id, Package.is_active == True).first()
+    if not package:
+        raise HTTPException(status_code=404, detail="Package not found")
 
-    plan_config = PLANS[body.plan]
     reference = f"SO-{secrets.token_hex(8).upper()}"
+    amount_kobo = int(package.price * 100)  # Paystack uses smallest currency unit
 
     payload = {
-        "email": current_user.email,
-        "amount": plan_config["amount"],
+        "email": body.email,
+        "amount": amount_kobo,
         "reference": reference,
         "currency": "KES",
         "metadata": {
-            "user_id": current_user.id,
-            "plan": body.plan,
-            "picks": plan_config["picks"],
+            "package_id": package.id,
+            "package_name": package.name,
+            "picks_count": package.picks_count,
         },
     }
 
@@ -87,117 +79,122 @@ async def initialize_payment(
                 timeout=30,
             )
             data = resp.json()
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Paystack initialize error: {e}")
-        raise HTTPException(status_code=502, detail="Payment gateway error")
+        raise HTTPException(status_code=502, detail="Payment gateway unreachable. Please try again.")
 
     if not data.get("status"):
-        raise HTTPException(status_code=400, detail=data.get("message", "Initialization failed"))
+        raise HTTPException(status_code=400, detail=data.get("message", "Payment initialization failed"))
 
-    # Store pending payment record
-    payment = Payment(
-        user_id=current_user.id,
-        paystack_reference=reference,
-        amount=plan_config["amount"] / 100,
-        currency="KES",
-        plan=body.plan,
-        status="pending",
-    )
-    db.add(payment)
-    db.commit()
+    # Find user by email and create a pending transaction
+    user = db.query(User).filter(User.email == body.email).first()
+    if user:
+        txn = Transaction(
+            user_id=user.id,
+            amount=package.price,
+            type="package",
+            status="pending",
+            reference=reference,
+            package_id=package.id,
+        )
+        db.add(txn)
+        db.commit()
 
     return {
         "authorization_url": data["data"]["authorization_url"],
         "reference": reference,
-        "plan": body.plan,
-        "label": plan_config["label"],
+        "package": {
+            "id": package.id,
+            "name": package.name,
+            "price": package.price,
+            "picks_count": package.picks_count,
+        },
     }
 
 
-@router.post("/verify")
+@router.get("/verify")
 async def verify_payment(
-    body: VerifyRequest,
-    current_user: User = Depends(get_current_user),
+    reference: str = Query(...),
     db: Session = Depends(get_db),
 ):
-    """Verify a Paystack transaction and activate subscription or add picks."""
-    payment = db.query(Payment).filter(
-        Payment.paystack_reference == body.reference,
-        Payment.user_id == current_user.id,
-    ).first()
+    """
+    Verify a Paystack transaction by reference and add credits to the user.
+    Called after redirect from Paystack payment page.
+    """
+    txn = db.query(Transaction).filter(Transaction.reference == reference).first()
 
-    if not payment:
-        raise HTTPException(status_code=404, detail="Payment record not found")
-
-    if payment.status == "success":
-        return {"status": "already_verified", "plan": payment.plan}
+    if txn and txn.status == "success":
+        return {"status": "already_verified", "reference": reference}
 
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                f"{PAYSTACK_BASE}/transaction/verify/{body.reference}",
+                f"{PAYSTACK_BASE}/transaction/verify/{reference}",
                 headers=get_paystack_headers(),
                 timeout=30,
             )
             data = resp.json()
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Paystack verify error: {e}")
-        raise HTTPException(status_code=502, detail="Payment gateway error")
+        raise HTTPException(status_code=502, detail="Payment gateway unreachable. Please try again.")
 
     if not data.get("status") or data["data"]["status"] != "success":
-        payment.status = "failed"
-        db.commit()
-        raise HTTPException(status_code=400, detail="Payment not successful")
+        if txn:
+            txn.status = "failed"
+            db.commit()
+        raise HTTPException(status_code=400, detail="Payment not successful or not found")
 
-    # Mark payment as verified
-    payment.status = "success"
-    payment.verified_at = datetime.utcnow()
+    tx_data = data["data"]
+    meta = tx_data.get("metadata", {})
+    package_id = meta.get("package_id")
+    picks_count = meta.get("picks_count", 0)
+    email = tx_data.get("customer", {}).get("email", "")
 
-    plan_config = PLANS.get(payment.plan, {})
+    # Find user
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found for this payment")
 
-    if plan_config.get("is_sub"):
-        # Subscription: upgrade user
-        current_user.subscription_status = "paid"
-        db.commit()
-        return {"status": "success", "plan": payment.plan, "subscription": "activated"}
+    # Mark transaction success
+    if txn:
+        txn.status = "success"
+        txn.verified_at = datetime.utcnow()
     else:
-        # Pay-as-you-go: add picks to user's package
-        picks = plan_config.get("picks", 0)
-        user_pkg = db.query(UserPackage).filter(UserPackage.user_id == current_user.id).first()
-        if user_pkg:
-            user_pkg.picks_remaining += picks
-            user_pkg.picks_total += picks
-        else:
-            user_pkg = UserPackage(
-                user_id=current_user.id,
-                picks_remaining=picks,
-                picks_total=picks,
-            )
-            db.add(user_pkg)
+        # Create transaction record if it doesn't exist (e.g. from webhook)
+        txn = Transaction(
+            user_id=user.id,
+            amount=tx_data.get("amount", 0) / 100,
+            type="package",
+            status="success",
+            reference=reference,
+            package_id=package_id,
+            verified_at=datetime.utcnow(),
+        )
+        db.add(txn)
 
-        db.commit()
-        return {
-            "status": "success",
-            "plan": payment.plan,
-            "picks_added": picks,
-            "picks_remaining": user_pkg.picks_remaining,
-        }
+    # Add picks credits to user
+    user_pkg = db.query(UserPackage).filter(UserPackage.user_id == user.id).first()
+    if user_pkg:
+        user_pkg.remaining_picks += picks_count
+    else:
+        user_pkg = UserPackage(
+            user_id=user.id,
+            remaining_picks=picks_count,
+        )
+        db.add(user_pkg)
 
+    db.commit()
 
-@router.get("/plans")
-async def list_plans():
-    """Return available payment plans."""
-    return [
-        {
-            "id": plan_id,
-            "label": cfg["label"],
-            "amount": cfg["amount"] / 100,
-            "currency": "KES",
-            "picks": cfg["picks"],
-            "is_subscription": cfg["is_sub"],
-        }
-        for plan_id, cfg in PLANS.items()
-    ]
+    return {
+        "status": "success",
+        "picks_added": picks_count,
+        "picks_remaining": user_pkg.remaining_picks,
+        "package_id": package_id,
+    }
 
 
 @router.get("/status")
@@ -205,10 +202,10 @@ async def payment_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return current user's subscription and picks status."""
+    """Return current user's subscription and credits status."""
     is_paid = current_user.subscription_status == "paid"
     user_pkg = db.query(UserPackage).filter(UserPackage.user_id == current_user.id).first()
-    picks_remaining = user_pkg.picks_remaining if user_pkg else 0
+    picks_remaining = user_pkg.remaining_picks if user_pkg else 0
 
     return {
         "is_paid": is_paid,

@@ -10,7 +10,8 @@ from sqlalchemy import func, cast, Date
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.models.models import Fixture, Prediction
-from app.routers import predictions, results, users, referrals, admin, paystack
+from app.routers import predictions, results, users, referrals, admin, paystack, packages
+from app.models.models import Package
 from app.services.fixtures_service import update_all_fixtures
 from app.services.results_service import update_results
 from app.services.prediction_engine import generate_prediction
@@ -87,6 +88,20 @@ async def run_nightly_results():
         db.close()
 
 
+def seed_packages(db):
+    """Ensure the 3 pick packages exist in the database."""
+    defaults = [
+        {"id": 1, "name": "Starter Pack — 2 Picks", "price": 10.0,  "picks_count": 2},
+        {"id": 2, "name": "Value Pack — 5 Picks",   "price": 20.0,  "picks_count": 5},
+        {"id": 3, "name": "Pro Pack — 10 Picks",    "price": 100.0, "picks_count": 10},
+    ]
+    for pkg_data in defaults:
+        existing = db.query(Package).filter(Package.id == pkg_data["id"]).first()
+        if not existing:
+            db.add(Package(**pkg_data, currency="KES"))
+    db.commit()
+
+
 async def run_startup_pipeline():
     """On startup: fetch fixtures + generate predictions for today."""
     db = SessionLocal()
@@ -141,6 +156,13 @@ async def lifespan(app: FastAPI):
     if settings.ENVIRONMENT == "production":
         settings.validate_production()
 
+    # Seed pick packages
+    _db = SessionLocal()
+    try:
+        seed_packages(_db)
+    finally:
+        _db.close()
+
     logger.info("Running startup data pipeline...")
     await run_startup_pipeline()
 
@@ -190,6 +212,7 @@ app.include_router(users.router)
 app.include_router(referrals.router)
 app.include_router(admin.router)
 app.include_router(paystack.router)
+app.include_router(packages.router)
 
 
 @app.get("/health")

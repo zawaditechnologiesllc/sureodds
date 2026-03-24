@@ -62,7 +62,7 @@ export default function Footer() {
               {[
                 { label: "Today's Predictions", href: "/predictions" },
                 { label: "Results & Track Record", href: "/results" },
-                { label: "Pricing", href: "/#pricing" },
+                { label: "Buy Pick Credits", href: "/packages" },
                 { label: "Affiliate Program", href: "/partner" },
               ].map(({ label, href }) => (
                 <li key={label}>
@@ -102,7 +102,6 @@ export default function Footer() {
                 { label: "Privacy Policy", href: "/privacy" },
                 { label: "Responsible Gambling", href: "/responsible" },
                 { label: "Cookie Policy", href: "/cookies" },
-
               ].map(({ label, href }) => (
                 <li key={label}>
                   <Link href={href} className="text-brand-muted text-xs hover:text-white transition-colors">
@@ -123,9 +122,22 @@ export default function Footer() {
             <p className="text-brand-muted text-xs">
               &copy; {year} SureOdds. All rights reserved.
             </p>
-            <div className="flex items-center gap-1 text-brand-muted text-xs">
-              <span className="w-2 h-2 rounded-full bg-brand-green inline-block" />
-              All systems operational
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1 text-brand-muted text-xs">
+                <span className="w-2 h-2 rounded-full bg-brand-green inline-block" />
+                All systems operational
+              </div>
+              {/* Powered by Paystack — as required by Paystack documentation */}
+              <a
+                href="https://paystack.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-brand-muted text-xs hover:text-white transition-colors"
+                aria-label="Payments powered by Paystack"
+              >
+                <span>Powered by</span>
+                <span className="font-bold text-[#00C3F7]">Paystack</span>
+              </a>
             </div>
           </div>
         </div>

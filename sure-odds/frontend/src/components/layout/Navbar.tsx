@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, X, TrendingUp, LogIn, Zap } from "lucide-react";
+import { Menu, X, TrendingUp, LogIn, Zap, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavbarProps {
@@ -35,8 +35,9 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
             <Link href="/results" className="text-sm text-gray-300 hover:text-white transition-colors font-medium">
               Results
             </Link>
-            <Link href="/#pricing" className="text-sm text-gray-300 hover:text-white transition-colors font-medium">
-              Pricing
+            <Link href="/packages" className="flex items-center gap-1.5 text-sm text-gray-300 hover:text-white transition-colors font-medium">
+              <CreditCard className="w-3.5 h-3.5" />
+              Buy Credits
             </Link>
             <Link href="/partner" className="text-sm text-gray-300 hover:text-white transition-colors font-medium">
               Earn 30%
@@ -82,7 +83,7 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
             {[
               { href: "/predictions", label: "Predictions" },
               { href: "/results", label: "Results" },
-              { href: "/#pricing", label: "Pricing" },
+              { href: "/packages", label: "Buy Credits" },
               { href: "/partner", label: "Earn 30% Commission" },
             ].map(({ href, label }) => (
               <Link

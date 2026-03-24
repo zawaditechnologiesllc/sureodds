@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// In production (Vercel), NEXT_PUBLIC_API_URL points to the Render backend.
+// In development (Replit), we use /api-proxy which Next.js rewrites to localhost:8000.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api-proxy";
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -19,6 +21,8 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// ─── Predictions ───────────────────────────────────────────────────────────────
+
 export const fetchPredictions = async (date?: string, leagueId?: number) => {
   const params: Record<string, string | number> = {};
   if (date) params.date = date;
@@ -26,6 +30,18 @@ export const fetchPredictions = async (date?: string, leagueId?: number) => {
   const res = await api.get("/predictions", { params });
   return res.data;
 };
+
+export const fetchHighConfidencePicks = async () => {
+  const res = await api.get("/high-confidence-picks");
+  return res.data;
+};
+
+export const unlockPick = async (fixtureId: number) => {
+  const res = await api.post("/unlock-pick", { fixture_id: fixtureId });
+  return res.data;
+};
+
+// ─── Results ───────────────────────────────────────────────────────────────────
 
 export const fetchResults = async (date?: string, leagueId?: number) => {
   const params: Record<string, string | number> = {};
@@ -35,35 +51,54 @@ export const fetchResults = async (date?: string, leagueId?: number) => {
   return res.data;
 };
 
-export const fetchReferralStats = async () => {
-  const res = await api.get("/referrals/stats");
-  return res.data;
-};
+// ─── User ──────────────────────────────────────────────────────────────────────
 
 export const fetchUserProfile = async () => {
   const res = await api.get("/users/me");
   return res.data;
 };
 
+export const fetchUserCredits = async () => {
+  const res = await api.get("/user-credits");
+  return res.data;
+};
+
+// ─── Packages ──────────────────────────────────────────────────────────────────
+
+export const fetchPackages = async () => {
+  const res = await api.get("/packages");
+  return res.data;
+};
+
+// ─── Paystack ──────────────────────────────────────────────────────────────────
+
 export const fetchPaymentStatus = async () => {
   const res = await api.get("/paystack/status");
   return res.data;
 };
 
-export const fetchPaymentPlans = async () => {
-  const res = await api.get("/paystack/plans");
-  return res.data;
-};
-
-export const initializePayment = async (plan: string, callbackUrl?: string) => {
-  const res = await api.post("/paystack/initialize", { plan, callback_url: callbackUrl });
+export const initializePayment = async (packageId: number, email: string, callbackUrl?: string) => {
+  const res = await api.post("/paystack/initialize", {
+    package_id: packageId,
+    email,
+    callback_url: callbackUrl,
+  });
   return res.data;
 };
 
 export const verifyPayment = async (reference: string) => {
-  const res = await api.post("/paystack/verify", { reference });
+  const res = await api.get(`/paystack/verify?reference=${reference}`);
   return res.data;
 };
+
+// ─── Referrals ─────────────────────────────────────────────────────────────────
+
+export const fetchReferralStats = async () => {
+  const res = await api.get("/referrals/stats");
+  return res.data;
+};
+
+// ─── Admin ─────────────────────────────────────────────────────────────────────
 
 export const fetchAdminUsers = async () => {
   const res = await api.get("/admin/users");

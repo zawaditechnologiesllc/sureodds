@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileNav from "@/components/layout/MobileNav";
 import Footer from "@/components/layout/Footer";
 import MatchCard from "@/components/matches/MatchCard";
 import PredictionSlip from "@/components/matches/PredictionSlip";
-import PaystackModal from "@/components/payment/PaystackModal";
 import type { Prediction, PredictionSlipItem } from "@/types";
-import { fetchPredictions } from "@/lib/api";
-import { Loader2, AlertCircle, CalendarX, Lock, Zap } from "lucide-react";
+import { fetchPredictions, fetchUserCredits } from "@/lib/api";
+import { Loader2, AlertCircle, CalendarX, Lock, Zap, CreditCard } from "lucide-react";
 
 function getDateStr(filter: "today" | "tomorrow"): string {
   const d = new Date();
@@ -19,13 +19,14 @@ function getDateStr(filter: "today" | "tomorrow"): string {
 }
 
 export default function PredictionsPage() {
+  const router = useRouter();
   const [slipItems, setSlipItems] = useState<PredictionSlipItem[]>([]);
   const [selectedLeague, setSelectedLeague] = useState<number | null>(null);
   const [filter, setFilter] = useState<"today" | "tomorrow">("today");
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showPaywall, setShowPaywall] = useState(false);
+  const [credits, setCredits] = useState<number | null>(null);
 
   const lockedCount = predictions.filter((p) => p.locked).length;
   const unlockedCount = predictions.filter((p) => !p.locked).length;
@@ -35,7 +36,10 @@ export default function PredictionsPage() {
     setError(null);
     try {
       const dateStr = getDateStr(filter);
-      const data = await fetchPredictions(dateStr, selectedLeague ?? undefined);
+      const [data] = await Promise.all([
+        fetchPredictions(dateStr, selectedLeague ?? undefined),
+        fetchUserCredits().then((c) => setCredits(c.remaining_picks)).catch(() => null),
+      ]);
       setPredictions(data);
     } catch {
       setError("Could not load predictions. Please try again.");
@@ -47,16 +51,6 @@ export default function PredictionsPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  // Check for returning from Paystack payment redirect
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const ref = params.get("reference") || params.get("trxref");
-    if (ref) {
-      setShowPaywall(true);
-    }
-  }, []);
 
   const handleAddToSlip = (item: PredictionSlipItem) => {
     setSlipItems((prev) => {
@@ -72,11 +66,6 @@ export default function PredictionsPage() {
 
   const handleRemove = (matchId: number) => {
     setSlipItems((prev) => prev.filter((i) => i.matchId !== matchId));
-  };
-
-  const handlePaymentSuccess = () => {
-    setShowPaywall(false);
-    load();
   };
 
   const label = filter === "today" ? "Today's" : "Tomorrow's";
@@ -139,6 +128,16 @@ export default function PredictionsPage() {
 
           {!loading && !error && predictions.length > 0 && (
             <>
+              {/* Credits display */}
+              {credits !== null && credits > 0 && (
+                <div className="mb-3 flex items-center gap-2 text-xs">
+                  <Zap className="w-3.5 h-3.5 text-brand-green" />
+                  <span className="text-brand-muted">
+                    You have <span className="text-white font-bold">{credits}</span> pick {credits === 1 ? "credit" : "credits"} — tap a locked pick to unlock it.
+                  </span>
+                </div>
+              )}
+
               <div className="space-y-3">
                 {predictions.map((prediction) => (
                   <MatchCard
@@ -146,7 +145,7 @@ export default function PredictionsPage() {
                     prediction={prediction}
                     onAddToSlip={handleAddToSlip}
                     selectedPick={slipItems.find((i) => i.matchId === prediction.matchId)?.pick}
-                    onUnlockClick={() => setShowPaywall(true)}
+                    onUnlockClick={() => router.push("/packages")}
                   />
                 ))}
               </div>
@@ -158,20 +157,24 @@ export default function PredictionsPage() {
                     <Lock className="w-5 h-5 text-brand-red shrink-0 mt-0.5" />
                     <div>
                       <p className="text-white font-bold text-sm">
-                        {lockedCount} more {lockedCount === 1 ? "pick" : "picks"} available
+                        {lockedCount} more {lockedCount === 1 ? "pick" : "picks"} locked
                       </p>
                       <p className="text-brand-muted text-xs mt-0.5">
-                        You&apos;re seeing {unlockedCount} free picks. Unlock all {predictions.length} with a premium plan.
+                        {credits !== null && credits > 0
+                          ? `Use your ${credits} remaining ${credits === 1 ? "credit" : "credits"} — tap a locked pick above to unlock it.`
+                          : `You're seeing ${unlockedCount} free ${unlockedCount === 1 ? "pick" : "picks"}. Buy pick credits to unlock more.`}
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setShowPaywall(true)}
-                    className="shrink-0 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors"
-                  >
-                    <Zap className="w-4 h-4" />
-                    Unlock Now
-                  </button>
+                  {(!credits || credits === 0) && (
+                    <button
+                      onClick={() => router.push("/packages")}
+                      className="shrink-0 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      Buy Credits
+                    </button>
+                  )}
                 </div>
               )}
             </>
@@ -188,13 +191,6 @@ export default function PredictionsPage() {
       <Footer />
       <MobileNav />
       <div className="h-16 md:h-0" />
-
-      {showPaywall && (
-        <PaystackModal
-          onClose={() => setShowPaywall(false)}
-          onSuccess={handlePaymentSuccess}
-        />
-      )}
     </div>
   );
 }

@@ -1,0 +1,213 @@
+Here’s your **clean, paste-ready prompt (pay-as-you-go only)** — no explanations, just instructions for Replit to implement:
+
+---
+
+**PROMPT START**
+
+Implement a **pay-as-you-go credit system** for a sports prediction platform using FastAPI (backend) and Next.js (frontend), with Paystack for payments and PostgreSQL (Neon) as the database.
+
+---
+
+## CORE REQUIREMENTS
+
+Users must be able to purchase prediction access packages:
+
+* 2 picks for $0.10
+* 5 picks for $0.20
+* 10 picks for $1
+
+These are **credit-based packages**, not subscriptions.
+
+---
+
+## DATABASE SCHEMA
+
+Create the following tables:
+
+### packages
+
+* id (primary key)
+* name (string)
+* price (decimal)
+* picks_count (integer)
+
+---
+
+### user_packages
+
+* id (primary key)
+* user_id (foreign key)
+* remaining_picks (integer)
+* expires_at (timestamp, nullable)
+* created_at (timestamp)
+
+---
+
+### transactions
+
+* id (primary key)
+* user_id (foreign key)
+* amount (decimal)
+* type (string: "package" or "subscription")
+* status (string: "pending", "success", "failed")
+* reference (string)
+* created_at (timestamp)
+
+---
+
+## BACKEND (FastAPI)
+
+### 1. GET PACKAGES
+
+Endpoint:
+GET /packages
+
+Return all available packages.
+
+---
+
+### 2. INITIALIZE PAYMENT (Paystack)
+
+Endpoint:
+POST /paystack/initialize
+
+Request body:
+
+* email
+* package_id
+
+Logic:
+
+* fetch package from database
+* create Paystack transaction
+* return authorization URL
+
+---
+
+### 3. VERIFY PAYMENT
+
+Endpoint:
+GET /paystack/verify?reference=...
+
+Logic:
+
+* verify payment with Paystack API
+* if successful:
+
+  * update transaction status to "success"
+  * add picks to user:
+
+    user.remaining_picks += package.picks_count
+
+---
+
+### 4. USER CREDITS
+
+Endpoint:
+GET /user-credits
+
+Return:
+
+* remaining_picks
+
+---
+
+### 5. HIGH CONFIDENCE PICKS
+
+Endpoint:
+GET /high-confidence-picks
+
+Return only predictions where:
+
+* category = "high_confidence"
+
+Do NOT expose full prediction details unless unlocked.
+
+---
+
+### 6. UNLOCK PICK
+
+Endpoint:
+POST /unlock-pick
+
+Request body:
+
+* fixture_id
+
+Logic:
+
+* check if user has remaining_picks > 0
+* if yes:
+
+  * decrement remaining_picks by 1
+  * return full prediction
+* else:
+
+  * return error "No credits available"
+
+---
+
+## BUSINESS RULES
+
+* Each unlocked pick consumes exactly 1 credit
+* Credits do not reset automatically
+* Credits can optionally expire (implement expires_at logic)
+* Users must not access locked predictions without credits
+
+---
+
+## FRONTEND (Next.js)
+
+### Packages Page
+
+Display:
+
+* 2 picks → $0.10
+* 5 picks → $0.20
+* 10 picks → $1
+
+Each package should have a “Buy” button that triggers Paystack payment.
+
+---
+
+### Locked Prediction UI
+
+For high-confidence picks:
+
+Show:
+
+* "🔒 High Confidence Pick"
+* "Unlock with 1 Credit"
+
+---
+
+### User Dashboard
+
+Display:
+
+* remaining credits
+* purchase history
+
+---
+
+## SECURITY RULES
+
+* All credit checks must happen in backend
+* Do not expose predictions before unlock
+* Validate all payment verifications with Paystack
+
+---
+
+## FINAL REQUIREMENT
+
+The system must:
+
+* allow users to purchase credits via Paystack
+* store transactions correctly
+* update credits after successful payment
+* restrict access to predictions based on credits
+* deduct credits only when a pick is unlocked
+
+---
+
+**PROMPT END**
