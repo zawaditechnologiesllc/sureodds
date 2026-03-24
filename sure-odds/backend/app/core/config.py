@@ -3,7 +3,7 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str
+    O_DATABASE_URL: str
     SUPABASE_URL: str
     SUPABASE_SERVICE_ROLE_KEY: str
     API_FOOTBALL_KEY: str
