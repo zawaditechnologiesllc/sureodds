@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-type Tab = "overview" | "apply" | "dashboard";
+type Tab = "overview" | "apply";
 
 const HOW_IT_WORKS = [
   {
@@ -151,7 +151,7 @@ export default function PartnerPage() {
 
         {/* Tab Nav */}
         <div className="flex gap-1 bg-brand-card border border-brand-border rounded-lg p-1 mb-8">
-          {(["overview", "apply", "dashboard"] as Tab[]).map((t) => (
+          {(["overview", "apply"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -159,7 +159,7 @@ export default function PartnerPage() {
                 tab === t ? "bg-brand-red text-white" : "text-brand-muted hover:text-white"
               }`}
             >
-              {t === "overview" ? "How It Works" : t === "apply" ? "Apply Now" : "My Dashboard"}
+              {t === "overview" ? "How It Works" : "Apply Now"}
             </button>
           ))}
         </div>
@@ -417,86 +417,6 @@ export default function PartnerPage() {
           </div>
         )}
 
-        {/* DASHBOARD TAB */}
-        {tab === "dashboard" && (
-          <div>
-            <div className="bg-yellow-950/30 border border-yellow-900 rounded-xl p-4 mb-6 flex items-start gap-3">
-              <Clock className="w-5 h-5 text-brand-yellow shrink-0 mt-0.5" />
-              <div>
-                <p className="text-brand-yellow font-bold text-sm mb-0.5">Demo Dashboard</p>
-                <p className="text-brand-muted text-xs">
-                  This is a preview of what your partner dashboard looks like after approval. Your real stats and referral link will appear here once your application is approved.
-                </p>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-              {MOCK_STATS.map(({ label, value, icon: Icon, color }) => (
-                <div key={label} className="bg-brand-card border border-brand-border rounded-xl p-4">
-                  <Icon className={`w-5 h-5 ${color} mb-2`} />
-                  <div className={`text-2xl font-black ${color} mb-1`}>{value}</div>
-                  <div className="text-brand-muted text-xs">{label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Referral Link */}
-            <div className="bg-brand-card border border-brand-border rounded-xl p-6 mb-6">
-              <h2 className="text-white font-black text-lg mb-1">Your Referral Link</h2>
-              <p className="text-brand-muted text-xs mb-4">Share this link anywhere — every subscriber earns you 30%.</p>
-              <div className="flex gap-2">
-                <div className="flex-1 bg-brand-dark border border-brand-border rounded-lg px-4 py-3 text-brand-muted text-sm font-mono overflow-hidden text-ellipsis whitespace-nowrap">
-                  {refLink}
-                </div>
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold px-5 py-3 rounded-lg transition-colors shrink-0"
-                >
-                  {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {copied ? "Copied!" : "Copy"}
-                </button>
-              </div>
-            </div>
-
-            {/* Recent Referrals */}
-            <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-brand-border">
-                <h2 className="text-white font-bold">Recent Referrals</h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-brand-border">
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">User</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Plan</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Your Cut</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-brand-border">
-                    {[
-                      { user: "jo***@gmail.com", plan: "Premium", cut: "$3.00", status: "Paid" },
-                      { user: "ma***@yahoo.com", plan: "Premium", cut: "$3.00", status: "Paid" },
-                      { user: "ab***@outlook.com", plan: "Pro", cut: "$6.00", status: "Pending" },
-                    ].map((row, i) => (
-                      <tr key={i} className="hover:bg-white/5 transition-colors">
-                        <td className="px-5 py-3 text-sm text-white">{row.user}</td>
-                        <td className="px-5 py-3 text-sm text-brand-muted">{row.plan}</td>
-                        <td className="px-5 py-3 text-sm text-brand-yellow font-bold">{row.cut}</td>
-                        <td className="px-5 py-3">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded border ${row.status === "Paid" ? "bg-green-950 text-brand-green border-green-900" : "bg-yellow-950 text-brand-yellow border-yellow-900"}`}>
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <Footer />

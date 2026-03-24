@@ -102,6 +102,7 @@ export default function Footer() {
                 { label: "Privacy Policy", href: "/privacy" },
                 { label: "Responsible Gambling", href: "/responsible" },
                 { label: "Cookie Policy", href: "/cookies" },
+                { label: "Admin Panel", href: "/admin" },
               ].map(({ label, href }) => (
                 <li key={label}>
                   <Link href={href} className="text-brand-muted text-xs hover:text-white transition-colors">
