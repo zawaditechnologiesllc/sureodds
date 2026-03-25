@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = "https://placeholder.supabase.co"
     SUPABASE_SERVICE_ROLE_KEY: str = "placeholder-service-role-key"
     API_FOOTBALL_KEY: str = ""
+    API_FOOTBALL_SEASON: int = 2024
 
     LIVE_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = "pk_live_9c64461a7ca5eb52276189daf930f00dc7e24a6d"

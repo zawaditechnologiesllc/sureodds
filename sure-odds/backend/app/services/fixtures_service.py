@@ -23,9 +23,6 @@ ACTIVE_LEAGUES = [
     {"id": 78, "name": "Bundesliga", "country": "Germany"},
 ]
 
-CURRENT_SEASON = 2025
-
-
 async def fetch_fixtures_for_date(target_date: date, league_id: int) -> list:
     if not settings.API_FOOTBALL_KEY:
         logger.warning("API_FOOTBALL_KEY not set — skipping fetch")
@@ -39,11 +36,15 @@ async def fetch_fixtures_for_date(target_date: date, league_id: int) -> list:
                 params={
                     "date": target_date.isoformat(),
                     "league": league_id,
-                    "season": CURRENT_SEASON,
+                    "season": settings.API_FOOTBALL_SEASON,
                 },
                 timeout=30,
             )
             data = resp.json()
+            errors = data.get("errors", {})
+            if errors:
+                logger.warning(f"API-Football error for league {league_id} on {target_date}: {errors}")
+                return []
             return data.get("response", [])
     except Exception as e:
         logger.error(f"Failed to fetch fixtures for {target_date} league {league_id}: {e}")
@@ -80,7 +81,7 @@ async def upsert_fixtures(db: Session, fixtures_data: list, league_id: int) -> i
                     status=new_status,
                     home_score=f["goals"]["home"],
                     away_score=f["goals"]["away"],
-                    season=CURRENT_SEASON,
+                    season=settings.API_FOOTBALL_SEASON,
                 )
                 db.add(fixture)
                 count += 1

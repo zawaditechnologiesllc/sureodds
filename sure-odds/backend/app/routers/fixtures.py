@@ -192,7 +192,7 @@ async def test_api():
             resp = await client.get(
                 "https://v3.football.api-sports.io/fixtures",
                 headers=headers,
-                params={"date": date.today().isoformat(), "league": 39, "season": 2025},
+                params={"date": date.today().isoformat(), "league": 39, "season": settings.API_FOOTBALL_SEASON},
             )
             data = resp.json()
             fixtures = data.get("response", [])
