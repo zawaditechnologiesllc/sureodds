@@ -15,7 +15,6 @@ from app.models.models import Package
 from app.services.fixtures_service import update_all_fixtures
 from app.services.results_service import update_results
 from app.services.prediction_engine import generate_prediction
-from app.services.dev_seeder import seed_demo_data
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -167,9 +166,6 @@ async def lifespan(app: FastAPI):
     _db = SessionLocal()
     try:
         seed_packages(_db)
-        # In development, seed demo fixtures so the frontend shows data
-        if settings.ENVIRONMENT != "production":
-            seed_demo_data(_db)
     finally:
         _db.close()
 
