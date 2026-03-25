@@ -13,6 +13,7 @@ from pydantic import BaseModel
 import httpx
 import logging
 from app.core.config import settings
+from app.services.fixtures_service import get_current_season, get_api_status
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["fixtures"])
@@ -176,15 +177,18 @@ async def get_fixtures(
 @router.get("/test-api")
 async def test_api():
     """
-    Verifies connectivity to API-Football.
-    Returns live fixture JSON if successful, or an error message.
+    Verifies connectivity to API-Football v3.
+    Shows current season, API budget, and a sample fixture response.
     """
     if not settings.API_FOOTBALL_KEY:
         return {
             "success": False,
             "error": "API_FOOTBALL_KEY not configured",
-            "hint": "Set the API_FOOTBALL_KEY environment variable to enable live data fetching.",
+            "hint": "Set the API_FOOTBALL_KEY environment variable.",
         }
+
+    season = get_current_season()
+    budget = await get_api_status()
 
     try:
         headers = {"x-apisports-key": settings.API_FOOTBALL_KEY}
@@ -192,21 +196,31 @@ async def test_api():
             resp = await client.get(
                 "https://v3.football.api-sports.io/fixtures",
                 headers=headers,
-                params={"date": date.today().isoformat(), "league": 39, "season": settings.API_FOOTBALL_SEASON},
+                params={"date": date.today().isoformat(), "season": season},
             )
             data = resp.json()
             fixtures = data.get("response", [])
             errors = data.get("errors", {})
 
             if errors:
-                return {"success": False, "errors": errors, "raw": data}
+                return {
+                    "success": False,
+                    "errors": errors,
+                    "season_used": season,
+                    "budget": budget,
+                }
+
+            # Filter to our leagues for the sample
+            from app.services.fixtures_service import ACTIVE_LEAGUE_IDS
+            our_fixtures = [f for f in fixtures if f.get("league", {}).get("id") in ACTIVE_LEAGUE_IDS]
 
             return {
                 "success": True,
-                "fixtures_returned": len(fixtures),
-                "sample": fixtures[:2] if fixtures else [],
-                "api_status": data.get("get"),
-                "results_count": data.get("results", 0),
+                "season": season,
+                "budget": budget,
+                "total_fixtures_today": len(fixtures),
+                "our_league_fixtures": len(our_fixtures),
+                "sample": our_fixtures[:3] if our_fixtures else fixtures[:2],
             }
     except Exception as e:
         logger.error(f"test-api error: {e}")

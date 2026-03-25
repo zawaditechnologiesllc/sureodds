@@ -5,14 +5,20 @@ from datetime import date, timedelta
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqlalchemy import func, cast, Date
+from sqlalchemy import cast, Date
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.models.models import Fixture, Prediction
-from app.routers import predictions, results, users, referrals, admin, paystack, packages, fixtures as fixtures_router
+from app.routers import (
+    predictions, results, users, referrals, admin, paystack, packages,
+    fixtures as fixtures_router,
+)
 from app.models.models import Package
-from app.services.fixtures_service import update_all_fixtures
+from app.services.fixtures_service import (
+    update_all_fixtures, fetch_today, fetch_upcoming, get_api_status,
+    get_current_season,
+)
 from app.services.results_service import update_results
 from app.services.prediction_engine import generate_prediction
 
@@ -22,15 +28,39 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler(timezone="UTC")
 
 
-async def run_fixtures_update():
-    """Every 6 hours: fetch past 7 days + next 5 days of fixtures."""
+# ---------------------------------------------------------------------------
+# Scheduled jobs
+# ---------------------------------------------------------------------------
+
+async def run_thirty_min_refresh():
+    """
+    Every 30 minutes: fetch today's fixtures across all tracked leagues.
+    Costs exactly 1 API call. Keeps live scores and status up-to-date.
+    """
     db = SessionLocal()
     try:
-        logger.info("Scheduler: updating fixtures (6-hour job)...")
-        result = await update_all_fixtures(db)
-        logger.info(f"Scheduler: fixtures update done — {result}")
+        logger.info("Scheduler: 30-min fixture refresh...")
+        result = await fetch_today(db)
+        logger.info(f"Scheduler: 30-min done — {result}")
     except Exception as e:
-        logger.error(f"Scheduler: fixtures update error: {e}", exc_info=True)
+        logger.error(f"Scheduler: 30-min refresh error: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+async def run_daily_upcoming():
+    """
+    Daily at 00:05 UTC: fetch next 7 days of upcoming fixtures.
+    Costs 7 API calls. Ensures new fixtures (re-scheduled matches, cup draws)
+    are populated well in advance.
+    """
+    db = SessionLocal()
+    try:
+        logger.info("Scheduler: daily upcoming fixtures fetch...")
+        result = await fetch_upcoming(db, days_ahead=7)
+        logger.info(f"Scheduler: daily upcoming done — {result}")
+    except Exception as e:
+        logger.error(f"Scheduler: daily upcoming error: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -88,6 +118,10 @@ async def run_nightly_results():
         db.close()
 
 
+# ---------------------------------------------------------------------------
+# Package seeder
+# ---------------------------------------------------------------------------
+
 def seed_packages(db):
     """Ensure the 3 pick packages exist in the database (pay-as-you-go credits)."""
     defaults = [
@@ -98,24 +132,51 @@ def seed_packages(db):
     for pkg_data in defaults:
         existing = db.query(Package).filter(Package.id == pkg_data["id"]).first()
         if existing:
-            # Update pricing if it was wrong
-            existing.name = pkg_data["name"]
-            existing.price = pkg_data["price"]
+            existing.name        = pkg_data["name"]
+            existing.price       = pkg_data["price"]
             existing.picks_count = pkg_data["picks_count"]
-            existing.currency = "USD"
+            existing.currency    = "USD"
         else:
             db.add(Package(**pkg_data, currency="USD"))
     db.commit()
 
 
+# ---------------------------------------------------------------------------
+# Startup pipeline
+# ---------------------------------------------------------------------------
+
 async def run_startup_pipeline():
-    """On startup: fetch fixtures + generate predictions for today."""
+    """
+    On startup:
+      1. Check remaining API budget.
+      2. If enough budget remains, run the full fixture refresh (11 API calls).
+      3. Generate predictions for today and tomorrow.
+      4. Update results for the past 3 days.
+    """
     db = SessionLocal()
     try:
-        logger.info("Startup: fetching fixtures...")
-        await update_all_fixtures(db)
+        season = get_current_season()
+        logger.info(f"Detected season: {season}")
 
-        logger.info("Startup: generating predictions for today and tomorrow...")
+        # Check API budget before making calls
+        budget = await get_api_status()
+        logger.info(
+            f"API budget: {budget['used']}/{budget['limit']} calls used today "
+            f"({budget['remaining']} remaining)"
+        )
+
+        if budget["remaining"] >= 12:
+            logger.info("Startup: running full fixture refresh...")
+            await update_all_fixtures(db)
+        else:
+            logger.warning(
+                f"Startup: skipping full fixture fetch — only "
+                f"{budget['remaining']} API calls remaining today. "
+                "Data will be refreshed on the next 30-min cycle."
+            )
+
+        # Generate predictions for today + tomorrow
+        logger.info("Startup: generating predictions...")
         today = date.today()
         tomorrow = today + timedelta(days=1)
 
@@ -146,14 +207,20 @@ async def run_startup_pipeline():
         db.commit()
         logger.info(f"Startup: {created} predictions created.")
 
-        logger.info("Startup: updating yesterday's results...")
+        # Update results for recently finished matches
+        logger.info("Startup: reconciling results...")
         result = await update_results(db)
-        logger.info(f"Startup: results updated — {result}")
+        logger.info(f"Startup: results — {result}")
+
     except Exception as e:
         logger.error(f"Startup pipeline error: {e}", exc_info=True)
     finally:
         db.close()
 
+
+# ---------------------------------------------------------------------------
+# Application lifespan
+# ---------------------------------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -162,40 +229,53 @@ async def lifespan(app: FastAPI):
     if settings.ENVIRONMENT == "production":
         settings.validate_production()
 
-    # Seed pick packages
     _db = SessionLocal()
     try:
         seed_packages(_db)
     finally:
         _db.close()
 
-    logger.info("Running startup data pipeline...")
     await run_startup_pipeline()
 
-    # Every 6 hours: fetch fixtures (past 7 days + next 5 days)
+    # Every 30 min: fetch today's live scores + status (1 API call)
     scheduler.add_job(
-        run_fixtures_update, "interval", hours=6,
-        id="fixtures_update", replace_existing=True
+        run_thirty_min_refresh, "interval", minutes=30,
+        id="thirty_min_refresh", replace_existing=True,
+    )
+    # Daily at 00:05 UTC: fetch upcoming week (7 API calls)
+    scheduler.add_job(
+        run_daily_upcoming, "cron", hour=0, minute=5,
+        id="daily_upcoming", replace_existing=True,
     )
     # Daily at 06:00 UTC: generate predictions
     scheduler.add_job(
         run_daily_predictions, "cron", hour=6, minute=0,
-        id="daily_predictions", replace_existing=True
+        id="daily_predictions", replace_existing=True,
     )
     # Daily at 01:00 UTC: update match results
     scheduler.add_job(
         run_nightly_results, "cron", hour=1, minute=0,
-        id="nightly_results", replace_existing=True
+        id="nightly_results", replace_existing=True,
     )
 
     scheduler.start()
-    logger.info("Scheduler started — fixtures every 6h, predictions at 06:00 UTC, results at 01:00 UTC.")
+    logger.info(
+        "Scheduler started — "
+        "fixture refresh every 30 min | "
+        "upcoming fetch daily at 00:05 UTC | "
+        "predictions at 06:00 UTC | "
+        "results at 01:00 UTC"
+    )
 
     yield
 
     scheduler.shutdown()
     logger.info("Scheduler stopped.")
 
+
+# ---------------------------------------------------------------------------
+# FastAPI app
+# ---------------------------------------------------------------------------
 
 app = FastAPI(
     title="Sure Odds API",
@@ -224,7 +304,12 @@ app.include_router(packages.router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "sure-odds-api", "version": "2.0.0"}
+    return {
+        "status": "ok",
+        "service": "sure-odds-api",
+        "version": "2.0.0",
+        "season": get_current_season(),
+    }
 
 
 @app.get("/")

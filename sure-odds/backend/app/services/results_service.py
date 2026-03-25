@@ -1,13 +1,13 @@
 """
-Service for updating match results and verifying predictions.
-Updates results for the past 7 days to catch any delayed result postings.
+Service for updating match results and verifying prediction accuracy.
+Re-fetches past N days of finished matches and reconciles with predictions.
 """
 
 import logging
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
 from app.models.models import Fixture, Prediction
-from app.services.fixtures_service import fetch_fixtures_for_date, map_status, ACTIVE_LEAGUES
+from app.services.fixtures_service import fetch_fixtures_for_date, upsert_fixtures, map_status
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,9 @@ def determine_actual_result(home_score: int, away_score: int) -> str:
     return "2"
 
 
-def check_prediction_correct(prediction: Prediction, actual: str, home_score: int, away_score: int) -> bool:
+def check_prediction_correct(
+    prediction: Prediction, actual: str, home_score: int, away_score: int
+) -> bool:
     best = prediction.best_pick
     if best in ("1", "X", "2"):
         return best == actual
@@ -31,10 +33,11 @@ def check_prediction_correct(prediction: Prediction, actual: str, home_score: in
     return False
 
 
-async def update_results(db: Session, days_back: int = 7) -> dict:
+async def update_results(db: Session, days_back: int = 3) -> dict:
     """
-    Fetch and update results for the past N days.
-    This ensures no completed match results are missed.
+    Fetch the past N days from the API, upsert scores, and reconcile predictions.
+    Uses 1 API call per day (all leagues in one request).
+    Default days_back=3 to stay within the 100 calls/day budget.
     """
     updated = 0
     correct = 0
@@ -42,38 +45,49 @@ async def update_results(db: Session, days_back: int = 7) -> dict:
 
     for days_ago in range(1, days_back + 1):
         target_date = today - timedelta(days=days_ago)
+        fixtures_data = await fetch_fixtures_for_date(target_date)
 
-        for league in ACTIVE_LEAGUES:
-            fixtures_data = await fetch_fixtures_for_date(target_date, league["id"])
-            for f in fixtures_data:
-                fixture_id = f["fixture"]["id"]
-                status = map_status(f["fixture"]["status"]["short"])
+        # Upsert scores/status first
+        await upsert_fixtures(db, fixtures_data)
 
-                if status != "finished":
-                    continue
+        # Now reconcile predictions against finished results
+        for f in fixtures_data:
+            fixture_id = f["fixture"]["id"]
+            status = map_status(f["fixture"]["status"]["short"])
 
-                home_score = f["goals"]["home"] or 0
-                away_score = f["goals"]["away"] or 0
-                actual = determine_actual_result(home_score, away_score)
+            if status != "finished":
+                continue
 
-                fixture = db.query(Fixture).filter(Fixture.id == fixture_id).first()
-                if not fixture:
-                    continue
+            home_score = f["goals"]["home"] or 0
+            away_score = f["goals"]["away"] or 0
+            actual = determine_actual_result(home_score, away_score)
 
-                fixture.status = "finished"
-                fixture.home_score = home_score
-                fixture.away_score = away_score
+            fixture = db.query(Fixture).filter(Fixture.id == fixture_id).first()
+            if not fixture:
+                continue
 
-                prediction = db.query(Prediction).filter(Prediction.fixture_id == fixture_id).first()
-                if prediction and prediction.actual_result is None:
-                    is_correct = check_prediction_correct(prediction, actual, home_score, away_score)
-                    prediction.actual_result = actual
-                    prediction.is_correct = is_correct
-                    updated += 1
-                    if is_correct:
-                        correct += 1
+            fixture.status = "finished"
+            fixture.home_score = home_score
+            fixture.away_score = away_score
+
+            prediction = (
+                db.query(Prediction)
+                .filter(Prediction.fixture_id == fixture_id)
+                .first()
+            )
+            if prediction and prediction.actual_result is None:
+                is_correct = check_prediction_correct(
+                    prediction, actual, home_score, away_score
+                )
+                prediction.actual_result = actual
+                prediction.is_correct = is_correct
+                updated += 1
+                if is_correct:
+                    correct += 1
 
     db.commit()
     accuracy = round((correct / updated * 100), 1) if updated > 0 else 0
-    logger.info(f"Results update: {updated} updated, {correct} correct, {accuracy}% accuracy")
+    logger.info(
+        f"Results update: {updated} updated, {correct} correct, {accuracy}% accuracy"
+    )
     return {"updated": updated, "correct": correct, "accuracy_pct": accuracy}

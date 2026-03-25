@@ -1,7 +1,17 @@
 """
-Service for fetching and updating fixtures from API-Football.
-Fetches past 7 days of completed matches and upcoming 5 days of fixtures.
-All frontend requests must read from the database — never call API-Football from frontend.
+Service for fetching and storing fixtures from API-Football v3.
+Docs: https://www.api-football.com/documentation-v3
+
+Architecture:
+  - ALL data is fetched in background jobs and served to users from the DB.
+  - NEVER call API-Football on a user request — always read from DB.
+
+Budget strategy (100 API calls/day on free plan):
+  - 1 call per date fetch (all leagues in one request, filtered server-side)
+  - Startup:      today + past 3 days + next 7 days = 11 calls max
+  - Every 30 min: today only = 1 call  →  ≤48 calls/day
+  - Daily midnight: next 7 days = 7 calls
+  - Total worst-case: ~66 calls/day  ✓ well under 100
 """
 
 import httpx
@@ -16,59 +26,154 @@ logger = logging.getLogger(__name__)
 API_FOOTBALL_BASE = "https://v3.football.api-sports.io"
 
 ACTIVE_LEAGUES = [
-    {"id": 39, "name": "Premier League", "country": "England"},
-    {"id": 140, "name": "La Liga", "country": "Spain"},
+    {"id": 39,   "name": "Premier League",       "country": "England"},
+    {"id": 140,  "name": "La Liga",               "country": "Spain"},
+    {"id": 135,  "name": "Serie A",               "country": "Italy"},
+    {"id": 78,   "name": "Bundesliga",            "country": "Germany"},
     {"id": 1644, "name": "Kenyan Premier League", "country": "Kenya"},
-    {"id": 135, "name": "Serie A", "country": "Italy"},
-    {"id": 78, "name": "Bundesliga", "country": "Germany"},
 ]
 
-async def fetch_fixtures_for_date(target_date: date, league_id: int) -> list:
+ACTIVE_LEAGUE_IDS = {league["id"] for league in ACTIVE_LEAGUES}
+
+
+def get_current_season() -> int:
+    """
+    Auto-detect the current football season year.
+
+    Per API-Football convention, the season number is the calendar year
+    in which the season STARTS:
+      - Season 2025 = Aug 2025 → May/Jun 2026  (European leagues)
+      - Season 2024 = Aug 2024 → May/Jun 2025
+
+    Logic:
+      - Month >= 7 (July onward)  → new season just kicked off → use current year
+      - Month <  7 (Jan–June)     → season started last year   → use current year - 1
+
+    Examples (today = March 2026):  month=3 < 7  →  season = 2025  ✓
+    Examples (today = August 2026): month=8 >= 7 →  season = 2026  ✓
+    """
+    today = date.today()
+    return today.year if today.month >= 7 else today.year - 1
+
+
+async def get_api_status() -> dict:
+    """
+    Query /status to see how many API calls have been used today.
+    Returns dict with keys: used, limit, remaining, suspended.
+
+    Note: when the account is suspended or the plan errors, the API returns
+    response as [] (empty list) rather than a dict — we handle both cases.
+    """
+    if not settings.API_FOOTBALL_KEY:
+        return {"used": 0, "limit": 100, "remaining": 0, "suspended": True}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"{API_FOOTBALL_BASE}/status",
+                headers={"x-apisports-key": settings.API_FOOTBALL_KEY},
+            )
+            data = resp.json()
+
+        errors = data.get("errors", {})
+        if errors:
+            logger.warning(f"API-Football status error: {errors}")
+            return {"used": 100, "limit": 100, "remaining": 0, "suspended": True, "errors": errors}
+
+        response = data.get("response", {})
+        # API returns response as a dict on success, [] on error/suspension
+        if not isinstance(response, dict):
+            return {"used": 100, "limit": 100, "remaining": 0, "suspended": True}
+
+        reqs = response.get("requests", {})
+        used  = reqs.get("current", 0)
+        limit = reqs.get("limit_day", 100)
+        subscription = response.get("subscription", {})
+        plan = subscription.get("plan", "Unknown")
+        logger.info(f"API-Football plan: {plan} — {used}/{limit} calls used today")
+        return {
+            "used": used,
+            "limit": limit,
+            "remaining": limit - used,
+            "plan": plan,
+            "suspended": False,
+        }
+    except Exception as e:
+        logger.warning(f"Could not check API budget: {e}")
+        return {"used": 0, "limit": 100, "remaining": 100, "suspended": False}
+
+
+async def fetch_fixtures_for_date(target_date: date) -> list:
+    """
+    Fetch ALL fixtures for a given date in a SINGLE API call (no league filter).
+    API-Football returns every league; we filter server-side to ACTIVE_LEAGUE_IDS.
+
+    Per the API-Football v3 docs the `season` parameter is optional when using
+    `date`, but we pass it to ensure we get the current season's data.
+    Returns a list of raw fixture objects from the API response.
+    """
     if not settings.API_FOOTBALL_KEY:
         logger.warning("API_FOOTBALL_KEY not set — skipping fetch")
         return []
+
+    season = get_current_season()
     headers = {"x-apisports-key": settings.API_FOOTBALL_KEY}
+
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(
                 f"{API_FOOTBALL_BASE}/fixtures",
                 headers=headers,
-                params={
-                    "date": target_date.isoformat(),
-                    "league": league_id,
-                    "season": settings.API_FOOTBALL_SEASON,
-                },
-                timeout=30,
+                params={"date": target_date.isoformat(), "season": season},
             )
             data = resp.json()
-            errors = data.get("errors", {})
-            if errors:
-                logger.warning(f"API-Football error for league {league_id} on {target_date}: {errors}")
-                return []
-            return data.get("response", [])
+
+        errors = data.get("errors", {})
+        if errors:
+            logger.warning(
+                f"API-Football error for {target_date} season {season}: {errors}"
+            )
+            return []
+
+        all_fixtures = data.get("response", [])
+        filtered = [
+            f for f in all_fixtures
+            if f.get("league", {}).get("id") in ACTIVE_LEAGUE_IDS
+        ]
+        logger.info(
+            f"Fetched {target_date}: {len(filtered)} tracked-league fixtures "
+            f"(out of {len(all_fixtures)} total) — season {season}"
+        )
+        return filtered
+
     except Exception as e:
-        logger.error(f"Failed to fetch fixtures for {target_date} league {league_id}: {e}")
+        logger.error(f"Failed to fetch fixtures for {target_date}: {e}")
         return []
 
 
-async def upsert_fixtures(db: Session, fixtures_data: list, league_id: int) -> int:
+async def upsert_fixtures(db: Session, fixtures_data: list) -> int:
+    """
+    Insert new fixtures and update scores/status for existing ones.
+    Season and league_id are taken from the API response (not hardcoded).
+    Returns the count of newly inserted fixtures.
+    """
     count = 0
     for f in fixtures_data:
         try:
             fixture_id = f["fixture"]["id"]
+            league_id  = f["league"]["id"]
+            season     = f["league"]["season"]
             kickoff_str = f["fixture"]["date"]
             kickoff = datetime.fromisoformat(kickoff_str.replace("Z", "+00:00"))
             new_status = map_status(f["fixture"]["status"]["short"])
 
             existing = db.query(Fixture).filter(Fixture.id == fixture_id).first()
             if existing:
-                # Only update status and scores — do not overwrite valid finished records
                 if existing.status != "finished" or new_status == "finished":
                     existing.status = new_status
                 existing.home_score = f["goals"]["home"]
                 existing.away_score = f["goals"]["away"]
             else:
-                fixture = Fixture(
+                db.add(Fixture(
                     id=fixture_id,
                     league_id=league_id,
                     home_team_id=f["teams"]["home"]["id"],
@@ -81,12 +186,14 @@ async def upsert_fixtures(db: Session, fixtures_data: list, league_id: int) -> i
                     status=new_status,
                     home_score=f["goals"]["home"],
                     away_score=f["goals"]["away"],
-                    season=settings.API_FOOTBALL_SEASON,
-                )
-                db.add(fixture)
+                    season=season,
+                ))
                 count += 1
+
         except Exception as e:
-            logger.warning(f"Error upserting fixture: {e}")
+            logger.warning(
+                f"Error upserting fixture {f.get('fixture', {}).get('id')}: {e}"
+            )
             continue
 
     db.commit()
@@ -94,44 +201,71 @@ async def upsert_fixtures(db: Session, fixtures_data: list, league_id: int) -> i
 
 
 def map_status(api_status: str) -> str:
-    live_statuses = {"1H", "2H", "HT", "ET", "BT", "P", "LIVE"}
-    finished_statuses = {"FT", "AET", "PEN"}
-    if api_status in live_statuses:
+    """Map API-Football short status codes to our internal status strings."""
+    if api_status in {"1H", "2H", "HT", "ET", "BT", "P", "LIVE"}:
         return "live"
-    if api_status in finished_statuses:
+    if api_status in {"FT", "AET", "PEN"}:
         return "finished"
     return "scheduled"
 
 
 async def ensure_leagues(db: Session):
+    """Ensure all active leagues are present in the DB."""
     for league_data in ACTIVE_LEAGUES:
-        existing = db.query(League).filter(League.id == league_data["id"]).first()
-        if not existing:
-            league = League(**league_data)
-            db.add(league)
+        if not db.query(League).filter(League.id == league_data["id"]).first():
+            db.add(League(**league_data))
     db.commit()
+
+
+async def fetch_today(db: Session) -> dict:
+    """
+    Fetch today's fixtures only. Called every 30 minutes.
+    Costs exactly 1 API call.
+    """
+    await ensure_leagues(db)
+    today = date.today()
+    fixtures = await fetch_fixtures_for_date(today)
+    count = await upsert_fixtures(db, fixtures)
+    logger.info(f"30-min refresh complete: {count} new fixtures for {today}")
+    return {"fixtures_added": count, "date": today.isoformat()}
+
+
+async def fetch_upcoming(db: Session, days_ahead: int = 7) -> dict:
+    """
+    Fetch upcoming fixtures for the next N days (not including today).
+    Called once at startup and daily at midnight.
+    Costs N API calls.
+    """
+    await ensure_leagues(db)
+    today = date.today()
+    total = 0
+    for i in range(1, days_ahead + 1):
+        target = today + timedelta(days=i)
+        fixtures = await fetch_fixtures_for_date(target)
+        count = await upsert_fixtures(db, fixtures)
+        total += count
+    logger.info(f"Upcoming fetch: {total} new fixtures for next {days_ahead} days")
+    return {"fixtures_added": total, "days_fetched": days_ahead}
 
 
 async def update_all_fixtures(db: Session) -> dict:
     """
-    Fetch past 7 days of completed matches + next 5 days of upcoming fixtures.
-    Called every 6 hours by the scheduler.
+    Full refresh: past 3 days (result updates) + today + next 7 days.
+    Called on startup only. Costs up to 11 API calls.
     """
     await ensure_leagues(db)
-    total = 0
     today = date.today()
+    total = 0
+    past_dates   = [today - timedelta(days=i) for i in range(1, 4)]
+    future_dates = [today + timedelta(days=i) for i in range(0, 8)]
+    all_dates    = past_dates + future_dates
 
-    # Past 7 days (to capture completed matches and update results)
-    past_dates = [today - timedelta(days=i) for i in range(1, 8)]
-    # Next 5 days (upcoming fixtures)
-    future_dates = [today + timedelta(days=i) for i in range(0, 6)]
-    all_dates = past_dates + future_dates
+    for target_date in all_dates:
+        fixtures = await fetch_fixtures_for_date(target_date)
+        count    = await upsert_fixtures(db, fixtures)
+        total   += count
 
-    for league in ACTIVE_LEAGUES:
-        for target_date in all_dates:
-            fixtures = await fetch_fixtures_for_date(target_date, league["id"])
-            count = await upsert_fixtures(db, fixtures, league["id"])
-            total += count
-
-    logger.info(f"Fixtures update complete: {total} new fixtures added across {len(all_dates)} dates")
+    logger.info(
+        f"Full refresh complete: {total} new fixtures across {len(all_dates)} dates"
+    )
     return {"fixtures_added": total, "dates_fetched": len(all_dates)}
