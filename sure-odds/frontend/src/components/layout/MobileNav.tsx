@@ -2,18 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart2, CheckCircle, CreditCard, User } from "lucide-react";
+import { BarChart2, CheckCircle, LayoutDashboard, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/useAuth";
 
 export default function MobileNav() {
   const pathname = usePathname();
+  const { isAuthenticated } = useAuth();
 
-  const tabs = [
-    { href: "/predictions", label: "Predictions", icon: BarChart2 },
-    { href: "/results", label: "Results", icon: CheckCircle },
-    { href: "/packages", label: "Credits", icon: CreditCard },
-    { href: "/auth/login", label: "Account", icon: User },
-  ];
+  const tabs = isAuthenticated
+    ? [
+        { href: "/predictions", label: "Predictions", icon: BarChart2 },
+        { href: "/results", label: "Results", icon: CheckCircle },
+        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      ]
+    : [
+        { href: "/predictions", label: "Predictions", icon: BarChart2 },
+        { href: "/results", label: "Results", icon: CheckCircle },
+        { href: "/auth/login", label: "Account", icon: User },
+      ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-brand-darker border-t border-brand-border md:hidden">
