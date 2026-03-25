@@ -44,16 +44,16 @@ def can_access_premium(user: Optional[User], db: Session) -> bool:
     if user.subscription_status == "paid":
         return True
     pkg = db.query(UserPackage).filter(UserPackage.user_id == user.id).first()
-    return bool(pkg and pkg.picks_remaining > 0)
+    return bool(pkg and pkg.remaining_picks > 0)
 
 
 def consume_pick(user: User, db: Session):
-    """Decrement picks_remaining if user is on a pay-as-you-go package."""
+    """Decrement remaining_picks if user is on a pay-as-you-go package."""
     if user.subscription_status == "paid":
         return  # Subscribers don't consume picks
     pkg = db.query(UserPackage).filter(UserPackage.user_id == user.id).first()
-    if pkg and pkg.picks_remaining > 0:
-        pkg.picks_remaining -= 1
+    if pkg and pkg.remaining_picks > 0:
+        pkg.remaining_picks -= 1
         db.commit()
 
 

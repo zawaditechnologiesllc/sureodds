@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
 import MobileNav from "@/components/layout/MobileNav";
 import Footer from "@/components/layout/Footer";
-import { Zap, Star, Shield, CheckCircle, Loader2, AlertCircle, CreditCard, ArrowRight } from "lucide-react";
+import { Zap, Star, Shield, CheckCircle, Loader2, AlertCircle, CreditCard, ArrowRight, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchPackages, initializePayment, verifyPayment, fetchUserCredits } from "@/lib/api";
+import { useAuth } from "@/lib/useAuth";
 import toast from "react-hot-toast";
 
 interface Package {
@@ -26,16 +27,25 @@ const PACKAGE_HIGHLIGHTS: Record<number, string[]> = {
   3: ["10 premium picks", "Full probability breakdown", "Lowest cost per pick"],
 };
 
-export default function PackagesPage() {
+function PackagesContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, loading: authLoading, isAuthenticated } = useAuth();
+
   const [packages, setPackages] = useState<Package[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
-  const [email, setEmail] = useState("");
   const [credits, setCredits] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace(`/auth/login?redirect=/packages`);
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -54,21 +64,19 @@ export default function PackagesPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (isAuthenticated) loadData();
+  }, [isAuthenticated, loadData]);
 
   // Handle return from Paystack redirect
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const ref = params.get("reference") || params.get("trxref");
-    if (ref) {
+    const ref = searchParams.get("reference") || searchParams.get("trxref");
+    if (ref && isAuthenticated) {
       setVerifying(true);
       verifyPayment(ref)
         .then((data) => {
           toast.success(`Payment confirmed! ${data.picks_added} picks added to your account.`);
           setCredits(data.picks_remaining);
-          // Clean up URL
           const url = new URL(window.location.href);
           url.searchParams.delete("reference");
           url.searchParams.delete("trxref");
@@ -79,15 +87,11 @@ export default function PackagesPage() {
         })
         .finally(() => setVerifying(false));
     }
-  }, []);
+  }, [searchParams, isAuthenticated]);
 
   const handleBuy = async () => {
-    if (!selected || !email) {
-      setError("Please select a package and enter your email.");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Please enter a valid email address.");
+    if (!selected || !user?.email) {
+      setError("Could not determine your email. Please log out and back in.");
       return;
     }
 
@@ -95,7 +99,7 @@ export default function PackagesPage() {
     setError(null);
     try {
       const callbackUrl = `${window.location.origin}/packages`;
-      const data = await initializePayment(selected, email, callbackUrl);
+      const data = await initializePayment(selected, user.email, callbackUrl);
       window.location.href = data.authorization_url;
     } catch (err: unknown) {
       const msg = err && typeof err === "object" && "response" in err
@@ -107,6 +111,29 @@ export default function PackagesPage() {
   };
 
   const selectedPkg = packages.find((p) => p.id === selected);
+
+  // Auth loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-brand-dark flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-brand-red animate-spin" />
+      </div>
+    );
+  }
+
+  // Not authenticated — show redirect message (router.replace will kick in)
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-brand-dark flex flex-col items-center justify-center gap-4 px-4">
+        <Lock className="w-12 h-12 text-brand-muted" />
+        <p className="text-white font-bold text-lg">Login required</p>
+        <p className="text-brand-muted text-sm text-center">You need to be logged in to purchase pick credits.</p>
+        <a href="/auth/login?redirect=/packages" className="bg-brand-red hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-colors">
+          Login to Continue
+        </a>
+      </div>
+    );
+  }
 
   if (verifying) {
     return (
@@ -135,6 +162,10 @@ export default function PackagesPage() {
           <p className="text-brand-muted text-sm max-w-sm mx-auto">
             Purchase credits to unlock high-confidence predictions. Each credit unlocks one premium pick.
           </p>
+
+          <div className="mt-3 text-xs text-brand-muted">
+            Logged in as <span className="text-white font-medium">{user?.email}</span>
+          </div>
 
           {credits !== null && (
             <div className="mt-4 inline-flex items-center gap-2 bg-brand-card border border-brand-border rounded-xl px-5 py-3">
@@ -216,25 +247,10 @@ export default function PackagesPage() {
               })}
             </div>
 
-            {/* Email Input */}
-            <div className="mb-4">
-              <label className="text-white text-sm font-bold block mb-2">Your Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@example.com"
-                className="w-full bg-brand-card border border-brand-border rounded-xl px-4 py-3 text-white text-sm placeholder:text-brand-muted focus:outline-none focus:border-brand-red transition-colors"
-              />
-              <p className="text-brand-muted text-xs mt-1.5">
-                Used to match your payment to your account. Must match your registered email.
-              </p>
-            </div>
-
-            {/* Pay Button */}
+            {/* Pay Button — email pre-filled from auth */}
             <button
               onClick={handleBuy}
-              disabled={paying || !selected || !email}
+              disabled={paying || !selected}
               className="w-full py-4 rounded-xl bg-brand-red hover:bg-red-700 disabled:opacity-60 text-white font-black text-base transition-colors flex items-center justify-center gap-2"
             >
               {paying ? (
@@ -293,5 +309,17 @@ export default function PackagesPage() {
       <MobileNav />
       <div className="h-16 md:h-0" />
     </div>
+  );
+}
+
+export default function PackagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-brand-dark flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-brand-red animate-spin" />
+      </div>
+    }>
+      <PackagesContent />
+    </Suspense>
   );
 }

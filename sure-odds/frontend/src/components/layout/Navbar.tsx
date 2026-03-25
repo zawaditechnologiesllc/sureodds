@@ -35,6 +35,9 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
             <Link href="/results" className="text-sm text-gray-300 hover:text-white transition-colors font-medium">
               Results
             </Link>
+            <Link href="/pricing" className="text-sm text-gray-300 hover:text-white transition-colors font-medium">
+              Pricing
+            </Link>
             <Link href="/packages" className="flex items-center gap-1.5 text-sm text-gray-300 hover:text-white transition-colors font-medium">
               <CreditCard className="w-3.5 h-3.5" />
               Buy Credits
@@ -83,6 +86,7 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
             {[
               { href: "/predictions", label: "Predictions" },
               { href: "/results", label: "Results" },
+              { href: "/pricing", label: "Pricing" },
               { href: "/packages", label: "Buy Credits" },
               { href: "/partner", label: "Earn 30% Commission" },
             ].map(({ href, label }) => (

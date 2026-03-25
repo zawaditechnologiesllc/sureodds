@@ -20,6 +20,7 @@ function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const refCode = searchParams.get("ref");
+  const redirect = searchParams.get("redirect") || "/predictions";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,7 +41,7 @@ function SignupForm() {
       toast.error(error.message);
     } else {
       toast.success("Account created! Check your email to verify.");
-      router.push("/predictions");
+      router.push(redirect);
     }
     setLoading(false);
   };
@@ -113,7 +114,10 @@ function SignupForm() {
       <div className="mt-4 text-center">
         <p className="text-brand-muted text-xs mb-3">
           Already have an account?{" "}
-          <Link href="/auth/login" className="text-brand-red hover:text-red-400 font-bold">
+          <Link
+            href={`/auth/login${redirect !== "/predictions" ? `?redirect=${encodeURIComponent(redirect)}` : ""}`}
+            className="text-brand-red hover:text-red-400 font-bold"
+          >
             Login
           </Link>
         </p>

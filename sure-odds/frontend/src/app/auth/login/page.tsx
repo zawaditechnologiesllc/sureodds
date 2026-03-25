@@ -2,19 +2,29 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Zap, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect") || "/predictions";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // If already logged in, redirect immediately
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) router.replace(redirect);
+    });
+  }, [redirect, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,17 +32,16 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       toast.error(error.message);
+      setLoading(false);
     } else {
       toast.success("Welcome back!");
-      router.push("/predictions");
+      router.push(redirect);
     }
-    setLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-brand-dark flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <Link href="/" className="flex items-center justify-center gap-2 mb-8">
           <div className="w-8 h-8 bg-brand-red rounded flex items-center justify-center">
             <Zap className="w-5 h-5 text-white fill-white" />
@@ -44,7 +53,9 @@ export default function LoginPage() {
 
         <div className="bg-brand-card border border-brand-border rounded-xl p-6">
           <h1 className="text-white font-black text-xl mb-1">Welcome back</h1>
-          <p className="text-brand-muted text-sm mb-6">Login to access today&apos;s picks</p>
+          <p className="text-brand-muted text-sm mb-6">
+            Login to access today&apos;s picks
+          </p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -96,7 +107,10 @@ export default function LoginPage() {
           <div className="mt-4 text-center">
             <p className="text-brand-muted text-sm">
               Don&apos;t have an account?{" "}
-              <Link href="/auth/signup" className="text-brand-red hover:text-red-400 font-bold">
+              <Link
+                href={`/auth/signup${redirect !== "/predictions" ? `?redirect=${encodeURIComponent(redirect)}` : ""}`}
+                className="text-brand-red hover:text-red-400 font-bold"
+              >
                 Get Started Free
               </Link>
             </p>
@@ -104,5 +118,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
