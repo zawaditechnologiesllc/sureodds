@@ -10,11 +10,12 @@ from sqlalchemy import func, cast, Date
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.models.models import Fixture, Prediction
-from app.routers import predictions, results, users, referrals, admin, paystack, packages
+from app.routers import predictions, results, users, referrals, admin, paystack, packages, fixtures as fixtures_router
 from app.models.models import Package
 from app.services.fixtures_service import update_all_fixtures
 from app.services.results_service import update_results
 from app.services.prediction_engine import generate_prediction
+from app.services.dev_seeder import seed_demo_data
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -89,16 +90,22 @@ async def run_nightly_results():
 
 
 def seed_packages(db):
-    """Ensure the 3 pick packages exist in the database."""
+    """Ensure the 3 pick packages exist in the database (pay-as-you-go credits)."""
     defaults = [
-        {"id": 1, "name": "Starter Pack — 2 Picks", "price": 10.0,  "picks_count": 2},
-        {"id": 2, "name": "Value Pack — 5 Picks",   "price": 20.0,  "picks_count": 5},
-        {"id": 3, "name": "Pro Pack — 10 Picks",    "price": 100.0, "picks_count": 10},
+        {"id": 1, "name": "Starter Pack — 5 Picks",  "price": 0.20, "picks_count": 5},
+        {"id": 2, "name": "Value Pack — 10 Picks",   "price": 0.70, "picks_count": 10},
+        {"id": 3, "name": "Pro Pack — 20 Picks",     "price": 1.50, "picks_count": 20},
     ]
     for pkg_data in defaults:
         existing = db.query(Package).filter(Package.id == pkg_data["id"]).first()
-        if not existing:
-            db.add(Package(**pkg_data, currency="KES"))
+        if existing:
+            # Update pricing if it was wrong
+            existing.name = pkg_data["name"]
+            existing.price = pkg_data["price"]
+            existing.picks_count = pkg_data["picks_count"]
+            existing.currency = "USD"
+        else:
+            db.add(Package(**pkg_data, currency="USD"))
     db.commit()
 
 
@@ -160,6 +167,9 @@ async def lifespan(app: FastAPI):
     _db = SessionLocal()
     try:
         seed_packages(_db)
+        # In development, seed demo fixtures so the frontend shows data
+        if settings.ENVIRONMENT != "production":
+            seed_demo_data(_db)
     finally:
         _db.close()
 
@@ -206,6 +216,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(fixtures_router.router)
 app.include_router(predictions.router)
 app.include_router(results.router)
 app.include_router(users.router)

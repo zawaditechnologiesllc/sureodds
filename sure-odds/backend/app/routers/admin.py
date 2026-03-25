@@ -15,6 +15,9 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 def verify_admin(x_admin_key: str = Header(None)):
+    # In development, skip auth to allow the admin panel to work without a key
+    if settings.ENVIRONMENT == "development":
+        return
     if x_admin_key != settings.SECRET_KEY:
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -78,12 +81,20 @@ async def get_stats(db: Session = Depends(get_db)):
         .count()
     )
     total_fixtures = db.query(Fixture).count()
+    today_fixtures = (
+        db.query(Fixture)
+        .filter(cast(Fixture.kickoff, Date) == today)
+        .count()
+    )
     return {
         "total_users": total_users,
         "paid_users": paid_users,
         "free_users": total_users - paid_users,
         "today_predictions": today_predictions,
         "total_fixtures": total_fixtures,
+        "today_fixtures": today_fixtures,
+        "api_key_configured": bool(settings.API_FOOTBALL_KEY),
+        "environment": settings.ENVIRONMENT,
     }
 
 

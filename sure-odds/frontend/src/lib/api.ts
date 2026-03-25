@@ -21,6 +21,22 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// ─── Fixtures ─────────────────────────────────────────────────────────────────
+
+export const fetchFixtures = async (date?: string, leagueId?: number, status?: string) => {
+  const params: Record<string, string | number> = {};
+  if (date) params.date = date;
+  if (leagueId) params.league_id = leagueId;
+  if (status) params.status = status;
+  const res = await api.get("/fixtures", { params });
+  return res.data;
+};
+
+export const testApiConnection = async () => {
+  const res = await api.get("/test-api");
+  return res.data;
+};
+
 // ─── Predictions ───────────────────────────────────────────────────────────────
 
 export const fetchPredictions = async (date?: string, leagueId?: number) => {

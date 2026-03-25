@@ -22,9 +22,9 @@ interface Package {
 const PACKAGE_ICONS = [Zap, Star, Shield];
 const PACKAGE_COLORS = ["text-brand-green", "text-brand-yellow", "text-brand-red"];
 const PACKAGE_HIGHLIGHTS: Record<number, string[]> = {
-  1: ["2 premium picks", "Full probability breakdown", "Confidence ratings included"],
-  2: ["5 premium picks", "Full probability breakdown", "Best value for the week"],
-  3: ["10 premium picks", "Full probability breakdown", "Lowest cost per pick"],
+  1: ["5 premium picks", "Full probability breakdown", "Confidence ratings included"],
+  2: ["10 premium picks", "Full probability breakdown", "Best value for the week"],
+  3: ["20 premium picks", "Full probability breakdown", "Lowest cost per pick"],
 };
 
 function PackagesContent() {
@@ -224,10 +224,10 @@ function PackagesContent() {
                       </div>
                       <div className="text-right">
                         <p className={cn("font-black text-xl", isSelected ? "text-white" : "text-brand-muted")}>
-                          KES {pkg.price.toLocaleString()}
+                          ${pkg.price.toFixed(2)}
                         </p>
                         <p className="text-brand-muted text-xs">
-                          KES {(pkg.price / pkg.picks_count).toFixed(0)} per pick
+                          ${(pkg.price / pkg.picks_count).toFixed(3)} per pick
                         </p>
                       </div>
                     </div>
@@ -260,7 +260,7 @@ function PackagesContent() {
                 </>
               ) : (
                 <>
-                  Pay {selectedPkg ? `KES ${selectedPkg.price.toLocaleString()}` : ""} via Paystack
+                  Pay {selectedPkg ? `$${selectedPkg.price.toFixed(2)}` : ""} via Paystack
                   <ArrowRight className="w-5 h-5" />
                 </>
               )}
@@ -287,7 +287,7 @@ function PackagesContent() {
               <h3 className="text-white font-bold text-sm mb-3">How Pick Credits Work</h3>
               <div className="space-y-2.5">
                 {[
-                  "Buy a credit package above — 2, 5, or 10 picks",
+                  "Buy a credit package above — 5, 10, or 20 picks",
                   "Credits are added instantly after payment confirmation",
                   "On the predictions page, tap any locked pick to unlock it with 1 credit",
                   "Credits never expire — use them at any time",
