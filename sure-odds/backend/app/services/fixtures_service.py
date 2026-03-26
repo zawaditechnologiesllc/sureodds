@@ -102,37 +102,33 @@ async def get_api_status() -> dict:
         return {"used": 0, "limit": 100, "remaining": 100, "suspended": False}
 
 
-async def fetch_fixtures_for_date(target_date: date) -> list:
+async def _fetch_raw(target_date: date, season: int | None) -> list | None:
     """
-    Fetch ALL fixtures for a given date in a SINGLE API call (no league filter).
-    API-Football returns every league; we filter server-side to ACTIVE_LEAGUE_IDS.
-
-    Per the API-Football v3 docs the `season` parameter is optional when using
-    `date`, but we pass it to ensure we get the current season's data.
-    Returns a list of raw fixture objects from the API response.
+    Internal helper — makes ONE API call to /fixtures filtered by date (and
+    optionally season).  Returns the filtered fixture list on success, or None
+    if an API-level error was returned (so the caller can try a fallback).
     """
-    if not settings.API_FOOTBALL_KEY:
-        logger.warning("API_FOOTBALL_KEY not set — skipping fetch")
-        return []
-
-    season = get_current_season()
     headers = {"x-apisports-key": settings.API_FOOTBALL_KEY}
+    params: dict = {"date": target_date.isoformat()}
+    if season is not None:
+        params["season"] = season
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(
                 f"{API_FOOTBALL_BASE}/fixtures",
                 headers=headers,
-                params={"date": target_date.isoformat(), "season": season},
+                params=params,
             )
             data = resp.json()
 
         errors = data.get("errors", {})
         if errors:
             logger.warning(
-                f"API-Football error for {target_date} season {season}: {errors}"
+                f"API-Football error for {target_date}"
+                f"{f' season {season}' if season else ''}: {errors}"
             )
-            return []
+            return None  # Signal caller to try fallback
 
         all_fixtures = data.get("response", [])
         filtered = [
@@ -140,14 +136,49 @@ async def fetch_fixtures_for_date(target_date: date) -> list:
             if f.get("league", {}).get("id") in ACTIVE_LEAGUE_IDS
         ]
         logger.info(
-            f"Fetched {target_date}: {len(filtered)} tracked-league fixtures "
-            f"(out of {len(all_fixtures)} total) — season {season}"
+            f"Fetched {target_date}"
+            f"{f' season {season}' if season else ' (no season param)'}: "
+            f"{len(filtered)} tracked-league fixtures "
+            f"(out of {len(all_fixtures)} total)"
         )
         return filtered
 
     except Exception as e:
         logger.error(f"Failed to fetch fixtures for {target_date}: {e}")
+        return None
+
+
+async def fetch_fixtures_for_date(target_date: date) -> list:
+    """
+    Fetch ALL fixtures for a given date in a SINGLE API call.
+
+    Strategy (per API-Football v3 docs, season is optional with date):
+      1. Try with the auto-detected current season (most accurate).
+      2. If the plan blocks that season, retry WITHOUT a season parameter
+         so the API auto-resolves it — this works on plans that say they
+         cover "all seasons".
+      3. Return empty list only if both attempts fail.
+
+    No season number is ever hardcoded here.
+    """
+    if not settings.API_FOOTBALL_KEY:
+        logger.warning("API_FOOTBALL_KEY not set — skipping fetch")
         return []
+
+    season = get_current_season()
+
+    # Attempt 1: with current season
+    result = await _fetch_raw(target_date, season=season)
+    if result is not None:
+        return result
+
+    # Attempt 2: without season (let API determine automatically)
+    logger.info(
+        f"Retrying {target_date} without season param "
+        f"(plan may have auto-resolve for all seasons)"
+    )
+    result = await _fetch_raw(target_date, season=None)
+    return result if result is not None else []
 
 
 async def upsert_fixtures(db: Session, fixtures_data: list) -> int:

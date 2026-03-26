@@ -131,6 +131,11 @@ export const fetchAdminStats = async () => {
   return res.data;
 };
 
+export const fetchApiStatus = async () => {
+  const res = await api.get("/admin/api-status");
+  return res.data;
+};
+
 export const triggerUpdateFixtures = async () => {
   const res = await api.post("/admin/run-update");
   return res.data;

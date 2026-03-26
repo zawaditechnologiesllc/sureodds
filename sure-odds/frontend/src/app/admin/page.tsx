@@ -28,6 +28,7 @@ import {
   triggerUpdateResults,
   fetchAdminStats,
   fetchAdminUsers,
+  fetchApiStatus,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "partners" | "users";
@@ -102,6 +103,9 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [usersLoading, setUsersLoading] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [apiStatus, setApiStatus] = useState<Record<string, any> | null>(null);
+  const [apiStatusLoading, setApiStatusLoading] = useState(true);
 
   const [fixturesStatus, setFixturesStatus] = useState<ActionStatus>("idle");
   const [predictionsStatus, setPredictionsStatus] = useState<ActionStatus>("idle");
@@ -112,6 +116,11 @@ export default function AdminPage() {
       .then((data) => setStats(data))
       .catch(() => toast.error("Could not load admin stats."))
       .finally(() => setStatsLoading(false));
+
+    fetchApiStatus()
+      .then((data) => setApiStatus(data))
+      .catch(() => null)
+      .finally(() => setApiStatusLoading(false));
   }, []);
 
   useEffect(() => {
@@ -211,18 +220,81 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* API Status Banner */}
-            {stats && !stats.api_key_configured && (
-              <div className="mb-6 bg-yellow-950 border border-yellow-900 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-brand-yellow shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-brand-yellow font-bold text-sm">API-Football key not configured</p>
-                  <p className="text-yellow-400 text-xs mt-0.5">
-                    Set the <code className="bg-yellow-900/50 px-1 rounded">API_FOOTBALL_KEY</code> environment variable to enable live fixture fetching. Currently showing demo data.
-                  </p>
-                </div>
+            {/* API-Football Live Status */}
+            <div className="mb-6 bg-brand-card border border-brand-border rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-white font-bold text-lg">API-Football Status</h2>
+                {!apiStatusLoading && apiStatus && (
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                    apiStatus.suspended
+                      ? "bg-red-950 text-brand-red border-red-900"
+                      : "bg-green-950 text-brand-green border-green-900"
+                  }`}>
+                    {apiStatus.suspended ? "SUSPENDED" : "ACTIVE"}
+                  </span>
+                )}
               </div>
-            )}
+
+              {apiStatusLoading ? (
+                <div className="flex items-center gap-2 text-brand-muted text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Checking API status...
+                </div>
+              ) : apiStatus ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { label: "Season", value: apiStatus.season?.toString() ?? "—", color: "text-white" },
+                      { label: "Plan", value: apiStatus.plan ?? "—", color: "text-brand-yellow" },
+                      { label: "Calls Today", value: apiStatus.used != null ? `${apiStatus.used}/${apiStatus.limit}` : "—", color: apiStatus.used >= apiStatus.limit ? "text-brand-red" : "text-brand-green" },
+                      { label: "Remaining", value: apiStatus.remaining != null ? `${apiStatus.remaining}` : "—", color: apiStatus.remaining <= 10 ? "text-brand-red" : "text-brand-green" },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className="bg-brand-dark border border-brand-border rounded-lg p-3">
+                        <p className="text-brand-muted text-[10px] uppercase font-bold mb-1">{label}</p>
+                        <p className={`text-lg font-black ${color}`}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {apiStatus.suspended && (
+                    <div className="bg-red-950 border border-red-900 rounded-lg p-4 flex items-start gap-3">
+                      <ShieldAlert className="w-5 h-5 text-brand-red shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-brand-red font-bold text-sm">Account suspended by API-Football</p>
+                        <p className="text-red-400 text-xs mt-1 leading-relaxed">
+                          Your API-Football account is suspended — likely from exceeding the daily request limit during setup.
+                          Log in at{" "}
+                          <a href="https://dashboard.api-football.com" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">
+                            dashboard.api-football.com
+                          </a>{" "}
+                          to check the account status and appeal if needed. Data fetching will resume automatically once the account is restored.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {!apiStatus.suspended && apiStatus.remaining <= 20 && (
+                    <div className="bg-yellow-950 border border-yellow-900 rounded-lg p-3 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-brand-yellow shrink-0 mt-0.5" />
+                      <p className="text-yellow-300 text-xs">
+                        Only {apiStatus.remaining} API calls remaining today. The scheduler will skip fetches when the budget is low. Resets at midnight UTC.
+                      </p>
+                    </div>
+                  )}
+
+                  {!apiStatus.suspended && apiStatus.remaining > 20 && (
+                    <div className="bg-green-950/30 border border-green-900/30 rounded-lg p-3 flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
+                      <p className="text-green-300 text-xs">
+                        API is healthy. Fixtures refresh every 30 minutes automatically — season {apiStatus.season} detected for current matches.
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-brand-muted text-sm">Could not load API status.</p>
+              )}
+            </div>
 
             <div className="bg-brand-card border border-brand-border rounded-xl p-5">
               <h2 className="text-white font-bold text-lg mb-4">Automation Controls</h2>

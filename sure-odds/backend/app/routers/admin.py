@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from typing import List
 from app.core.database import get_db
 from app.models.models import User, Fixture, Prediction
-from app.services.fixtures_service import update_all_fixtures
+from app.services.fixtures_service import update_all_fixtures, get_api_status, get_current_season
 from app.services.results_service import update_results
 from app.services.prediction_engine import generate_prediction
 from app.core.config import settings
@@ -95,6 +95,18 @@ async def get_stats(db: Session = Depends(get_db)):
         "today_fixtures": today_fixtures,
         "api_key_configured": bool(settings.API_FOOTBALL_KEY),
         "environment": settings.ENVIRONMENT,
+        "current_season": get_current_season(),
+    }
+
+
+@router.get("/api-status", dependencies=[Depends(verify_admin)])
+async def admin_api_status():
+    """Check live API-Football account status: plan, budget, suspension state."""
+    budget = await get_api_status()
+    return {
+        "season": get_current_season(),
+        "api_key_set": bool(settings.API_FOOTBALL_KEY),
+        **budget,
     }
 
 

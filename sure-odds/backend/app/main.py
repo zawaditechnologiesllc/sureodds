@@ -35,10 +35,17 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 async def run_thirty_min_refresh():
     """
     Every 30 minutes: fetch today's fixtures across all tracked leagues.
-    Costs exactly 1 API call. Keeps live scores and status up-to-date.
+    Costs 1–2 API calls. Skipped if budget is exhausted or account suspended.
     """
     db = SessionLocal()
     try:
+        budget = await get_api_status()
+        if budget.get("suspended") or budget.get("remaining", 0) <= 2:
+            logger.warning(
+                f"Scheduler: 30-min skipped — "
+                f"API budget={budget.get('remaining', 0)} suspended={budget.get('suspended')}"
+            )
+            return
         logger.info("Scheduler: 30-min fixture refresh...")
         result = await fetch_today(db)
         logger.info(f"Scheduler: 30-min done — {result}")
@@ -207,10 +214,13 @@ async def run_startup_pipeline():
         db.commit()
         logger.info(f"Startup: {created} predictions created.")
 
-        # Update results for recently finished matches
-        logger.info("Startup: reconciling results...")
-        result = await update_results(db)
-        logger.info(f"Startup: results — {result}")
+        # Update results for recently finished matches (skip when suspended)
+        if not budget.get("suspended") and budget.get("remaining", 0) > 3:
+            logger.info("Startup: reconciling results...")
+            result = await update_results(db)
+            logger.info(f"Startup: results — {result}")
+        else:
+            logger.info("Startup: skipping results update (API budget exhausted or suspended)")
 
     except Exception as e:
         logger.error(f"Startup pipeline error: {e}", exc_info=True)
