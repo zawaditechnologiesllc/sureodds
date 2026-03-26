@@ -220,17 +220,22 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* API-Football Live Status */}
+            {/* Football-Data.org Live Status */}
             <div className="mb-6 bg-brand-card border border-brand-border rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-white font-bold text-lg">API-Football Status</h2>
+                <div>
+                  <h2 className="text-white font-bold text-lg">Data Source Status</h2>
+                  <p className="text-brand-muted text-xs mt-0.5">football-data.org · fetches at 08:00 &amp; 20:00 UTC</p>
+                </div>
                 {!apiStatusLoading && apiStatus && (
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
-                    apiStatus.suspended
-                      ? "bg-red-950 text-brand-red border-red-900"
-                      : "bg-green-950 text-brand-green border-green-900"
+                    !apiStatus.api_key_set
+                      ? "bg-yellow-950 text-brand-yellow border-yellow-900"
+                      : apiStatus.available
+                        ? "bg-green-950 text-brand-green border-green-900"
+                        : "bg-red-950 text-brand-red border-red-900"
                   }`}>
-                    {apiStatus.suspended ? "SUSPENDED" : "ACTIVE"}
+                    {!apiStatus.api_key_set ? "NO KEY" : apiStatus.available ? "ACTIVE" : "LIMIT REACHED"}
                   </span>
                 )}
               </div>
@@ -238,16 +243,16 @@ export default function AdminPage() {
               {apiStatusLoading ? (
                 <div className="flex items-center gap-2 text-brand-muted text-sm">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Checking API status...
+                  Checking data source status...
                 </div>
               ) : apiStatus ? (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                     {[
                       { label: "Season", value: apiStatus.season?.toString() ?? "—", color: "text-white" },
-                      { label: "Plan", value: apiStatus.plan ?? "—", color: "text-brand-yellow" },
-                      { label: "Calls Today", value: apiStatus.used != null ? `${apiStatus.used}/${apiStatus.limit}` : "—", color: apiStatus.used >= apiStatus.limit ? "text-brand-red" : "text-brand-green" },
-                      { label: "Remaining", value: apiStatus.remaining != null ? `${apiStatus.remaining}` : "—", color: apiStatus.remaining <= 10 ? "text-brand-red" : "text-brand-green" },
+                      { label: "Daily Calls Used", value: apiStatus.daily_used != null ? `${apiStatus.daily_used}/${apiStatus.daily_limit}` : "—", color: (apiStatus.daily_used ?? 0) >= (apiStatus.daily_limit ?? 20) ? "text-brand-red" : "text-brand-green" },
+                      { label: "Remaining Today", value: apiStatus.remaining != null ? `${apiStatus.remaining}` : "—", color: (apiStatus.remaining ?? 20) <= 4 ? "text-brand-red" : "text-brand-green" },
+                      { label: "Next Fetches", value: "08:00 / 20:00", color: "text-brand-yellow" },
                     ].map(({ label, value, color }) => (
                       <div key={label} className="bg-brand-dark border border-brand-border rounded-lg p-3">
                         <p className="text-brand-muted text-[10px] uppercase font-bold mb-1">{label}</p>
@@ -256,43 +261,44 @@ export default function AdminPage() {
                     ))}
                   </div>
 
-                  {apiStatus.suspended && (
-                    <div className="bg-red-950 border border-red-900 rounded-lg p-4 flex items-start gap-3">
-                      <ShieldAlert className="w-5 h-5 text-brand-red shrink-0 mt-0.5" />
+                  {!apiStatus.api_key_set && (
+                    <div className="bg-yellow-950 border border-yellow-900 rounded-lg p-4 flex items-start gap-3">
+                      <ShieldAlert className="w-5 h-5 text-brand-yellow shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-brand-red font-bold text-sm">Account suspended by API-Football</p>
-                        <p className="text-red-400 text-xs mt-1 leading-relaxed">
-                          Your API-Football account is suspended — likely from exceeding the daily request limit during setup.
-                          Log in at{" "}
-                          <a href="https://dashboard.api-football.com" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">
-                            dashboard.api-football.com
+                        <p className="text-brand-yellow font-bold text-sm">API key not configured</p>
+                        <p className="text-yellow-400 text-xs mt-1 leading-relaxed">
+                          Add <code className="bg-yellow-900/50 px-1 rounded">FOOTBALL_DATA_API_KEY</code> to your environment secrets.
+                          Get a free key at{" "}
+                          <a href="https://www.football-data.org/client/register" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">
+                            football-data.org/client/register
                           </a>{" "}
-                          to check the account status and appeal if needed. Data fetching will resume automatically once the account is restored.
+                          — the free plan includes Premier League, La Liga, Serie A, and Bundesliga.
                         </p>
                       </div>
                     </div>
                   )}
 
-                  {!apiStatus.suspended && apiStatus.remaining <= 20 && (
-                    <div className="bg-yellow-950 border border-yellow-900 rounded-lg p-3 flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-brand-yellow shrink-0 mt-0.5" />
-                      <p className="text-yellow-300 text-xs">
-                        Only {apiStatus.remaining} API calls remaining today. The scheduler will skip fetches when the budget is low. Resets at midnight UTC.
+                  {apiStatus.api_key_set && !apiStatus.available && (
+                    <div className="bg-red-950 border border-red-900 rounded-lg p-3 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-brand-red shrink-0 mt-0.5" />
+                      <p className="text-red-300 text-xs">
+                        Daily request limit reached ({apiStatus.daily_limit} calls). The scheduler will pause until midnight UTC when the counter resets automatically.
                       </p>
                     </div>
                   )}
 
-                  {!apiStatus.suspended && apiStatus.remaining > 20 && (
+                  {apiStatus.api_key_set && apiStatus.available && (
                     <div className="bg-green-950/30 border border-green-900/30 rounded-lg p-3 flex items-start gap-2">
                       <CheckCircle className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
                       <p className="text-green-300 text-xs">
-                        API is healthy. Fixtures refresh every 30 minutes automatically — season {apiStatus.season} detected for current matches.
+                        Data source is healthy. Fixtures are fetched twice daily (2 API calls/run, 4/day max).
+                        Season {apiStatus.season} is active — Premier League, La Liga, Serie A, and Bundesliga are tracked.
                       </p>
                     </div>
                   )}
                 </>
               ) : (
-                <p className="text-brand-muted text-sm">Could not load API status.</p>
+                <p className="text-brand-muted text-sm">Could not load data source status.</p>
               )}
             </div>
 
@@ -300,9 +306,9 @@ export default function AdminPage() {
               <h2 className="text-white font-bold text-lg mb-4">Automation Controls</h2>
               <div className="grid md:grid-cols-3 gap-3">
                 {[
-                  { label: "Update Fixtures", desc: "Fetch latest fixtures from API-Football", status: fixturesStatus, action: () => runAction(triggerUpdateFixtures, setFixturesStatus, "Update Fixtures") },
-                  { label: "Run Predictions", desc: "Generate predictions for upcoming matches", status: predictionsStatus, action: () => runAction(triggerRunPredictions, setPredictionsStatus, "Run Predictions") },
-                  { label: "Update Results", desc: "Fetch and record match results", status: resultsStatus, action: () => runAction(triggerUpdateResults, setResultsStatus, "Update Results") },
+                  { label: "Update Fixtures", desc: "Fetch latest fixtures from football-data.org (2 API calls)", status: fixturesStatus, action: () => runAction(triggerUpdateFixtures, setFixturesStatus, "Update Fixtures") },
+                  { label: "Run Predictions", desc: "Generate predictions from DB form data (no API calls)", status: predictionsStatus, action: () => runAction(triggerRunPredictions, setPredictionsStatus, "Run Predictions") },
+                  { label: "Update Results", desc: "Reconcile finished match results from DB", status: resultsStatus, action: () => runAction(triggerUpdateResults, setResultsStatus, "Update Results") },
                 ].map(({ label, desc, status, action }) => (
                   <div key={label} className="bg-brand-dark border border-brand-border rounded-lg p-4">
                     <p className="text-white font-bold text-sm mb-1">{label}</p>

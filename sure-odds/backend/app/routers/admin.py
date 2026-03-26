@@ -5,7 +5,15 @@ from datetime import date, timedelta
 from typing import List
 from app.core.database import get_db
 from app.models.models import User, Fixture, Prediction
-from app.services.fixtures_service import update_all_fixtures, get_api_status, get_current_season
+from app.services.fixtures_service import (
+    update_all_fixtures,
+    fetch_upcoming,
+    fetch_results,
+    get_api_status,
+    get_current_season,
+    get_daily_request_count,
+    MAX_DAILY_REQUESTS,
+)
 from app.services.results_service import update_results
 from app.services.prediction_engine import generate_prediction
 from app.core.config import settings
@@ -15,7 +23,6 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 def verify_admin(x_admin_key: str = Header(None)):
-    # In development, skip auth to allow the admin panel to work without a key
     if settings.ENVIRONMENT == "development":
         return
     if x_admin_key != settings.SECRET_KEY:
@@ -93,27 +100,36 @@ async def get_stats(db: Session = Depends(get_db)):
         "today_predictions": today_predictions,
         "total_fixtures": total_fixtures,
         "today_fixtures": today_fixtures,
-        "api_key_configured": bool(settings.API_FOOTBALL_KEY),
+        "api_key_configured": bool(
+            settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY
+        ),
         "environment": settings.ENVIRONMENT,
         "current_season": get_current_season(),
+        "data_source": "football-data.org",
     }
 
 
 @router.get("/api-status", dependencies=[Depends(verify_admin)])
 async def admin_api_status():
-    """Check live API-Football account status: plan, budget, suspension state."""
-    budget = await get_api_status()
+    """
+    Check Football-Data.org API status: key configured, daily call budget,
+    and current season. No live API call is made — reads from the in-memory
+    daily counter only.
+    """
+    status = await get_api_status()
     return {
         "season": get_current_season(),
-        "api_key_set": bool(settings.API_FOOTBALL_KEY),
-        **budget,
+        "api_key_set": bool(
+            settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY
+        ),
+        **status,
     }
 
 
-# /admin/run-update — alias for update-fixtures (as specified in requirements)
+# /admin/run-update — full fixture refresh (past 5 days + today + next 3 days)
 @router.post("/run-update", dependencies=[Depends(verify_admin)])
 async def trigger_run_update(db: Session = Depends(get_db)):
-    """Manually trigger fixture data fetch (past 7 days + next 5 days)."""
+    """Manually trigger a full fixture fetch (2 API calls)."""
     result = await update_all_fixtures(db)
     return {"success": True, **result}
 
@@ -124,16 +140,16 @@ async def trigger_update_fixtures(db: Session = Depends(get_db)):
     return {"success": True, **result}
 
 
-# /admin/run-predictions — generate predictions for today and tomorrow
+# /admin/run-predictions — generate predictions for today and next 3 days
 @router.post("/run-predictions", dependencies=[Depends(verify_admin)])
 async def trigger_run_predictions(db: Session = Depends(get_db)):
     today = date.today()
-    tomorrow = today + timedelta(days=1)
+    upcoming_dates = [today + timedelta(days=i) for i in range(4)]
 
     fixtures = (
         db.query(Fixture)
         .filter(
-            cast(Fixture.kickoff, Date).in_([today, tomorrow]),
+            cast(Fixture.kickoff, Date).in_(upcoming_dates),
             Fixture.status == "scheduled",
         )
         .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
@@ -148,6 +164,7 @@ async def trigger_run_predictions(db: Session = Depends(get_db)):
                 fixture.away_team_id,
                 fixture.league_id,
                 fixture.season,
+                db=db,
             )
             prediction = Prediction(fixture_id=fixture.id, **probabilities)
             db.add(prediction)
@@ -159,10 +176,10 @@ async def trigger_run_predictions(db: Session = Depends(get_db)):
     return {"success": True, "predictions_created": created}
 
 
-# /admin/run-results — update results for past 7 days
+# /admin/run-results — reconcile results from DB (no API call)
 @router.post("/run-results", dependencies=[Depends(verify_admin)])
 async def trigger_run_results(db: Session = Depends(get_db)):
-    """Manually trigger results update for the past 7 days."""
+    """Reconcile prediction outcomes against finished matches in the DB."""
     result = await update_results(db)
     return {"success": True, **result}
 

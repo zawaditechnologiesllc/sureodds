@@ -1,0 +1,114 @@
+PROMPT START
+
+Revise the existing sports prediction backend to implement a data pipeline architecture using Football-Data.org as the data source.
+
+The system must NOT rely on real-time API calls. It must fetch, store, and serve data efficiently using a PostgreSQL database (Neon).
+
+CORE CHANGE (CRITICAL)
+Replace all real-time API calls with scheduled backend fetching
+Use Football-Data.org API as the ONLY external data source
+Store all fetched data in database
+Frontend must ONLY read from database
+DATA FETCHING LOGIC
+
+Implement a background scheduler:
+
+Run ONLY 2 times per day:
+Morning (08:00)
+Evening (20:00)
+
+Each run should:
+
+Fetch:
+Matches (fixtures) for today and next 2–3 days
+Matches (results) from last 3–5 days
+Competition standings if needed
+Use Football-Data.org endpoints:
+/matches (dateFrom & dateTo filters)
+/competitions (for league data)
+Limit API usage:
+Maximum 10 API calls per run
+Maximum 20 calls/day
+DATABASE AS CACHE
+
+Ensure:
+
+/fixtures returns stored upcoming matches
+/results returns past matches
+/predictions returns stored predictions
+
+NO endpoint should call external API directly.
+
+DATABASE RULES
+Use match_id as unique key
+Avoid duplicate inserts
+Update existing matches when status changes (scheduled → finished)
+PREDICTION ENGINE
+
+After fetching data:
+
+Run prediction logic once per day
+Use last 5 matches form and goal averages
+
+Calculate:
+
+home_win probability
+draw probability
+away_win probability
+over 2.5 goals
+BTTS
+
+Tag:
+
+high_confidence if probability ≥ 0.7
+
+Store all predictions in database.
+
+RESULTS TRACKING
+
+After matches finish:
+
+Update match results
+Compare prediction vs actual outcome
+Store:
+won
+lost
+API USAGE CONTROL
+
+Implement:
+
+Request counter per day
+Stop API calls if threshold reached
+Log all requests
+BACKEND STRUCTURE
+
+Store API key in .env as:
+
+FOOTBALL_DATA_API_KEY=your_key
+
+Use headers:
+
+X-Auth-Token: YOUR_API_KEY
+All API calls must be inside a dedicated service module
+TEST ENDPOINT
+
+Add:
+
+GET /test-api
+
+Makes a single Football-Data API call
+Returns raw JSON
+Used for debugging
+FINAL REQUIREMENT
+
+The system must:
+
+fetch data only twice daily
+store all data in database
+generate predictions automatically
+track results and accuracy
+never call API per user request
+stay within free API limits
+reliably populate frontend
+
+PROMPT END

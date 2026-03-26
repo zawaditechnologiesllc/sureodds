@@ -18,7 +18,7 @@ Sure Odds is a sports prediction SaaS platform that provides AI-powered football
 - **Database**: SQLAlchemy + Alembic migrations
 - **Auth**: Supabase (server-side token validation)
 - **Scheduler**: APScheduler
-- **External API**: API-Football for fixture data
+- **External API**: Football-Data.org v4 for fixture data (replaces API-Football)
 
 ### Workspace Infrastructure (pnpm monorepo)
 - **Monorepo tool**: pnpm workspaces
@@ -61,7 +61,8 @@ Two workflows run in parallel:
 | `O_DATABASE_URL` | Alternative DB URL (overrides DATABASE_URL) | No |
 | `SUPABASE_URL` | Supabase project URL | For auth |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | For auth |
-| `API_FOOTBALL_KEY` | API-Football.com API key for fixture data | For predictions |
+| `FOOTBALL_DATA_API_KEY` | Football-Data.org API key (free: PL, La Liga, Serie A, Bundesliga) | For predictions |
+| `API_FOOTBALL_KEY` | Legacy — was used for API-Football; no longer needed | Deprecated |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL for frontend | For frontend auth |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key for frontend | For frontend auth |
 | `NEXT_PUBLIC_API_URL` | Backend API URL | For frontend→backend calls |
@@ -99,6 +100,45 @@ Users can buy pick credits to unlock locked predictions. No subscription require
 - `GET /user-credits` — authenticated user's remaining picks
 - `GET /high-confidence-picks` — today's high_confidence predictions (locked metadata)
 - `POST /unlock-pick` — consume 1 credit to unlock full prediction details
+
+## Data Pipeline Architecture (v3.0)
+
+All fixture and result data flows through a strict scheduled-fetch-only pipeline:
+
+```
+Football-Data.org API
+        │
+        │  2 API calls per run × 2 runs/day = 4 calls/day max
+        │  (well under free plan's 10 req/min limit)
+        ↓
+  Background Scheduler
+  ├── 08:00 UTC: fetch today + next 3 days (1 call) + past 5 days (1 call)
+  ├── 20:00 UTC: same 2 calls
+  └── 06:00 UTC: generate predictions from DB form data (0 API calls)
+        │
+        ↓
+   PostgreSQL Database  ← single source of truth for all endpoints
+        │
+        ↓
+  FastAPI Endpoints  (read-only from DB, no per-request API calls)
+```
+
+**Covered leagues (Football-Data.org free plan):**
+- Premier League (PL, ID 2021)
+- La Liga (PD, ID 2014)
+- Serie A (SA, ID 2019)
+- Bundesliga (BL1, ID 2002)
+- Note: Kenyan Premier League is not available on Football-Data.org
+
+**Prediction engine:**
+- Uses last 5 finished matches from DB per team (form score W=3/D=1/L=0)
+- Goal averages: scored/conceded over last 5 games
+- H2H: last 10 head-to-head matches from DB
+- No external API calls — pure DB computation
+- Generates: home_win%, draw%, away_win%, over25%, btts%, confidence tag
+
+**Request counter:** In-memory daily counter (resets on server restart or at midnight).
+Hard limit set to 20/day — stops fetching if exceeded. Logs every call.
 
 ## API Proxy (Dev vs Production)
 

@@ -1,148 +1,230 @@
 """
-Prediction Engine — calculates match probabilities based on historical data.
-Predictions are generated once per day and stored in the database.
-They are NEVER recalculated on every request — serve from DB only.
+Prediction Engine — calculates match probabilities from data already in the DB.
+
+Architecture:
+  - NEVER calls any external API. All form and goal data comes from
+    fixtures already fetched and stored by the scheduler.
+  - Predictions are generated once per day (06:00 UTC) and stored.
+  - Endpoints serve stored predictions — never recalculate per request.
+
+Algorithm:
+  - Home/away form: last 5 finished matches, W=3pts D=1pt L=0pts
+  - Goal averages: mean goals scored/conceded over last 5 games
+  - Home advantage: +5% baseline boost applied to home win probability
+  - H2H: derived from DB history between the two teams (last 10 matches)
+  - Confidence tagging: "high_confidence" if best probability ≥ 70%
 """
 
-import httpx
 import logging
-from typing import Optional
-from app.core.config import settings
+from sqlalchemy.orm import Session
+from sqlalchemy import cast, Date, or_, and_
+from app.models.models import Fixture
+from app.core.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-API_FOOTBALL_BASE = "https://v3.football.api-sports.io"
+
+# ---------------------------------------------------------------------------
+# DB-based form helpers
+# ---------------------------------------------------------------------------
+
+def get_team_last_n_fixtures(
+    db: Session, team_id: int, n: int = 5
+) -> list[Fixture]:
+    """Return the last N finished fixtures for a team (home or away)."""
+    return (
+        db.query(Fixture)
+        .filter(
+            Fixture.status == "finished",
+            or_(
+                Fixture.home_team_id == team_id,
+                Fixture.away_team_id == team_id,
+            ),
+        )
+        .order_by(Fixture.kickoff.desc())
+        .limit(n)
+        .all()
+    )
 
 
-async def fetch_head_to_head(team1_id: int, team2_id: int) -> list:
-    if not settings.API_FOOTBALL_KEY:
-        return []
-    headers = {"x-apisports-key": settings.API_FOOTBALL_KEY}
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{API_FOOTBALL_BASE}/fixtures/headtohead",
-                headers=headers,
-                params={"h2h": f"{team1_id}-{team2_id}", "last": 10},
-                timeout=30,
-            )
-            data = resp.json()
-            return data.get("response", [])
-    except Exception as e:
-        logger.warning(f"H2H fetch failed: {e}")
-        return []
+def get_h2h_fixtures(
+    db: Session, home_team_id: int, away_team_id: int, n: int = 10
+) -> list[Fixture]:
+    """Return last N finished H2H fixtures between two teams (either direction)."""
+    return (
+        db.query(Fixture)
+        .filter(
+            Fixture.status == "finished",
+            or_(
+                and_(
+                    Fixture.home_team_id == home_team_id,
+                    Fixture.away_team_id == away_team_id,
+                ),
+                and_(
+                    Fixture.home_team_id == away_team_id,
+                    Fixture.away_team_id == home_team_id,
+                ),
+            ),
+        )
+        .order_by(Fixture.kickoff.desc())
+        .limit(n)
+        .all()
+    )
 
 
-async def fetch_team_form(team_id: int, league_id: int, season: int) -> list:
-    if not settings.API_FOOTBALL_KEY:
-        return []
-    headers = {"x-apisports-key": settings.API_FOOTBALL_KEY}
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{API_FOOTBALL_BASE}/fixtures",
-                headers=headers,
-                params={
-                    "team": team_id,
-                    "league": league_id,
-                    "season": season,
-                    "last": 5,
-                    "status": "FT",
-                },
-                timeout=30,
-            )
-            data = resp.json()
-            return data.get("response", [])
-    except Exception as e:
-        logger.warning(f"Team form fetch failed: {e}")
-        return []
+# ---------------------------------------------------------------------------
+# Metric calculations
+# ---------------------------------------------------------------------------
 
-
-def calculate_form_score(fixtures: list, team_id: int) -> float:
+def calculate_form_score(fixtures: list[Fixture], team_id: int) -> float:
+    """
+    Returns form score in [0, 1]:
+      3 pts for a win, 1 for draw, 0 for loss — normalised over max points.
+    Falls back to 0.5 when no history exists.
+    """
     if not fixtures:
         return 0.5
+
     points = 0
-    max_points = len(fixtures) * 3
+    max_pts = len(fixtures) * 3
+
     for f in fixtures:
-        home_id = f["teams"]["home"]["id"]
-        home_goals = f["goals"]["home"] or 0
-        away_goals = f["goals"]["away"] or 0
-        if team_id == home_id:
-            if home_goals > away_goals:
+        h_score = f.home_score or 0
+        a_score = f.away_score or 0
+        is_home = f.home_team_id == team_id
+
+        if is_home:
+            if h_score > a_score:
                 points += 3
-            elif home_goals == away_goals:
+            elif h_score == a_score:
                 points += 1
         else:
-            if away_goals > home_goals:
+            if a_score > h_score:
                 points += 3
-            elif home_goals == away_goals:
+            elif h_score == a_score:
                 points += 1
-    return points / max_points if max_points > 0 else 0.5
+
+    return points / max_pts if max_pts > 0 else 0.5
 
 
-def calculate_h2h_advantage(h2h_fixtures: list, home_team_id: int, away_team_id: int) -> float:
+def calculate_goal_averages(fixtures: list[Fixture], team_id: int) -> tuple[float, float]:
+    """
+    Returns (avg_scored, avg_conceded) over the provided fixtures.
+    Falls back to (1.2, 1.2) — league averages — when there is no history.
+    """
+    if not fixtures:
+        return 1.2, 1.2
+
+    scored = 0.0
+    conceded = 0.0
+
+    for f in fixtures:
+        h_score = f.home_score or 0
+        a_score = f.away_score or 0
+        if f.home_team_id == team_id:
+            scored   += h_score
+            conceded += a_score
+        else:
+            scored   += a_score
+            conceded += h_score
+
+    n = len(fixtures)
+    return scored / n, conceded / n
+
+
+def calculate_h2h_advantage(
+    h2h_fixtures: list[Fixture], home_team_id: int, away_team_id: int
+) -> float:
+    """
+    Returns H2H advantage in [-1, 1]:
+      +1 = home team dominates, -1 = away team dominates, 0 = even.
+    """
     if not h2h_fixtures:
         return 0.0
+
     home_wins = 0
     away_wins = 0
+
     for f in h2h_fixtures:
-        h_id = f["teams"]["home"]["id"]
-        a_id = f["teams"]["away"]["id"]
-        home_g = f["goals"]["home"] or 0
-        away_g = f["goals"]["away"] or 0
-        if home_g > away_g:
-            if h_id == home_team_id:
+        h_score = f.home_score or 0
+        a_score = f.away_score or 0
+        if h_score > a_score:
+            if f.home_team_id == home_team_id:
                 home_wins += 1
             else:
                 away_wins += 1
-        elif away_g > home_g:
-            if a_id == away_team_id:
+        elif a_score > h_score:
+            if f.away_team_id == away_team_id:
                 away_wins += 1
             else:
                 home_wins += 1
+
     total = home_wins + away_wins
     if total == 0:
         return 0.0
     return (home_wins - away_wins) / total
 
 
+# ---------------------------------------------------------------------------
+# Probability computation
+# ---------------------------------------------------------------------------
+
 def compute_probabilities(
     home_form: float,
     away_form: float,
     h2h_advantage: float,
+    home_goals_avg: float,
+    away_goals_avg: float,
+    home_concede_avg: float,
+    away_concede_avg: float,
     home_advantage: float = 0.05,
 ) -> dict:
-    home_strength = home_form * 0.6 + (h2h_advantage + 1) / 2 * 0.3 + home_advantage * 0.1
-    away_strength = away_form * 0.6 + (1 - (h2h_advantage + 1) / 2) * 0.3
+    """
+    Combine form, H2H, and goal averages into final probabilities.
+
+    Weighting:
+      60% form score, 30% H2H history, 10% home-field advantage.
+    Goals: expected goals model for Over 2.5 and BTTS.
+    """
+    home_strength = (
+        home_form * 0.6
+        + (h2h_advantage + 1) / 2 * 0.3
+        + home_advantage * 0.1
+    )
+    away_strength = (
+        away_form * 0.6
+        + (1 - (h2h_advantage + 1) / 2) * 0.3
+    )
 
     total = home_strength + away_strength + 0.25
     home_win_pct = round((home_strength / total) * 100, 1)
     away_win_pct = round((away_strength / total) * 100, 1)
-    draw_pct = round(100 - home_win_pct - away_win_pct, 1)
+    draw_pct     = round(100 - home_win_pct - away_win_pct, 1)
 
-    combined_attack = (home_form + away_form) / 2
-    over25_pct = round(40 + combined_attack * 35, 1)
-    btts_pct = round(35 + home_form * 20 + away_form * 20, 1)
+    # Expected goals: attack of one team vs defence of the other
+    home_xg = (home_goals_avg + away_concede_avg) / 2
+    away_xg = (away_goals_avg + home_concede_avg) / 2
+    total_xg = home_xg + away_xg
 
+    over25_pct = round(min(85, max(20, (total_xg / 2.5) * 55)), 1)
+    btts_pct   = round(min(80, max(20, min(home_xg, away_xg) * 60)), 1)
+
+    # Clamp all values
     home_win_pct = max(5, min(90, home_win_pct))
-    draw_pct = max(5, min(50, draw_pct))
+    draw_pct     = max(5, min(50, draw_pct))
     away_win_pct = max(5, min(90, away_win_pct))
-    over25_pct = max(20, min(85, over25_pct))
-    btts_pct = max(20, min(80, btts_pct))
 
     picks = {
-        "1": home_win_pct,
-        "X": draw_pct,
-        "2": away_win_pct,
+        "1":      home_win_pct,
+        "X":      draw_pct,
+        "2":      away_win_pct,
         "over25": over25_pct,
-        "btts": btts_pct,
+        "btts":   btts_pct,
     }
     best_pick = max(picks, key=lambda k: picks[k])
-    best_pct = picks[best_pick]
-
-    # Probability-based confidence categories
-    # Convert best_pct to 0-1 probability for threshold checks
+    best_pct  = picks[best_pick]
     best_prob = best_pct / 100.0
+
     if best_prob >= 0.70:
         confidence = "high_confidence"
     elif best_pct >= 65:
@@ -154,28 +236,57 @@ def compute_probabilities(
 
     return {
         "home_win_pct": home_win_pct,
-        "draw_pct": draw_pct,
+        "draw_pct":     draw_pct,
         "away_win_pct": away_win_pct,
-        "over25_pct": over25_pct,
-        "btts_pct": btts_pct,
-        "best_pick": best_pick,
-        "confidence": confidence,
+        "over25_pct":   over25_pct,
+        "btts_pct":     btts_pct,
+        "best_pick":    best_pick,
+        "confidence":   confidence,
     }
 
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
 
 async def generate_prediction(
     home_team_id: int,
     away_team_id: int,
     league_id: int,
     season: int,
+    db: Session | None = None,
 ) -> dict:
-    """Full prediction pipeline for a single fixture. Called once per fixture per day."""
-    home_form_data = await fetch_team_form(home_team_id, league_id, season)
-    away_form_data = await fetch_team_form(away_team_id, league_id, season)
-    h2h_data = await fetch_head_to_head(home_team_id, away_team_id)
+    """
+    Full prediction pipeline for a single fixture.
+    Uses DB history only — no external API calls.
+    A new DB session is opened and closed internally if one is not supplied.
+    """
+    _owns_session = db is None
+    if _owns_session:
+        db = SessionLocal()
 
-    home_form = calculate_form_score(home_form_data, home_team_id)
-    away_form = calculate_form_score(away_form_data, away_team_id)
-    h2h_advantage = calculate_h2h_advantage(h2h_data, home_team_id, away_team_id)
+    try:
+        home_fixtures = get_team_last_n_fixtures(db, home_team_id, n=5)
+        away_fixtures = get_team_last_n_fixtures(db, away_team_id, n=5)
+        h2h_fixtures  = get_h2h_fixtures(db, home_team_id, away_team_id, n=10)
 
-    return compute_probabilities(home_form, away_form, h2h_advantage)
+        home_form = calculate_form_score(home_fixtures, home_team_id)
+        away_form = calculate_form_score(away_fixtures, away_team_id)
+        h2h_adv   = calculate_h2h_advantage(h2h_fixtures, home_team_id, away_team_id)
+
+        home_scored,   home_conceded = calculate_goal_averages(home_fixtures, home_team_id)
+        away_scored,   away_conceded = calculate_goal_averages(away_fixtures, away_team_id)
+
+        return compute_probabilities(
+            home_form=home_form,
+            away_form=away_form,
+            h2h_advantage=h2h_adv,
+            home_goals_avg=home_scored,
+            away_goals_avg=away_scored,
+            home_concede_avg=home_conceded,
+            away_concede_avg=away_conceded,
+        )
+
+    finally:
+        if _owns_session:
+            db.close()

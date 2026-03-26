@@ -9,6 +9,13 @@ class Settings(BaseSettings):
 
     SUPABASE_URL: str = "https://placeholder.supabase.co"
     SUPABASE_SERVICE_ROLE_KEY: str = "placeholder-service-role-key"
+
+    # Football-Data.org API key (new data source)
+    # Store as FOOTBALL_DATA_API_KEY in .env / environment secrets
+    FOOTBALL_DATA_API_KEY: str = ""
+
+    # Legacy — kept so the admin page key-configured check still works
+    # during transition. Can be removed once FOOTBALL_DATA_API_KEY is set.
     API_FOOTBALL_KEY: str = ""
 
     LIVE_SECRET_KEY: str = ""
@@ -22,6 +29,11 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5000"
+
+    @property
+    def active_api_key(self) -> str:
+        """Return whichever API key is configured (Football-Data.org preferred)."""
+        return self.FOOTBALL_DATA_API_KEY or self.API_FOOTBALL_KEY
 
     @property
     def database_url(self) -> str:
@@ -44,8 +56,8 @@ class Settings(BaseSettings):
             errors.append("SUPABASE_URL")
         if "placeholder" in self.SUPABASE_SERVICE_ROLE_KEY:
             errors.append("SUPABASE_SERVICE_ROLE_KEY")
-        if not self.API_FOOTBALL_KEY:
-            errors.append("API_FOOTBALL_KEY")
+        if not self.FOOTBALL_DATA_API_KEY:
+            errors.append("FOOTBALL_DATA_API_KEY")
         if errors:
             raise EnvironmentError(
                 f"Missing required environment variables: {', '.join(errors)}"

@@ -1,8 +1,8 @@
 """
 GET /fixtures — serves cached fixture + prediction data from DB.
-Never calls API-Football directly; that is done by the background scheduler.
+Never calls any external API directly; that is handled by the background scheduler.
 """
-from fastapi import APIRouter, Depends, Query, Header, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, Date
 from datetime import date
@@ -13,7 +13,13 @@ from pydantic import BaseModel
 import httpx
 import logging
 from app.core.config import settings
-from app.services.fixtures_service import get_current_season, get_api_status
+from app.services.fixtures_service import (
+    get_current_season,
+    get_api_status,
+    FOOTBALL_DATA_BASE,
+    COMPETITION_CODES,
+    _get_headers,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["fixtures"])
@@ -63,13 +69,12 @@ class FixtureOut(BaseModel):
 def _build_h2h_stub(home_win_pct: float, away_win_pct: float) -> H2HStats:
     """
     Derive approximate H2H history from prediction percentages.
-    Used when API_FOOTBALL_KEY is not set so we still return useful data.
+    Used when there is no H2H data yet so we still return useful display data.
     """
     total = 10
     home_wins = round(total * home_win_pct / 100)
     away_wins = round(total * away_win_pct / 100)
-    draws = total - home_wins - away_wins
-    draws = max(0, draws)
+    draws = max(0, total - home_wins - away_wins)
 
     def form_string(wins: int, out_of: int = 5) -> List[str]:
         results = []
@@ -100,13 +105,13 @@ def _build_h2h_stub(home_win_pct: float, away_win_pct: float) -> H2HStats:
 async def get_fixtures(
     date_filter: Optional[str] = Query(None, alias="date"),
     league_id: Optional[int] = Query(None),
-    status: Optional[str] = Query(None, description="Filter by status: scheduled, live, finished"),
+    status: Optional[str] = Query(None, description="scheduled, live, finished"),
     db: Session = Depends(get_db),
 ):
     """
     Returns cached fixture data from the database.
     Includes match date, teams, H2H stats, and predicted outcomes.
-    Never triggers a live API-Football call.
+    Never triggers a live API call.
     """
     target_date = date.today() if not date_filter else date.fromisoformat(date_filter)
 
@@ -124,12 +129,11 @@ async def get_fixtures(
     if status:
         query = query.filter(Fixture.status == status)
     else:
-        # By default exclude finished matches
         query = query.filter(Fixture.status.in_(["scheduled", "live"]))
 
     rows = query.all()
-
     output = []
+
     for fixture, league, pred in rows:
         h2h = None
         prediction_out = None
@@ -177,51 +181,70 @@ async def get_fixtures(
 @router.get("/test-api")
 async def test_api():
     """
-    Verifies connectivity to API-Football v3.
-    Shows current season, API budget, and a sample fixture response.
+    Verify connectivity to Football-Data.org.
+    Makes a single API call and returns raw response for debugging.
     """
-    if not settings.API_FOOTBALL_KEY:
+    key = settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY
+    if not key:
         return {
             "success": False,
-            "error": "API_FOOTBALL_KEY not configured",
-            "hint": "Set the API_FOOTBALL_KEY environment variable.",
+            "error": "FOOTBALL_DATA_API_KEY not configured",
+            "hint": "Add FOOTBALL_DATA_API_KEY to your environment secrets.",
         }
 
     season = get_current_season()
-    budget = await get_api_status()
+    status = await get_api_status()
 
     try:
-        headers = {"x-apisports-key": settings.API_FOOTBALL_KEY}
+        today = date.today()
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
-                "https://v3.football.api-sports.io/fixtures",
-                headers=headers,
-                params={"date": date.today().isoformat(), "season": season},
+                f"{FOOTBALL_DATA_BASE}/matches",
+                headers=_get_headers(),
+                params={
+                    "dateFrom": today.isoformat(),
+                    "dateTo": today.isoformat(),
+                    "competitions": COMPETITION_CODES,
+                },
             )
-            data = resp.json()
-            fixtures = data.get("response", [])
-            errors = data.get("errors", {})
 
-            if errors:
-                return {
-                    "success": False,
-                    "errors": errors,
-                    "season_used": season,
-                    "budget": budget,
-                }
-
-            # Filter to our leagues for the sample
-            from app.services.fixtures_service import ACTIVE_LEAGUE_IDS
-            our_fixtures = [f for f in fixtures if f.get("league", {}).get("id") in ACTIVE_LEAGUE_IDS]
-
+        if resp.status_code == 403:
             return {
-                "success": True,
+                "success": False,
+                "http_status": 403,
+                "error": "API key rejected (403 Forbidden). Check FOOTBALL_DATA_API_KEY.",
                 "season": season,
-                "budget": budget,
-                "total_fixtures_today": len(fixtures),
-                "our_league_fixtures": len(our_fixtures),
-                "sample": our_fixtures[:3] if our_fixtures else fixtures[:2],
             }
+        if resp.status_code == 429:
+            return {
+                "success": False,
+                "http_status": 429,
+                "error": "Rate limit hit (429). Try again in a minute.",
+                "daily_requests_used": status.get("daily_used"),
+            }
+        if resp.status_code != 200:
+            return {
+                "success": False,
+                "http_status": resp.status_code,
+                "body": resp.text[:300],
+            }
+
+        data = resp.json()
+        matches = data.get("matches", [])
+        result_set = data.get("resultSet", {})
+
+        return {
+            "success": True,
+            "season": season,
+            "data_source": "football-data.org",
+            "daily_requests_used": status.get("daily_used"),
+            "daily_limit": status.get("daily_limit"),
+            "competitions_queried": COMPETITION_CODES,
+            "result_set": result_set,
+            "matches_today": len(matches),
+            "sample": matches[:3] if matches else [],
+        }
+
     except Exception as e:
         logger.error(f"test-api error: {e}")
         return {"success": False, "error": str(e)}

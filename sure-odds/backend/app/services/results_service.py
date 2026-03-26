@@ -1,13 +1,18 @@
 """
-Service for updating match results and verifying prediction accuracy.
-Re-fetches past N days of finished matches and reconciles with predictions.
+Service for reconciling match results and scoring predictions.
+
+Data is NOT fetched here — the scheduler fetches and stores it via
+fixtures_service.fetch_results(). This module simply reads finished
+matches from the DB and marks prediction outcomes.
+
+No external API calls are made.
 """
 
 import logging
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy import cast, Date
 from app.models.models import Fixture, Prediction
-from app.services.fixtures_service import fetch_fixtures_for_date, upsert_fixtures, map_status
 
 logger = logging.getLogger(__name__)
 
@@ -33,61 +38,57 @@ def check_prediction_correct(
     return False
 
 
-async def update_results(db: Session, days_back: int = 3) -> dict:
+def reconcile_results(db: Session, days_back: int = 5) -> dict:
     """
-    Fetch the past N days from the API, upsert scores, and reconcile predictions.
-    Uses 1 API call per day (all leagues in one request).
-    Default days_back=3 to stay within the 100 calls/day budget.
+    Read finished fixtures from the DB for the past N days and
+    mark prediction outcomes (is_correct, actual_result).
+
+    No API calls — data was stored during the last scheduled fetch.
     """
     updated = 0
     correct = 0
     today = date.today()
 
-    for days_ago in range(1, days_back + 1):
-        target_date = today - timedelta(days=days_ago)
-        fixtures_data = await fetch_fixtures_for_date(target_date)
+    finished_fixtures = (
+        db.query(Fixture)
+        .filter(
+            cast(Fixture.kickoff, Date) >= today - timedelta(days=days_back),
+            cast(Fixture.kickoff, Date) < today,
+            Fixture.status == "finished",
+        )
+        .all()
+    )
 
-        # Upsert scores/status first
-        await upsert_fixtures(db, fixtures_data)
+    for fixture in finished_fixtures:
+        if fixture.home_score is None or fixture.away_score is None:
+            continue
 
-        # Now reconcile predictions against finished results
-        for f in fixtures_data:
-            fixture_id = f["fixture"]["id"]
-            status = map_status(f["fixture"]["status"]["short"])
+        actual = determine_actual_result(fixture.home_score, fixture.away_score)
 
-            if status != "finished":
-                continue
+        prediction = (
+            db.query(Prediction)
+            .filter(Prediction.fixture_id == fixture.id)
+            .first()
+        )
 
-            home_score = f["goals"]["home"] or 0
-            away_score = f["goals"]["away"] or 0
-            actual = determine_actual_result(home_score, away_score)
-
-            fixture = db.query(Fixture).filter(Fixture.id == fixture_id).first()
-            if not fixture:
-                continue
-
-            fixture.status = "finished"
-            fixture.home_score = home_score
-            fixture.away_score = away_score
-
-            prediction = (
-                db.query(Prediction)
-                .filter(Prediction.fixture_id == fixture_id)
-                .first()
+        if prediction and prediction.actual_result is None:
+            is_correct = check_prediction_correct(
+                prediction, actual, fixture.home_score, fixture.away_score
             )
-            if prediction and prediction.actual_result is None:
-                is_correct = check_prediction_correct(
-                    prediction, actual, home_score, away_score
-                )
-                prediction.actual_result = actual
-                prediction.is_correct = is_correct
-                updated += 1
-                if is_correct:
-                    correct += 1
+            prediction.actual_result = actual
+            prediction.is_correct = is_correct
+            updated += 1
+            if is_correct:
+                correct += 1
 
     db.commit()
     accuracy = round((correct / updated * 100), 1) if updated > 0 else 0
     logger.info(
-        f"Results update: {updated} updated, {correct} correct, {accuracy}% accuracy"
+        f"Results reconcile: {updated} updated, {correct} correct, {accuracy}% accuracy"
     )
     return {"updated": updated, "correct": correct, "accuracy_pct": accuracy}
+
+
+# Keep backward-compatible async wrapper so existing callers don't break
+async def update_results(db: Session, days_back: int = 5) -> dict:
+    return reconcile_results(db, days_back=days_back)
