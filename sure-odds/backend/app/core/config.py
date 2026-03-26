@@ -6,6 +6,7 @@ import secrets
 
 class Settings(BaseSettings):
     DATABASE_URL: Optional[str] = None
+    DIRECT_DATABASE_URL: Optional[str] = None
 
     SUPABASE_URL: str = "https://placeholder.supabase.co"
     SUPABASE_SERVICE_ROLE_KEY: str = "placeholder-service-role-key"
@@ -43,6 +44,17 @@ class Settings(BaseSettings):
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
         return url
+
+    @property
+    def migration_database_url(self) -> str:
+        """Direct (non-pooled) connection URL for Alembic migrations.
+        Falls back to database_url if DIRECT_DATABASE_URL is not set."""
+        raw = self.DIRECT_DATABASE_URL or os.environ.get("DIRECT_DATABASE_URL", "")
+        if not raw:
+            return self.database_url
+        if raw.startswith("postgres://"):
+            raw = raw.replace("postgres://", "postgresql://", 1)
+        return raw
 
     @property
     def cors_origins_list(self) -> List[str]:
