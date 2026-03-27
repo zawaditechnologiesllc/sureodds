@@ -16,8 +16,7 @@ from app.routers import (
 )
 from app.models.models import Package
 from app.services.fixtures_service import (
-    fetch_upcoming,
-    fetch_results,
+    fetch_window,
     get_current_season,
     get_api_status,
 )
@@ -29,16 +28,15 @@ logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
+
 # ---------------------------------------------------------------------------
-# Prediction helper — generates predictions for all unpredicted scheduled
-# fixtures within a given window. Used by startup and scheduled jobs.
+# Prediction helper — generate predictions for all upcoming unpredicted fixtures
 # ---------------------------------------------------------------------------
 
 async def _generate_predictions_for_window(db, days_ahead: int = 14) -> int:
     """
     Generate predictions for every scheduled fixture in the next `days_ahead` days
     that does not already have a prediction. DB-only — zero API calls.
-    Returns the number of new predictions created.
     """
     today = date.today()
     window = [today + timedelta(days=i) for i in range(days_ahead + 1)]
@@ -73,55 +71,39 @@ async def _generate_predictions_for_window(db, days_ahead: int = 14) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Scheduled jobs  (run at 08:00 UTC and 20:00 UTC only)
+# 10-minute poll — one API call, DB update, predictions, result reconciliation
 # ---------------------------------------------------------------------------
 
-async def run_scheduled_fetch():
+async def run_poll():
     """
-    Main data pipeline — runs at 08:00 UTC and 20:00 UTC.
-    Total: 2 API calls per run, 4 per day (well within 10-call free limit).
+    Runs every 10 minutes. One Football-Data.org API call covers a rolling
+    window of 7 days back + today + 7 days ahead, storing everything in the DB.
 
-    Steps:
-      1. Fetch today + next 7 days (wider window covers post-break fixtures) — 1 API call
-      2. Fetch past 7 days (finished matches / results)                      — 1 API call
-      3. Generate predictions for any new fixtures                           — 0 API calls
-      4. Reconcile predictions against DB results                            — 0 API calls
+    Pipeline per poll:
+      1. Fetch window (7d back → 7d ahead)   — 1 API call
+      2. Generate predictions for new fixtures — 0 API calls (DB only)
+      3. Reconcile finished match results      — 0 API calls (DB only)
     """
     db = SessionLocal()
     try:
-        logger.info("Scheduled fetch: starting...")
+        logger.info("Poll: starting...")
 
-        upcoming = await fetch_upcoming(db, days_ahead=7)
-        logger.info(f"Scheduled fetch: upcoming — {upcoming}")
+        # Step 1: one API call covering past 7 days + next 7 days
+        result = await fetch_window(db, days_back=7, days_ahead=7)
+        logger.info(f"Poll: fetch result — {result}")
 
-        past = await fetch_results(db, days_back=7)
-        logger.info(f"Scheduled fetch: past results — {past}")
-
+        # Step 2: generate predictions for any new upcoming fixtures
         created = await _generate_predictions_for_window(db, days_ahead=7)
-        logger.info(f"Scheduled fetch: {created} new predictions generated.")
+        if created:
+            logger.info(f"Poll: {created} new predictions generated.")
 
+        # Step 3: reconcile results for finished matches (DB only)
         reconciled = await update_results(db, days_back=7)
-        logger.info(f"Scheduled fetch: prediction reconcile — {reconciled}")
+        if reconciled.get("updated"):
+            logger.info(f"Poll: reconciled {reconciled['updated']} results.")
 
     except Exception as e:
-        logger.error(f"Scheduled fetch error: {e}", exc_info=True)
-    finally:
-        db.close()
-
-
-async def run_daily_predictions():
-    """
-    Daily at 06:00 UTC: generate predictions for the next 14 days.
-    Uses DB data only — zero API calls.
-    Runs with a wider window so post-break fixtures are covered early.
-    """
-    db = SessionLocal()
-    try:
-        logger.info("Scheduler: generating daily predictions...")
-        created = await _generate_predictions_for_window(db, days_ahead=14)
-        logger.info(f"Scheduler: {created} predictions created.")
-    except Exception as e:
-        logger.error(f"Scheduler: prediction error: {e}", exc_info=True)
+        logger.error(f"Poll error: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -131,7 +113,7 @@ async def run_daily_predictions():
 # ---------------------------------------------------------------------------
 
 def seed_packages(db):
-    """Ensure the 3 pick packages exist in the database (pay-as-you-go credits)."""
+    """Ensure the 3 pick packages exist in the database."""
     defaults = [
         {"id": 1, "name": "Starter Pack — 5 Picks",  "price": 0.20, "picks_count": 5},
         {"id": 2, "name": "Value Pack — 10 Picks",   "price": 0.70, "picks_count": 10},
@@ -150,16 +132,17 @@ def seed_packages(db):
 
 
 # ---------------------------------------------------------------------------
-# Startup pipeline
+# Startup pipeline — wide initial fetch on first deploy
 # ---------------------------------------------------------------------------
 
 async def run_startup_pipeline():
     """
-    On startup (Render deploy):
-      1. Wide fixture fetch: past 30 days + today + next 14 days — 2 API calls.
-         The 14-day lookahead ensures fixtures appear even during international breaks.
-      2. Generate predictions for all fetched upcoming fixtures  — 0 API calls.
-      3. Reconcile any already-finished results in the DB        — 0 API calls.
+    On Render deploy:
+      1. Wide fetch: 30 days back + 14 days ahead — 1 API call.
+         30 days back gives the prediction engine H2H/form history.
+         14 days ahead captures fixtures past any international break.
+      2. Generate predictions for all fetched upcoming fixtures.
+      3. Reconcile any already-finished results.
     """
     db = SessionLocal()
     try:
@@ -173,25 +156,19 @@ async def run_startup_pipeline():
                 "Set FOOTBALL_DATA_API_KEY on Render to enable live data."
             )
         else:
-            # Wide fetch on first boot so the DB is populated immediately.
-            # 14 days ahead: captures fixtures after international breaks.
-            # 30 days back: gives the prediction engine H2H / form history.
-            logger.info("Startup: fetching fixtures from Football-Data.org (wide window)...")
-            upcoming = await fetch_upcoming(db, days_ahead=14)
-            logger.info(f"Startup: upcoming — {upcoming}")
+            logger.info("Startup: wide fetch (30d back + 14d ahead)...")
+            result = await fetch_window(db, days_back=30, days_ahead=14)
+            logger.info(f"Startup: fetch complete — {result}")
 
-            past = await fetch_results(db, days_back=30)
-            logger.info(f"Startup: past results — {past}")
-
-        # Generate predictions for all upcoming fixtures now in the DB
-        logger.info("Startup: generating predictions...")
+        # Generate predictions for all upcoming fixtures now in DB
+        logger.info("Startup: generating predictions (14-day window)...")
         created = await _generate_predictions_for_window(db, days_ahead=14)
         logger.info(f"Startup: {created} predictions created.")
 
         # Reconcile any already-finished matches
-        logger.info("Startup: reconciling results...")
+        logger.info("Startup: reconciling results (30d back)...")
         reconciled = await update_results(db, days_back=30)
-        logger.info(f"Startup: results — {reconciled}")
+        logger.info(f"Startup: {reconciled}")
 
     except Exception as e:
         logger.error(f"Startup pipeline error: {e}", exc_info=True)
@@ -218,30 +195,17 @@ async def lifespan(app: FastAPI):
 
     await run_startup_pipeline()
 
-    # ---- Scheduler: 2 data fetches per day ----
-    # Morning fetch: 08:00 UTC
+    # Poll every 10 minutes — one API call per run
     scheduler.add_job(
-        run_scheduled_fetch, "cron", hour=8, minute=0,
-        id="morning_fetch", replace_existing=True,
-    )
-    # Evening fetch: 20:00 UTC
-    scheduler.add_job(
-        run_scheduled_fetch, "cron", hour=20, minute=0,
-        id="evening_fetch", replace_existing=True,
-    )
-    # Daily predictions: 06:00 UTC (before morning fetch so predictions are ready)
-    scheduler.add_job(
-        run_daily_predictions, "cron", hour=6, minute=0,
-        id="daily_predictions", replace_existing=True,
+        run_poll,
+        "interval",
+        minutes=10,
+        id="poll_10min",
+        replace_existing=True,
     )
 
     scheduler.start()
-    logger.info(
-        "Scheduler started — "
-        "data fetches at 08:00 UTC and 20:00 UTC | "
-        "predictions generated at 06:00 UTC | "
-        "source: football-data.org"
-    )
+    logger.info("Scheduler started — polling Football-Data.org every 10 minutes.")
 
     yield
 
@@ -256,7 +220,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sure Odds API",
     description="Sports prediction SaaS backend",
-    version="3.0.0",
+    version="4.0.0",
     lifespan=lifespan,
 )
 
@@ -280,12 +244,14 @@ app.include_router(packages.router)
 
 @app.get("/health")
 async def health():
+    status = await get_api_status()
     return {
         "status": "ok",
         "service": "sure-odds-api",
-        "version": "3.0.0",
+        "version": "4.0.0",
         "season": get_current_season(),
         "data_source": "football-data.org",
+        "api": status,
     }
 
 
