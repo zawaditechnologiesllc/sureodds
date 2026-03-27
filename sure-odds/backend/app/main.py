@@ -16,7 +16,6 @@ from app.routers import (
 )
 from app.models.models import Package
 from app.services.fixtures_service import (
-    update_all_fixtures,
     fetch_upcoming,
     fetch_results,
     get_current_season,
@@ -30,6 +29,48 @@ logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
+# ---------------------------------------------------------------------------
+# Prediction helper — generates predictions for all unpredicted scheduled
+# fixtures within a given window. Used by startup and scheduled jobs.
+# ---------------------------------------------------------------------------
+
+async def _generate_predictions_for_window(db, days_ahead: int = 14) -> int:
+    """
+    Generate predictions for every scheduled fixture in the next `days_ahead` days
+    that does not already have a prediction. DB-only — zero API calls.
+    Returns the number of new predictions created.
+    """
+    today = date.today()
+    window = [today + timedelta(days=i) for i in range(days_ahead + 1)]
+
+    fixtures_todo = (
+        db.query(Fixture)
+        .filter(
+            cast(Fixture.kickoff, Date).in_(window),
+            Fixture.status == "scheduled",
+        )
+        .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
+        .all()
+    )
+
+    created = 0
+    for fixture in fixtures_todo:
+        try:
+            probs = await generate_prediction(
+                fixture.home_team_id,
+                fixture.away_team_id,
+                fixture.league_id,
+                fixture.season,
+                db=db,
+            )
+            db.add(Prediction(fixture_id=fixture.id, **probs))
+            created += 1
+        except Exception as e:
+            logger.warning(f"Prediction failed for fixture {fixture.id}: {e}")
+
+    db.commit()
+    return created
+
 
 # ---------------------------------------------------------------------------
 # Scheduled jobs  (run at 08:00 UTC and 20:00 UTC only)
@@ -41,24 +82,25 @@ async def run_scheduled_fetch():
     Total: 2 API calls per run, 4 per day (well within 10-call free limit).
 
     Steps:
-      1. Fetch today + next 3 days (upcoming fixtures)   — 1 API call
-      2. Fetch past 5 days (finished matches / results)  — 1 API call
-      3. Reconcile predictions against DB results         — 0 API calls
+      1. Fetch today + next 7 days (wider window covers post-break fixtures) — 1 API call
+      2. Fetch past 7 days (finished matches / results)                      — 1 API call
+      3. Generate predictions for any new fixtures                           — 0 API calls
+      4. Reconcile predictions against DB results                            — 0 API calls
     """
     db = SessionLocal()
     try:
         logger.info("Scheduled fetch: starting...")
 
-        # Step 1: upcoming matches
-        upcoming = await fetch_upcoming(db, days_ahead=3)
+        upcoming = await fetch_upcoming(db, days_ahead=7)
         logger.info(f"Scheduled fetch: upcoming — {upcoming}")
 
-        # Step 2: past results
-        past = await fetch_results(db, days_back=5)
+        past = await fetch_results(db, days_back=7)
         logger.info(f"Scheduled fetch: past results — {past}")
 
-        # Step 3: reconcile predictions (reads DB only)
-        reconciled = await update_results(db, days_back=5)
+        created = await _generate_predictions_for_window(db, days_ahead=7)
+        logger.info(f"Scheduled fetch: {created} new predictions generated.")
+
+        reconciled = await update_results(db, days_back=7)
         logger.info(f"Scheduled fetch: prediction reconcile — {reconciled}")
 
     except Exception as e:
@@ -69,41 +111,14 @@ async def run_scheduled_fetch():
 
 async def run_daily_predictions():
     """
-    Daily at 06:00 UTC: generate predictions for today and next 3 days.
+    Daily at 06:00 UTC: generate predictions for the next 14 days.
     Uses DB data only — zero API calls.
+    Runs with a wider window so post-break fixtures are covered early.
     """
     db = SessionLocal()
     try:
         logger.info("Scheduler: generating daily predictions...")
-        today = date.today()
-        upcoming_dates = [today + timedelta(days=i) for i in range(4)]
-
-        fixtures_todo = (
-            db.query(Fixture)
-            .filter(
-                cast(Fixture.kickoff, Date).in_(upcoming_dates),
-                Fixture.status == "scheduled",
-            )
-            .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
-            .all()
-        )
-
-        created = 0
-        for fixture in fixtures_todo:
-            try:
-                probs = await generate_prediction(
-                    fixture.home_team_id,
-                    fixture.away_team_id,
-                    fixture.league_id,
-                    fixture.season,
-                    db=db,
-                )
-                db.add(Prediction(fixture_id=fixture.id, **probs))
-                created += 1
-            except Exception as e:
-                logger.warning(f"Prediction failed for fixture {fixture.id}: {e}")
-
-        db.commit()
+        created = await _generate_predictions_for_window(db, days_ahead=14)
         logger.info(f"Scheduler: {created} predictions created.")
     except Exception as e:
         logger.error(f"Scheduler: prediction error: {e}", exc_info=True)
@@ -140,10 +155,11 @@ def seed_packages(db):
 
 async def run_startup_pipeline():
     """
-    On startup:
-      1. Run a full data refresh (past 5 days + today + next 3 days) — 2 API calls.
-      2. Generate predictions for today and upcoming 3 days — 0 API calls.
-      3. Reconcile any already-finished results — 0 API calls.
+    On startup (Render deploy):
+      1. Wide fixture fetch: past 30 days + today + next 14 days — 2 API calls.
+         The 14-day lookahead ensures fixtures appear even during international breaks.
+      2. Generate predictions for all fetched upcoming fixtures  — 0 API calls.
+      3. Reconcile any already-finished results in the DB        — 0 API calls.
     """
     db = SessionLocal()
     try:
@@ -156,49 +172,25 @@ async def run_startup_pipeline():
                 "FOOTBALL_DATA_API_KEY is not set — fixture fetching skipped at startup. "
                 "Set FOOTBALL_DATA_API_KEY on Render to enable live data."
             )
-            result = {"skipped": True, "reason": "no API key configured"}
         else:
-            # Run the full fetch only when key is available
-            logger.info("Startup: fetching fixtures from Football-Data.org...")
-            result = await update_all_fixtures(db)
-            logger.info(f"Startup: fetch complete — {result}")
+            # Wide fetch on first boot so the DB is populated immediately.
+            # 14 days ahead: captures fixtures after international breaks.
+            # 30 days back: gives the prediction engine H2H / form history.
+            logger.info("Startup: fetching fixtures from Football-Data.org (wide window)...")
+            upcoming = await fetch_upcoming(db, days_ahead=14)
+            logger.info(f"Startup: upcoming — {upcoming}")
 
-        # Generate predictions (DB only — no API)
+            past = await fetch_results(db, days_back=30)
+            logger.info(f"Startup: past results — {past}")
+
+        # Generate predictions for all upcoming fixtures now in the DB
         logger.info("Startup: generating predictions...")
-        today = date.today()
-        upcoming_dates = [today + timedelta(days=i) for i in range(4)]
-
-        fixtures_todo = (
-            db.query(Fixture)
-            .filter(
-                cast(Fixture.kickoff, Date).in_(upcoming_dates),
-                Fixture.status == "scheduled",
-            )
-            .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
-            .all()
-        )
-
-        created = 0
-        for fixture in fixtures_todo:
-            try:
-                probs = await generate_prediction(
-                    fixture.home_team_id,
-                    fixture.away_team_id,
-                    fixture.league_id,
-                    fixture.season,
-                    db=db,
-                )
-                db.add(Prediction(fixture_id=fixture.id, **probs))
-                created += 1
-            except Exception as e:
-                logger.warning(f"Prediction failed for fixture {fixture.id}: {e}")
-
-        db.commit()
+        created = await _generate_predictions_for_window(db, days_ahead=14)
         logger.info(f"Startup: {created} predictions created.")
 
-        # Reconcile results
+        # Reconcile any already-finished matches
         logger.info("Startup: reconciling results...")
-        reconciled = await update_results(db, days_back=5)
+        reconciled = await update_results(db, days_back=30)
         logger.info(f"Startup: results — {reconciled}")
 
     except Exception as e:

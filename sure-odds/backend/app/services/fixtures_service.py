@@ -346,13 +346,17 @@ async def fetch_results(db: Session, days_back: int = 5) -> dict:
     }
 
 
-async def update_all_fixtures(db: Session) -> dict:
+async def update_all_fixtures(db: Session, days_ahead: int = 14, days_back: int = 30) -> dict:
     """
-    Full refresh: past 5 days + today + next 3 days.
+    Full refresh: past N days + today + next N days.
     Uses 2 API calls. Called on startup and by admin manual trigger.
+
+    Defaults:
+      days_ahead=14  — captures fixtures after international breaks
+      days_back=30   — gives prediction engine H2H / form history to work with
     """
-    upcoming = await fetch_upcoming(db, days_ahead=3)
-    past     = await fetch_results(db, days_back=5)
+    upcoming = await fetch_upcoming(db, days_ahead=days_ahead)
+    past     = await fetch_results(db, days_back=days_back)
     return {
         "upcoming": upcoming,
         "past": past,

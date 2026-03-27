@@ -140,11 +140,12 @@ async def trigger_update_fixtures(db: Session = Depends(get_db)):
     return {"success": True, **result}
 
 
-# /admin/run-predictions — generate predictions for today and next 3 days
+# /admin/run-predictions — generate predictions for today and next 14 days
 @router.post("/run-predictions", dependencies=[Depends(verify_admin)])
 async def trigger_run_predictions(db: Session = Depends(get_db)):
     today = date.today()
-    upcoming_dates = [today + timedelta(days=i) for i in range(4)]
+    # 14-day window covers fixtures after international breaks
+    upcoming_dates = [today + timedelta(days=i) for i in range(15)]
 
     fixtures = (
         db.query(Fixture)

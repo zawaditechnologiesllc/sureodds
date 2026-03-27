@@ -48,7 +48,7 @@ export default function ResultsPage() {
       setLoading(true);
       setError(null);
       try {
-        const dates = getPastDates(7);
+        const dates = getPastDates(14);
         const fetches = dates.map((d) =>
           fetch(`${API_URL}/results?date=${d}`)
             .then((r) => (r.ok ? r.json() : null))
@@ -114,7 +114,7 @@ export default function ResultsPage() {
             <div className="bg-brand-card border border-brand-border rounded-xl p-5 mb-6">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <p className="text-brand-muted text-sm mb-1">Overall Accuracy (Last 7 Days)</p>
+                  <p className="text-brand-muted text-sm mb-1">Overall Accuracy (Last 14 Days)</p>
                   <div className="flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-brand-green" />
                     <span className="text-white font-black text-3xl">

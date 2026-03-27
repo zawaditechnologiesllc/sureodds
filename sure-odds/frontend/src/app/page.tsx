@@ -165,37 +165,62 @@ const PICK_LABELS: Record<string, string> = {
   btts: "BTTS",
 };
 
-async function getFeaturedPicks() {
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const res = await fetch(`${API_URL}/predictions?date=${today}`, {
-      next: { revalidate: 300 },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data as any[]).slice(0, 4);
-  } catch {
-    return [];
+function offsetDate(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
+function formatPickDate(dateStr: string): string {
+  const today = offsetDate(0);
+  const tomorrow = offsetDate(1);
+  if (dateStr === today) return "Today's Featured Picks";
+  if (dateStr === tomorrow) return "Tomorrow's Featured Picks";
+  const d = new Date(dateStr + "T00:00:00Z");
+  return `Upcoming Picks — ${d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" })}`;
+}
+
+async function getFeaturedPicks(): Promise<{ picks: any[]; dateLabel: string }> {
+  // Try today first, then scan up to 7 days ahead to handle international breaks
+  for (let offset = 0; offset <= 7; offset++) {
+    try {
+      const dateStr = offsetDate(offset);
+      const res = await fetch(`${API_URL}/predictions?date=${dateStr}`, {
+        next: { revalidate: 300 },
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const picks = (data as any[]).slice(0, 4);
+      if (picks.length > 0) {
+        return { picks, dateLabel: formatPickDate(dateStr) };
+      }
+    } catch {
+      continue;
+    }
   }
+  return { picks: [], dateLabel: "Featured Picks" };
 }
 
 async function getRecentResults() {
-  try {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const dateStr = yesterday.toISOString().split("T")[0];
-    const res = await fetch(`${API_URL}/results?date=${dateStr}`, {
-      next: { revalidate: 300 },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
+  // Try yesterday first, then scan up to 7 days back
+  for (let offset = 1; offset <= 7; offset++) {
+    try {
+      const dateStr = offsetDate(-offset);
+      const res = await fetch(`${API_URL}/results?date=${dateStr}`, {
+        next: { revalidate: 300 },
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data?.results?.length > 0) return data;
+    } catch {
+      continue;
+    }
   }
+  return null;
 }
 
 export default async function HomePage() {
-  const [featuredPicks, recentResultsData] = await Promise.all([
+  const [{ picks: featuredPicks, dateLabel: picksDateLabel }, recentResultsData] = await Promise.all([
     getFeaturedPicks(),
     getRecentResults(),
   ]);
@@ -276,7 +301,7 @@ export default async function HomePage() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-white font-black text-xl">
             <Star className="w-5 h-5 text-brand-red inline mr-2" />
-            Today&apos;s Featured Picks
+            {picksDateLabel}
           </h2>
           <Link
             href="/predictions"
