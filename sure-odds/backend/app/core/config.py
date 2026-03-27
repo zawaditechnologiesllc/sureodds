@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from typing import List, Optional
 import os
 import secrets
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 
 class Settings(BaseSettings):
@@ -36,14 +37,32 @@ class Settings(BaseSettings):
         """Return whichever API key is configured (Football-Data.org preferred)."""
         return self.FOOTBALL_DATA_API_KEY or self.API_FOOTBALL_KEY
 
+    @staticmethod
+    def _clean_db_url(url: str) -> str:
+        """Normalise a PostgreSQL URL for psycopg2 / SQLAlchemy.
+
+        1. Converts postgres:// → postgresql://
+        2. Strips query parameters that psycopg2 does not recognise
+           (e.g. Supabase appends `supa=base-pooler.x` which causes a crash).
+        """
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+
+        parsed = urlparse(url)
+        if parsed.query:
+            _SUPPORTED = {"sslmode", "sslcert", "sslkey", "sslrootcert", "sslcrl", "connect_timeout", "application_name"}
+            qs = parse_qs(parsed.query, keep_blank_values=True)
+            cleaned = {k: v for k, v in qs.items() if k in _SUPPORTED}
+            url = urlunparse(parsed._replace(query=urlencode(cleaned, doseq=True)))
+
+        return url
+
     @property
     def database_url(self) -> str:
         url = self.DATABASE_URL or os.environ.get("DATABASE_URL", "")
         if not url:
             raise ValueError("DATABASE_URL is not set.")
-        if url.startswith("postgres://"):
-            url = url.replace("postgres://", "postgresql://", 1)
-        return url
+        return self._clean_db_url(url)
 
     @property
     def migration_database_url(self) -> str:
@@ -52,9 +71,7 @@ class Settings(BaseSettings):
         raw = self.DIRECT_DATABASE_URL or os.environ.get("DIRECT_DATABASE_URL", "")
         if not raw:
             return self.database_url
-        if raw.startswith("postgres://"):
-            raw = raw.replace("postgres://", "postgresql://", 1)
-        return raw
+        return self._clean_db_url(raw)
 
     @property
     def cors_origins_list(self) -> List[str]:

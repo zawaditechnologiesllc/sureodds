@@ -1,0 +1,50 @@
+2026-03-27T00:20:54.043531438Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 146, in __init__
+2026-03-27T00:20:54.043533928Z     self._dbapi_connection = engine.raw_connection()
+2026-03-27T00:20:54.043536388Z                              ^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-27T00:20:54.043538898Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 3300, in raw_connection
+2026-03-27T00:20:54.043541038Z     return self.pool.connect()
+2026-03-27T00:20:54.043546429Z            ^^^^^^^^^^^^^^^^^^^
+2026-03-27T00:20:54.043548459Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+2026-03-27T00:20:54.043550399Z     return _ConnectionFairy._checkout(self)
+2026-03-27T00:20:54.043552379Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-27T00:20:54.043554349Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 1263, in _checkout
+2026-03-27T00:20:54.043556309Z     fairy = _ConnectionRecord.checkout(pool)
+2026-03-27T00:20:54.043558269Z             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-27T00:20:54.04356024Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 712, in checkout
+2026-03-27T00:20:54.043562329Z     rec = pool._do_get()
+2026-03-27T00:20:54.04356431Z           ^^^^^^^^^^^^^^
+2026-03-27T00:20:54.04356627Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+2026-03-27T00:20:54.04356826Z     with util.safe_reraise():
+2026-03-27T00:20:54.04357028Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+2026-03-27T00:20:54.04357232Z     raise exc_value.with_traceback(exc_tb)
+2026-03-27T00:20:54.04357441Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+2026-03-27T00:20:54.04357654Z     return self._create_connection()
+2026-03-27T00:20:54.043578621Z            ^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-27T00:20:54.043580761Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+2026-03-27T00:20:54.043582911Z     return _ConnectionRecord(self)
+2026-03-27T00:20:54.043584951Z            ^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-27T00:20:54.043587021Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 674, in __init__
+2026-03-27T00:20:54.043589081Z     self.__connect()
+2026-03-27T00:20:54.043591171Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 900, in __connect
+2026-03-27T00:20:54.043593131Z     with util.safe_reraise():
+2026-03-27T00:20:54.043595111Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+2026-03-27T00:20:54.043597082Z     raise exc_value.with_traceback(exc_tb)
+2026-03-27T00:20:54.043599042Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 896, in __connect
+2026-03-27T00:20:54.043618243Z     self.dbapi_connection = connection = pool._invoke_creator(self)
+2026-03-27T00:20:54.043620403Z                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-27T00:20:54.043622353Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/create.py", line 643, in connect
+2026-03-27T00:20:54.043624283Z     return dialect.connect(*cargs, **cparams)
+2026-03-27T00:20:54.043626213Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-27T00:20:54.043628163Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 620, in connect
+2026-03-27T00:20:54.043630104Z     return self.loaded_dbapi.connect(*cargs, **cparams)
+2026-03-27T00:20:54.043632064Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-27T00:20:54.043634064Z   File "/usr/local/lib/python3.11/site-packages/psycopg2/__init__.py", line 121, in connect
+2026-03-27T00:20:54.043636014Z     dsn = _ext.make_dsn(dsn, **kwargs)
+2026-03-27T00:20:54.043637984Z           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-27T00:20:54.043639944Z   File "/usr/local/lib/python3.11/site-packages/psycopg2/extensions.py", line 167, in make_dsn
+2026-03-27T00:20:54.043641914Z     parse_dsn(dsn)
+2026-03-27T00:20:54.043643904Z sqlalchemy.exc.ProgrammingError: (psycopg2.ProgrammingError) invalid dsn: invalid connection option "supa"
+2026-03-27T00:20:54.043648945Z 
+2026-03-27T00:20:54.043650975Z (Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-27T00:20:54.043652885Z 
+2026-03-27T00:20:54.043663215Z ERROR:    Application startup failed. Exiting.
