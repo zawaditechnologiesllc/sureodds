@@ -153,14 +153,15 @@ async def run_startup_pipeline():
         key_configured = bool(settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY)
         if not key_configured:
             logger.warning(
-                "FOOTBALL_DATA_API_KEY is not set. "
-                "Fixture fetching will be skipped until the key is configured."
+                "FOOTBALL_DATA_API_KEY is not set — fixture fetching skipped at startup. "
+                "Set FOOTBALL_DATA_API_KEY on Render to enable live data."
             )
-
-        # Run the full fetch
-        logger.info("Startup: fetching fixtures from Football-Data.org...")
-        result = await update_all_fixtures(db)
-        logger.info(f"Startup: fetch complete — {result}")
+            result = {"skipped": True, "reason": "no API key configured"}
+        else:
+            # Run the full fetch only when key is available
+            logger.info("Startup: fetching fixtures from Football-Data.org...")
+            result = await update_all_fixtures(db)
+            logger.info(f"Startup: fetch complete — {result}")
 
         # Generate predictions (DB only — no API)
         logger.info("Startup: generating predictions...")

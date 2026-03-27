@@ -8,7 +8,7 @@ import ResultCard from "@/components/matches/ResultCard";
 import { CheckCircle, XCircle, TrendingUp, Calendar, Loader2, AlertCircle } from "lucide-react";
 import type { PredictionResult } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api-proxy";
 
 function getPastDates(days: number) {
   return Array.from({ length: days }, (_, i) => {

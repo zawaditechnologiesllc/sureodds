@@ -153,6 +153,13 @@ async def _fetch_matches_for_range(date_from: date, date_to: date) -> list | Non
     This is ONE API call that can cover multiple days — very budget-efficient.
     Returns list of match dicts on success, or None on error.
     """
+    if not (settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY):
+        logger.warning(
+            "FOOTBALL_DATA_API_KEY is not configured — skipping fetch. "
+            "Set the key to enable fixture data."
+        )
+        return []
+
     if is_over_daily_limit():
         logger.warning(
             f"Daily request limit reached ({MAX_DAILY_REQUESTS}). Skipping fetch for "

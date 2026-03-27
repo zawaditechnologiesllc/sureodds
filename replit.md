@@ -1,5 +1,14 @@
 # Sure Odds — Sports Prediction Platform
 
+## Key Fixes Applied (March 2026)
+- Removed duplicate `next.config.js` — merged into single `next.config.mjs` (was causing Vercel build failure)
+- Fixed league IDs in `src/types/index.ts` — updated to Football-Data.org IDs (2021/2014/2019/2002 instead of old 39/140/135/78)
+- Fixed API URL fallback in `results/page.tsx` — now uses `/api-proxy` instead of `http://localhost:8000` for client components
+- Fixed fixture fetching — API calls only made when `FOOTBALL_DATA_API_KEY` is set (no more wasted calls at startup)
+- Added idempotent Alembic migration — uses `IF NOT EXISTS` checks so Render build doesn't crash on re-deploy
+- Added `DIRECT_DATABASE_URL` support for running Alembic migrations via direct Supabase connection (bypasses pgbouncer)
+- Added `FOOTBALL_DATA_API_KEY` and `LIVE_SECRET_KEY` to render.yaml env var list
+
 ## Overview
 
 Sure Odds is a sports prediction SaaS platform that provides AI-powered football predictions with confidence ratings and probability breakdowns. It features a paywall where free users get 2 predictions per day, while paid members get unlimited access.
