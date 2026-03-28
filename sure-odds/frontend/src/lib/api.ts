@@ -150,3 +150,40 @@ export const triggerUpdateResults = async () => {
   const res = await api.post("/admin/run-results");
   return res.data;
 };
+
+// ─── Bundles ────────────────────────────────────────────────────────────────
+
+export const fetchBundles = async () => {
+  const res = await api.get("/bundles");
+  return res.data;
+};
+
+export const fetchBundle = async (bundleId: string) => {
+  const res = await api.get(`/bundles/${bundleId}`);
+  return res.data;
+};
+
+export const purchaseBundle = async (bundleId: string, email: string, callbackUrl?: string) => {
+  const res = await api.post(`/bundles/${bundleId}/purchase`, {
+    email,
+    callback_url: callbackUrl,
+  });
+  return res.data;
+};
+
+export const verifyBundlePayment = async (reference: string) => {
+  const res = await api.get(`/bundles/verify/payment?reference=${reference}`);
+  return res.data;
+};
+
+// ─── Admin — Bundles ─────────────────────────────────────────────────────────
+
+export const fetchAdminBundles = async () => {
+  const res = await api.get("/admin/bundles");
+  return res.data;
+};
+
+export const generateBundle = async (tier: string) => {
+  const res = await api.post(`/admin/bundles/generate/${tier}`);
+  return res.data;
+};

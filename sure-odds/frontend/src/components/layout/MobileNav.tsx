@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart2, CheckCircle, LayoutDashboard, User } from "lucide-react";
+import { BarChart2, CheckCircle, LayoutDashboard, User, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/useAuth";
 
@@ -12,13 +12,15 @@ export default function MobileNav() {
 
   const tabs = isAuthenticated
     ? [
-        { href: "/predictions", label: "Predictions", icon: BarChart2 },
+        { href: "/predictions", label: "Fixtures", icon: BarChart2 },
         { href: "/results", label: "Results", icon: CheckCircle },
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/bundles", label: "Bundles", icon: Flame },
+        { href: "/dashboard", label: "Account", icon: LayoutDashboard },
       ]
     : [
-        { href: "/predictions", label: "Predictions", icon: BarChart2 },
+        { href: "/predictions", label: "Fixtures", icon: BarChart2 },
         { href: "/results", label: "Results", icon: CheckCircle },
+        { href: "/bundles", label: "Bundles", icon: Flame },
         { href: "/auth/login", label: "Account", icon: User },
       ];
 

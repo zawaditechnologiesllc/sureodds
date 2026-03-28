@@ -5,6 +5,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
 import enum
+import uuid
 
 
 class SubscriptionStatus(str, enum.Enum):
@@ -145,3 +146,38 @@ class ReferralEarning(Base):
     paid_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="earnings", foreign_keys=[user_id])
+
+
+class Bundle(Base):
+    """Pre-generated betting bundles sold as a unit."""
+    __tablename__ = "bundles"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    total_odds = Column(Float, nullable=False)
+    picks = Column(Text, nullable=False)   # JSON array of picks
+    tier = Column(String, nullable=False)  # safe / medium / high / mega
+    price = Column(Float, nullable=False)
+    currency = Column(String, default="USD")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    purchases = relationship("BundlePurchase", back_populates="bundle")
+
+
+class BundlePurchase(Base):
+    """Records a user's purchase of a bundle."""
+    __tablename__ = "bundle_purchases"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    bundle_id = Column(String, ForeignKey("bundles.id"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    reference = Column(String, unique=True, nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    status = Column(String, default="pending")   # pending / success / failed
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+
+    bundle = relationship("Bundle", back_populates="purchases")
+    user = relationship("User")

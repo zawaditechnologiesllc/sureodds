@@ -25,6 +25,19 @@ def generate_referral_code(length=8) -> str:
     return "SURE-" + "".join(secrets.choice(chars) for _ in range(length))
 
 
+async def optional_current_user(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db),
+):
+    """Like get_current_user but returns None instead of 401 when unauthenticated."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    try:
+        return await get_current_user(authorization=authorization, db=db)
+    except HTTPException:
+        return None
+
+
 async def get_current_user(
     authorization: str = Header(None),
     db: Session = Depends(get_db),

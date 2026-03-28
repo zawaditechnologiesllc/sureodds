@@ -20,6 +20,10 @@ import {
   Database,
   Zap,
   ShieldAlert,
+  Flame,
+  Shield,
+  TrendingUp,
+  Star,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -29,9 +33,11 @@ import {
   fetchAdminStats,
   fetchAdminUsers,
   fetchApiStatus,
+  generateBundle,
+  fetchAdminBundles,
 } from "@/lib/api";
 
-type AdminTab = "overview" | "partners" | "users";
+type AdminTab = "overview" | "bundles" | "partners" | "users";
 type ActionStatus = "idle" | "loading" | "success" | "error";
 type PartnerStatus = "pending" | "approved" | "rejected";
 
@@ -111,6 +117,12 @@ export default function AdminPage() {
   const [predictionsStatus, setPredictionsStatus] = useState<ActionStatus>("idle");
   const [resultsStatus, setResultsStatus] = useState<ActionStatus>("idle");
 
+  const [bundleStatuses, setBundleStatuses] = useState<Record<string, ActionStatus>>({
+    safe: "idle", medium: "idle", high: "idle", mega: "idle",
+  });
+  const [adminBundles, setAdminBundles] = useState<any[]>([]);
+  const [bundlesLoading, setBundlesLoading] = useState(false);
+
   useEffect(() => {
     fetchAdminStats()
       .then((data) => setStats(data))
@@ -130,6 +142,13 @@ export default function AdminPage() {
         .then((data) => setUsers(data))
         .catch(() => toast.error("Could not load users."))
         .finally(() => setUsersLoading(false));
+    }
+    if (tab === "bundles") {
+      setBundlesLoading(true);
+      fetchAdminBundles()
+        .then((data) => setAdminBundles(data))
+        .catch(() => toast.error("Could not load bundles."))
+        .finally(() => setBundlesLoading(false));
     }
   }, [tab]);
 
@@ -160,6 +179,20 @@ export default function AdminPage() {
     return <Play className="w-4 h-4" />;
   };
 
+  const handleGenerateBundle = async (tier: string) => {
+    setBundleStatuses((prev) => ({ ...prev, [tier]: "loading" }));
+    try {
+      const res = await generateBundle(tier);
+      setBundleStatuses((prev) => ({ ...prev, [tier]: "success" }));
+      toast.success(`${tier.toUpperCase()} bundle generated! ${res.bundle.total_odds}x odds, ${res.bundle.pick_count} picks.`);
+      fetchAdminBundles().then(setAdminBundles).catch(() => null);
+    } catch (err: any) {
+      setBundleStatuses((prev) => ({ ...prev, [tier]: "error" }));
+      const msg = err?.response?.data?.detail || `Bundle generation failed for ${tier}.`;
+      toast.error(msg);
+    }
+  };
+
   const pendingCount = applications.filter((a) => a.status === "pending").length;
 
   const overviewCards = stats ? [
@@ -185,16 +218,17 @@ export default function AdminPage() {
         </div>
 
         {/* Tab Nav */}
-        <div className="flex gap-1 bg-brand-card border border-brand-border rounded-lg p-1 mb-8">
+        <div className="flex gap-1 bg-brand-card border border-brand-border rounded-lg p-1 mb-8 overflow-x-auto">
           {([
             { id: "overview", label: "Overview" },
-            { id: "partners", label: `Partner Applications${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
+            { id: "bundles", label: "🔥 Bundles" },
+            { id: "partners", label: `Partners${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
             { id: "users", label: "Users" },
           ] as { id: AdminTab; label: string }[]).map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`flex-1 py-2 rounded text-sm font-bold transition-colors ${tab === id ? "bg-brand-red text-white" : "text-brand-muted hover:text-white"}`}
+              className={`flex-1 py-2 rounded text-sm font-bold transition-colors whitespace-nowrap ${tab === id ? "bg-brand-red text-white" : "text-brand-muted hover:text-white"}`}
             >
               {label}
             </button>
@@ -324,6 +358,125 @@ export default function AdminPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          </>
+        )}
+
+        {/* BUNDLES TAB */}
+        {tab === "bundles" && (
+          <>
+            {/* Generate Buttons */}
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5 mb-6">
+              <h2 className="text-white font-bold text-lg mb-1">Generate Bundles</h2>
+              <p className="text-brand-muted text-xs mb-5">
+                Each generation deactivates the current bundle of that tier and replaces it with a fresh one built from today&apos;s predictions.
+                Run predictions first if the pool is empty.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {([
+                  { tier: "safe",   label: "Safe Slip",   icon: Shield,    color: "text-brand-green",  odds: "5–10x",    price: "$10" },
+                  { tier: "medium", label: "Medium Slip", icon: TrendingUp, color: "text-blue-400",    odds: "20–50x",   price: "$20" },
+                  { tier: "high",   label: "High Roller", icon: Zap,       color: "text-brand-yellow", odds: "100–300x", price: "$30" },
+                  { tier: "mega",   label: "Mega Slip",   icon: Flame,     color: "text-brand-red",    odds: "500–1000x", price: "$50" },
+                ] as { tier: string; label: string; icon: React.ElementType; color: string; odds: string; price: string }[]).map(({ tier, label, icon: Icon, color, odds, price }) => {
+                  const status = bundleStatuses[tier];
+                  return (
+                    <div key={tier} className="bg-brand-dark border border-brand-border rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Icon className={`w-4 h-4 ${color}`} />
+                        <p className="text-white font-bold text-sm">{label}</p>
+                      </div>
+                      <p className={`text-xs font-black mb-0.5 ${color}`}>{odds} odds</p>
+                      <p className="text-brand-muted text-[10px] mb-3">{price} per bundle</p>
+                      <button
+                        onClick={() => handleGenerateBundle(tier)}
+                        disabled={status === "loading"}
+                        className="w-full flex items-center justify-center gap-2 bg-brand-red hover:bg-red-700 disabled:opacity-60 text-white text-xs font-bold py-2 rounded-lg transition-colors"
+                      >
+                        {status === "loading" ? (
+                          <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating...</>
+                        ) : status === "success" ? (
+                          <><CheckCircle className="w-3.5 h-3.5 text-white" /> Generated!</>
+                        ) : status === "error" ? (
+                          <><AlertCircle className="w-3.5 h-3.5" /> Retry</>
+                        ) : (
+                          <><Play className="w-3.5 h-3.5" /> Generate</>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Bundle List */}
+            <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-brand-border flex items-center justify-between">
+                <h2 className="text-white font-bold">All Bundles</h2>
+                <button
+                  onClick={() => {
+                    setBundlesLoading(true);
+                    fetchAdminBundles().then(setAdminBundles).catch(() => null).finally(() => setBundlesLoading(false));
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-brand-muted hover:text-white border border-brand-border rounded px-3 py-1.5 transition-colors"
+                >
+                  <RefreshCw className="w-3 h-3" /> Refresh
+                </button>
+              </div>
+              {bundlesLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="w-6 h-6 text-brand-red animate-spin" />
+                </div>
+              ) : adminBundles.length === 0 ? (
+                <div className="px-5 py-10 text-center text-brand-muted text-sm">
+                  No bundles generated yet. Use the buttons above to create your first bundle.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-brand-border">
+                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Bundle</th>
+                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Tier</th>
+                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Odds</th>
+                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Picks</th>
+                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Price</th>
+                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Status</th>
+                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Created</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-border">
+                      {adminBundles.map((b) => (
+                        <tr key={b.id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-5 py-3">
+                            <p className="text-white text-sm font-bold truncate max-w-[200px]">{b.name}</p>
+                            <p className="text-brand-muted text-[10px] font-mono">{b.id.slice(0, 8)}…</p>
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${
+                              b.tier === "safe" ? "bg-green-950 text-brand-green border-green-900" :
+                              b.tier === "medium" ? "bg-blue-950 text-blue-400 border-blue-900" :
+                              b.tier === "high" ? "bg-yellow-950 text-brand-yellow border-yellow-900" :
+                              "bg-red-950 text-brand-red border-red-900"
+                            }`}>{b.tier}</span>
+                          </td>
+                          <td className="px-5 py-3 text-white font-bold text-sm">{b.total_odds}x</td>
+                          <td className="px-5 py-3 text-brand-muted text-sm">{b.pick_count}</td>
+                          <td className="px-5 py-3 text-white text-sm font-bold">${b.price}</td>
+                          <td className="px-5 py-3">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${b.is_active ? "bg-green-950 text-brand-green border-green-900" : "bg-gray-900 text-gray-500 border-gray-700"}`}>
+                              {b.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-brand-muted text-xs">
+                            {b.created_at ? new Date(b.created_at).toLocaleDateString("en-GB") : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         )}

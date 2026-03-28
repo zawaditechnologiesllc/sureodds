@@ -14,6 +14,7 @@ import {
   Brain,
   Database,
   Clock,
+  Flame,
 } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import MobileNav from "@/components/layout/MobileNav";
@@ -219,10 +220,42 @@ async function getRecentResults() {
   return null;
 }
 
+async function getTodaysBundles() {
+  try {
+    const res = await fetch(`${API_URL}/bundles`, { next: { revalidate: 120 } });
+    if (!res.ok) return [];
+    return (await res.json()) as any[];
+  } catch {
+    return [];
+  }
+}
+
+const TIER_COLORS: Record<string, string> = {
+  safe: "text-brand-green",
+  medium: "text-blue-400",
+  high: "text-brand-yellow",
+  mega: "text-brand-red",
+};
+
+const TIER_BORDERS: Record<string, string> = {
+  safe: "border-green-900/50",
+  medium: "border-blue-900/50",
+  high: "border-yellow-900/50",
+  mega: "border-red-900/50",
+};
+
+const TIER_BG: Record<string, string> = {
+  safe: "bg-green-950/20",
+  medium: "bg-blue-950/20",
+  high: "bg-yellow-950/20",
+  mega: "bg-red-950/20",
+};
+
 export default async function HomePage() {
-  const [{ picks: featuredPicks, dateLabel: picksDateLabel }, recentResultsData] = await Promise.all([
+  const [{ picks: featuredPicks, dateLabel: picksDateLabel }, recentResultsData, todaysBundles] = await Promise.all([
     getFeaturedPicks(),
     getRecentResults(),
+    getTodaysBundles(),
   ]);
 
   const recentResults: any[] = (recentResultsData?.results ?? []).slice(0, 5);
@@ -423,6 +456,64 @@ export default async function HomePage() {
             <p className="text-brand-muted text-sm mb-3">Results appear here after yesterday&apos;s matches finish.</p>
             <Link href="/results" className="text-brand-red text-sm font-bold hover:text-red-400">
               View full history →
+            </Link>
+          </div>
+        )}
+      </section>
+
+      {/* Today's Bundles */}
+      <section className="max-w-5xl mx-auto px-4 py-14 border-t border-brand-border">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-white font-black text-xl flex items-center gap-2">
+              <Flame className="w-5 h-5 text-brand-red" />
+              Today&apos;s Bundles
+            </h2>
+            <p className="text-brand-muted text-xs mt-1">AI-assembled betting combos — pay once, get all picks</p>
+          </div>
+          <Link
+            href="/bundles"
+            className="text-brand-red text-sm font-bold hover:text-red-400 transition-colors flex items-center gap-1"
+          >
+            See All <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {todaysBundles.length > 0 ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {todaysBundles.slice(0, 4).map((bundle: any) => (
+              <div
+                key={bundle.id}
+                className={`rounded-xl border p-4 ${TIER_BG[bundle.tier] ?? "bg-brand-card"} ${TIER_BORDERS[bundle.tier] ?? "border-brand-border"}`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${TIER_BORDERS[bundle.tier] ?? "border-brand-border"} ${TIER_COLORS[bundle.tier] ?? "text-white"}`}>
+                    {bundle.tier}
+                  </span>
+                  <span className={`text-xl font-black ${TIER_COLORS[bundle.tier] ?? "text-white"}`}>
+                    {bundle.total_odds}x
+                  </span>
+                </div>
+                <p className="text-white font-bold text-sm mb-1 leading-tight">{bundle.name}</p>
+                <div className="flex items-center gap-1.5 text-brand-muted text-xs mb-4">
+                  <Lock className="w-3 h-3" />
+                  {bundle.pick_count} picks hidden
+                </div>
+                <Link
+                  href="/bundles"
+                  className="flex items-center justify-center gap-1.5 w-full bg-brand-red hover:bg-red-700 text-white text-xs font-bold py-2 rounded-lg transition-colors"
+                >
+                  Unlock ${bundle.price.toFixed(2)}
+                </Link>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-brand-card border border-brand-border rounded-xl p-8 text-center">
+            <Flame className="w-8 h-8 text-brand-muted mx-auto mb-3" />
+            <p className="text-brand-muted text-sm mb-3">No bundles have been published yet. Check back soon.</p>
+            <Link href="/predictions" className="text-brand-red text-sm font-bold hover:text-red-400">
+              Browse free fixtures instead →
             </Link>
           </div>
         )}

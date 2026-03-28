@@ -21,15 +21,16 @@ export default function Navbar() {
   };
 
   const publicLinks = [
-    { href: "/predictions", label: "Predictions" },
+    { href: "/predictions", label: "Fixtures" },
     { href: "/results", label: "Results" },
+    { href: "/bundles", label: "🔥 Bundles" },
     { href: "/pricing", label: "Pricing" },
-    { href: "/partner", label: "Earn 30%" },
   ];
 
   const mobilePublicLinks = [
-    { href: "/predictions", label: "Predictions" },
+    { href: "/predictions", label: "Fixtures" },
     { href: "/results", label: "Results" },
+    { href: "/bundles", label: "🔥 Bundles" },
     { href: "/pricing", label: "Pricing" },
     { href: "/partner", label: "Earn 30% Commission" },
   ];

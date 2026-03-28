@@ -14,6 +14,7 @@ from app.routers import (
     predictions, results, users, referrals, admin, paystack, packages,
     fixtures as fixtures_router,
 )
+from app.routers import bundles as bundles_router
 from app.models.models import Package
 from app.services.fixtures_service import (
     fetch_window,
@@ -240,6 +241,7 @@ app.include_router(referrals.router)
 app.include_router(admin.router)
 app.include_router(paystack.router)
 app.include_router(packages.router)
+app.include_router(bundles_router.router)
 
 
 @app.get("/health")

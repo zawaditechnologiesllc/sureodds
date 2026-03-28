@@ -4,7 +4,7 @@ from sqlalchemy import func, cast, Date
 from datetime import date, timedelta
 from typing import List
 from app.core.database import get_db
-from app.models.models import User, Fixture, Prediction
+from app.models.models import User, Fixture, Prediction, Bundle
 from app.services.fixtures_service import (
     update_all_fixtures,
     fetch_upcoming,
@@ -16,6 +16,7 @@ from app.services.fixtures_service import (
 )
 from app.services.results_service import update_results
 from app.services.prediction_engine import generate_prediction
+from app.services.bundle_generator import generate_and_save_bundle, TIER_CONFIG
 from app.core.config import settings
 from pydantic import BaseModel
 
@@ -189,3 +190,74 @@ async def trigger_run_results(db: Session = Depends(get_db)):
 async def trigger_update_results(db: Session = Depends(get_db)):
     result = await update_results(db)
     return {"success": True, **result}
+
+
+# ---------------------------------------------------------------------------
+# Bundle management
+# ---------------------------------------------------------------------------
+
+@router.get("/bundles", dependencies=[Depends(verify_admin)])
+async def list_all_bundles(db: Session = Depends(get_db)):
+    """List all bundles (active and inactive) for admin review."""
+    import json
+    bundles = db.query(Bundle).order_by(Bundle.created_at.desc()).limit(50).all()
+    return [
+        {
+            "id": b.id,
+            "name": b.name,
+            "tier": b.tier,
+            "total_odds": b.total_odds,
+            "price": b.price,
+            "pick_count": len(json.loads(b.picks)) if b.picks else 0,
+            "is_active": b.is_active,
+            "expires_at": b.expires_at.isoformat() if b.expires_at else None,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+        }
+        for b in bundles
+    ]
+
+
+@router.post("/bundles/generate/{tier}", dependencies=[Depends(verify_admin)])
+async def generate_bundle_endpoint(tier: str, db: Session = Depends(get_db)):
+    """
+    Generate a new bundle for the given tier (safe / medium / high / mega).
+    Deactivates any previous bundle of the same tier.
+    """
+    if tier not in TIER_CONFIG:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown tier '{tier}'. Valid tiers: {list(TIER_CONFIG)}"
+        )
+
+    bundle = generate_and_save_bundle(db, tier)
+    if not bundle:
+        raise HTTPException(
+            status_code=422,
+            detail="Not enough qualifying matches to generate this bundle. "
+                   "Run predictions first or wait for more fixtures."
+        )
+
+    import json
+    return {
+        "success": True,
+        "bundle": {
+            "id": bundle.id,
+            "name": bundle.name,
+            "tier": bundle.tier,
+            "total_odds": bundle.total_odds,
+            "price": bundle.price,
+            "pick_count": len(json.loads(bundle.picks)) if bundle.picks else 0,
+            "is_active": bundle.is_active,
+        },
+    }
+
+
+@router.post("/bundles/{bundle_id}/deactivate", dependencies=[Depends(verify_admin)])
+async def deactivate_bundle(bundle_id: str, db: Session = Depends(get_db)):
+    """Manually deactivate a bundle."""
+    bundle = db.query(Bundle).filter(Bundle.id == bundle_id).first()
+    if not bundle:
+        raise HTTPException(status_code=404, detail="Bundle not found")
+    bundle.is_active = False
+    db.commit()
+    return {"success": True, "bundle_id": bundle_id}
