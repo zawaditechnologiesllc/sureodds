@@ -62,7 +62,9 @@ export default function Footer() {
               {[
                 { label: "Today's Predictions", href: "/predictions" },
                 { label: "Results & Track Record", href: "/results" },
+                { label: "🔥 Bundles", href: "/bundles" },
                 { label: "Buy Pick Credits", href: "/packages" },
+                { label: "Pricing", href: "/pricing" },
                 { label: "Affiliate Program", href: "/partner" },
               ].map(({ label, href }) => (
                 <li key={label}>

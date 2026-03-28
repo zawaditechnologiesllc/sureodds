@@ -49,22 +49,22 @@ const HOW_IT_WORKS = [
   {
     num: "01",
     title: "Sign Up for Free",
-    desc: "Create an account in 30 seconds. No credit card needed to get started.",
+    desc: "Create an account in 30 seconds. No credit card needed. You get 2 free predictions every day automatically.",
   },
   {
     num: "02",
     title: "Browse Predictions",
-    desc: "See today's upcoming matches across the Premier League, La Liga, Serie A, Bundesliga, and Kenyan Premier League.",
+    desc: "See today's upcoming matches across the Premier League, La Liga, Serie A, and Bundesliga — with confidence ratings and probability breakdowns.",
   },
   {
     num: "03",
-    title: "Upgrade for Full Access",
-    desc: "Free accounts see 2 picks per day. Premium members unlock every match with full probability breakdowns.",
+    title: "Unlock Picks or Buy a Bundle",
+    desc: "Use pick credits to unlock individual matches, or grab a Bundle — our AI assembles a full combo (Safe, Medium, High, or Mega odds) ready to place.",
   },
   {
     num: "04",
     title: "Track Our Record",
-    desc: "Check the Results page every day. We log predictions before kick-off and update results after the final whistle.",
+    desc: "Check the Results page every day. We log every prediction before kick-off and update results after the final whistle. Nothing hidden.",
   },
 ];
 
@@ -73,55 +73,53 @@ const PRICING_PLANS = [
     name: "Free",
     price: "$0",
     period: "forever",
-    desc: "Get a taste of data-driven predictions.",
+    desc: "Start browsing today's picks — no card needed.",
     features: [
-      "2 predictions per day",
-      "Basic match info",
-      "Results page access",
+      "2 free predictions per day",
+      "Confidence badges (High / Medium / Low)",
+      "Full results history access",
       "Community Telegram access",
     ],
-    locked: ["Full probability breakdown", "High-confidence picks", "Multi-market predictions", "Email alerts"],
-    cta: "Get Started",
+    locked: ["Full probability breakdown", "Bundle access", "Pick credits"],
+    cta: "Get Started Free",
     href: "/auth/signup",
     highlight: false,
   },
   {
-    name: "Premium",
-    price: "$9.99",
-    period: "per month",
-    desc: "Everything you need to bet smarter every day.",
+    name: "Pick Credits",
+    price: "From KES 10",
+    period: "per pack",
+    desc: "Unlock individual matches on demand. Credits never expire.",
     features: [
-      "Unlimited daily predictions",
-      "Full probability breakdown",
-      "High / Medium / Low confidence badges",
+      "Full probability breakdown per pick",
       "1X2, Over 2.5 & BTTS markets",
-      "Email alerts for top picks",
-      "Priority support",
+      "High / Medium / Low confidence scores",
+      "Credits never expire",
+      "Choose exactly which matches to unlock",
     ],
     locked: [],
-    cta: "Start Premium",
-    href: "/auth/signup",
-    highlight: true,
-    badge: "Most Popular",
+    cta: "Buy Credits",
+    href: "/packages",
+    highlight: false,
+    badge: "",
   },
   {
-    name: "Pro",
-    price: "$19.99",
-    period: "per month",
-    desc: "For serious bettors who want the edge.",
+    name: "Bundles",
+    price: "$10–$50",
+    period: "per bundle",
+    desc: "AI-built betting combos. Pay once, all picks revealed.",
     features: [
-      "Everything in Premium",
-      "Early access — predictions 48h ahead",
-      "Telegram VIP group",
-      "Weekly prediction performance report",
-      "Access to partner affiliate program",
-      "Dedicated account manager",
+      "4 tiers: Safe, Medium, High, Mega",
+      "5x up to 1000x combined odds",
+      "AI selects the best picks for each tier",
+      "Full breakdown unlocked on purchase",
+      "New bundles generated daily",
     ],
     locked: [],
-    cta: "Go Pro",
-    href: "/auth/signup",
-    highlight: false,
-    badge: "Best Value",
+    cta: "Browse Bundles",
+    href: "/bundles",
+    highlight: true,
+    badge: "🔥 New",
   },
 ];
 
@@ -132,22 +130,30 @@ const FAQS = [
   },
   {
     q: "How are predictions generated?",
-    a: "Our Python + FastAPI backend fetches live fixture data, then runs a model based on thousands of historical matches. It considers form, head-to-head records, home/away performance, and more.",
+    a: "Our Python + FastAPI backend fetches live fixture data, then runs a model based on historical matches. It considers team form, head-to-head records, home/away performance, goal averages, and more.",
+  },
+  {
+    q: "What is a Bundle and how does it work?",
+    a: "A Bundle is a pre-built betting combo assembled by our AI. We select picks from today's highest-confidence predictions and multiply their odds to hit a target range (e.g. 5–10x for Safe, 500–1000x for Mega). Pay once and all picks in the bundle are revealed instantly.",
+  },
+  {
+    q: "What are the Bundle tiers?",
+    a: "There are 4 tiers: Safe Slip ($10, 5–10x odds), Medium Slip ($20, 20–50x), High Roller ($30, 100–300x), and Mega Slip ($50, 500–1000x). Higher tiers include more picks and chase bigger returns.",
+  },
+  {
+    q: "What's the difference between Pick Credits and Bundles?",
+    a: "Pick Credits let you unlock individual predictions one at a time — you choose which matches to unlock. Bundles are AI-built combos where you pay once and get a ready-to-place accumulator. Credits suit cherry-pickers; bundles suit combo bettors.",
   },
   {
     q: "What leagues do you cover?",
-    a: "We cover the Premier League, La Liga, Serie A, Bundesliga, and the Kenyan Premier League. More leagues are coming soon.",
-  },
-  {
-    q: "Can I cancel my subscription?",
-    a: "Yes, you can cancel any time from your account settings. You keep access until the end of your billing period. No questions asked.",
+    a: "We currently cover the Premier League, La Liga, Serie A, and Bundesliga — sourced from Football-Data.org. More leagues are coming soon.",
   },
   {
     q: "How do I join the affiliate program?",
-    a: "Visit the Partner page and submit an application. Management reviews applications based on your social media following and engagement. Pro subscribers get priority access.",
+    a: "Visit the Partner page and submit an application. Our team reviews applications based on your audience size and engagement. Approved partners earn 30% commission on every referred purchase.",
   },
   {
-    q: "How are payouts processed?",
+    q: "How are affiliate payouts processed?",
     a: "Affiliate commissions are paid monthly via M-Pesa or bank transfer. The minimum payout threshold is $10.",
   },
 ];
@@ -298,17 +304,17 @@ export default async function HomePage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
-                href="/predictions"
+                href="/bundles"
                 className="inline-flex items-center justify-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold px-8 py-3.5 rounded-lg text-base transition-colors"
               >
-                Unlock Today&apos;s Picks
+                🔥 Browse Today&apos;s Bundles
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                href="/results"
+                href="/predictions"
                 className="inline-flex items-center justify-center gap-2 bg-brand-card border border-brand-border hover:border-gray-500 text-white font-bold px-8 py-3.5 rounded-lg text-base transition-colors"
               >
-                View Track Record
+                See Free Picks
               </Link>
             </div>
           </div>
@@ -555,8 +561,8 @@ export default async function HomePage() {
 
       {/* Pricing */}
       <section id="pricing" className="max-w-5xl mx-auto px-4 py-14 border-t border-brand-border">
-        <h2 className="text-white font-black text-2xl text-center mb-2">Simple Pricing</h2>
-        <p className="text-brand-muted text-center text-sm mb-10">Start free. Upgrade when you&apos;re ready.</p>
+        <h2 className="text-white font-black text-2xl text-center mb-2">Choose How You Play</h2>
+        <p className="text-brand-muted text-center text-sm mb-10">Free picks every day. Credits for cherry-pickers. Bundles for combo bettors.</p>
 
         <div className="grid md:grid-cols-3 gap-4">
           {PRICING_PLANS.map((plan) => (
@@ -612,7 +618,10 @@ export default async function HomePage() {
         </div>
 
         <p className="text-center text-brand-muted text-xs mt-6">
-          All plans include a 7-day money-back guarantee. No contracts — cancel any time.
+          No subscriptions. Pay only for what you use — credits or bundles.{" "}
+          <Link href="/pricing" className="text-white hover:text-brand-green underline underline-offset-2">
+            See full pricing →
+          </Link>
         </p>
       </section>
 
@@ -665,22 +674,22 @@ export default async function HomePage() {
         <div className="bg-gradient-to-r from-red-950 to-brand-card border border-red-900 rounded-xl p-10 text-center">
           <h2 className="text-white font-black text-3xl mb-3">Ready to Bet Smarter?</h2>
           <p className="text-gray-400 mb-6 max-w-md mx-auto">
-            Join thousands of members who get daily predictions from a system that shows its work.
+            Browse free predictions daily, or let our AI do the work — grab a ready-to-place Bundle and get every pick revealed instantly.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/auth/signup"
+              href="/bundles"
               className="inline-flex items-center justify-center gap-2 bg-brand-red hover:bg-red-700 text-white font-black px-10 py-4 rounded-lg text-lg transition-colors"
             >
-              Get Started Free
+              🔥 Browse Bundles
               <ArrowRight className="w-5 h-5" />
             </Link>
             <Link
-              href="/#pricing"
+              href="/auth/signup"
               className="inline-flex items-center justify-center gap-2 bg-brand-card border border-brand-border hover:border-gray-500 text-white font-bold px-8 py-4 rounded-lg transition-colors"
             >
               <TrendingUp className="w-4 h-4" />
-              View Pricing
+              Get Started Free
             </Link>
           </div>
         </div>

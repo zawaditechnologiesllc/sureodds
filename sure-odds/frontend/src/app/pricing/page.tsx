@@ -2,87 +2,119 @@ import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import MobileNav from "@/components/layout/MobileNav";
-import { CheckCircle, XCircle, Zap, Star, Shield, CreditCard } from "lucide-react";
+import {
+  CheckCircle,
+  Zap,
+  Shield,
+  CreditCard,
+  Flame,
+  TrendingUp,
+  Lock,
+  ArrowRight,
+  Star,
+} from "lucide-react";
 
-const monthlyPlans = [
+const BUNDLES = [
   {
-    id: "premium",
-    name: "Premium",
-    price: "$9.99",
-    period: "/per month",
-    tagline: "Everything you need to bet smarter every day.",
-    icon: Star,
-    iconColor: "text-brand-yellow",
-    iconBg: "bg-yellow-950/40",
-    cta: "Start Premium",
-    ctaHref: "/auth/signup?redirect=/dashboard",
-    ctaStyle: "bg-brand-yellow hover:bg-yellow-500 text-black font-black",
-    badge: "Most Popular",
-    badgeStyle: "bg-brand-yellow/20 text-brand-yellow border-brand-yellow/30",
-    cardStyle: "border-brand-yellow/50 bg-gradient-to-b from-yellow-950/20 to-brand-card",
-    included: [
-      "Unlimited daily predictions",
+    tier: "safe",
+    name: "Safe Slip",
+    icon: Shield,
+    iconColor: "text-brand-green",
+    iconBg: "bg-green-950/40",
+    borderColor: "border-green-900/60",
+    cardBg: "bg-gradient-to-b from-green-950/20 to-brand-card",
+    badgeColor: "bg-green-950 text-brand-green border-green-900",
+    odds: "5–10x",
+    picks: "3–5 picks",
+    price: "$10",
+    desc: "Safer combos built from our highest-confidence predictions. Great starting point.",
+    features: [
+      "3–5 AI-selected picks",
       "Full probability breakdown",
-      "High / Medium / Low confidence badges",
-      "1X2, Over 2.5 & BTTS markets",
-      "Email alerts for top picks",
-      "Priority support",
+      "Match-level confidence scores",
+      "All picks revealed after payment",
     ],
-    excluded: [],
   },
   {
-    id: "pro",
-    name: "Pro",
-    price: "$19.99",
-    period: "/per month",
-    tagline: "For serious bettors who want the edge.",
-    icon: Shield,
+    tier: "medium",
+    name: "Medium Slip",
+    icon: TrendingUp,
+    iconColor: "text-blue-400",
+    iconBg: "bg-blue-950/40",
+    borderColor: "border-blue-900/60",
+    cardBg: "bg-gradient-to-b from-blue-950/20 to-brand-card",
+    badgeColor: "bg-blue-950 text-blue-400 border-blue-900",
+    odds: "20–50x",
+    picks: "5–8 picks",
+    price: "$20",
+    desc: "Medium-risk combos balancing probability and returns. Most popular tier.",
+    badge: "Most Popular",
+    features: [
+      "5–8 AI-selected picks",
+      "Full probability breakdown",
+      "Match-level confidence scores",
+      "All picks revealed after payment",
+    ],
+  },
+  {
+    tier: "high",
+    name: "High Roller",
+    icon: Zap,
+    iconColor: "text-brand-yellow",
+    iconBg: "bg-yellow-950/40",
+    borderColor: "border-yellow-900/60",
+    cardBg: "bg-gradient-to-b from-yellow-950/20 to-brand-card",
+    badgeColor: "bg-yellow-950 text-brand-yellow border-yellow-900",
+    odds: "100–300x",
+    picks: "8–12 picks",
+    price: "$30",
+    desc: "High-risk, high-reward combos for experienced punters chasing big returns.",
+    features: [
+      "8–12 AI-selected picks",
+      "Full probability breakdown",
+      "Match-level confidence scores",
+      "All picks revealed after payment",
+    ],
+  },
+  {
+    tier: "mega",
+    name: "Mega Slip",
+    icon: Flame,
     iconColor: "text-brand-red",
     iconBg: "bg-red-950/40",
-    cta: "Go Pro",
-    ctaHref: "/auth/signup?redirect=/dashboard",
-    ctaStyle: "bg-brand-red hover:bg-red-700 text-white font-black",
-    badge: "Best Value",
-    badgeStyle: "bg-brand-red/20 text-brand-red border-brand-red/30",
-    cardStyle: "border-brand-red/40 bg-gradient-to-b from-red-950/10 to-brand-card",
-    included: [
-      "Everything in Premium",
-      "Early access — predictions 48h ahead",
-      "Telegram VIP group",
-      "Weekly prediction performance report",
-      "Access to partner affiliate program",
-      "Dedicated account manager",
+    borderColor: "border-red-900/60",
+    cardBg: "bg-gradient-to-b from-red-950/10 to-brand-card",
+    badgeColor: "bg-red-950 text-brand-red border-red-900",
+    odds: "500–1000x",
+    picks: "10–15 picks",
+    price: "$50",
+    desc: "The biggest combos we build. Maximum picks, maximum multiplier. Only for the brave.",
+    features: [
+      "10–15 AI-selected picks",
+      "Full probability breakdown",
+      "Match-level confidence scores",
+      "All picks revealed after payment",
     ],
-    excluded: [],
   },
 ];
 
-const payAsYouGoPackages = [
+const CREDIT_PACKAGES = [
   {
-    id: 1,
     name: "Starter",
-    picks: 2,
-    price: "$0.10",
-    perPick: "$0.05/pick",
-    desc: "Try a couple of premium picks risk-free.",
+    picks: "5 picks",
+    desc: "Try a few premium picks without committing.",
     highlight: false,
   },
   {
-    id: 2,
     name: "Value Pack",
-    picks: 5,
-    price: "$0.20",
-    perPick: "$0.04/pick",
-    desc: "Best for a week's worth of top picks.",
+    picks: "10 picks",
+    desc: "Best for a week of daily premium predictions.",
     highlight: true,
   },
   {
-    id: 3,
-    name: "Pro Bundle",
-    picks: 10,
-    price: "$1.00",
-    perPick: "$0.10/pick",
-    desc: "Full month of high-confidence predictions.",
+    name: "Pro Pack",
+    picks: "20 picks",
+    desc: "A full month of high-confidence unlocks.",
     highlight: false,
   },
 ];
@@ -94,105 +126,141 @@ export default function PricingPage() {
 
       <div className="max-w-6xl mx-auto px-4 py-12">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-14">
           <div className="inline-flex items-center gap-2 bg-brand-red/10 border border-brand-red/20 rounded-full px-4 py-1.5 mb-4">
             <Zap className="w-3.5 h-3.5 text-brand-red" />
             <span className="text-brand-red text-xs font-bold uppercase tracking-wide">Pricing</span>
           </div>
-          <h1 className="text-white font-black text-4xl mb-3">Simple Pricing</h1>
-          <p className="text-brand-muted text-base max-w-md mx-auto">
-            Start free. Upgrade when you&apos;re ready. Choose a monthly plan or buy picks on demand — no commitment required.
+          <h1 className="text-white font-black text-4xl md:text-5xl mb-4 leading-tight">
+            Choose How You Play
+          </h1>
+          <p className="text-brand-muted text-base max-w-lg mx-auto">
+            Browse free. Unlock individual picks with credits. Or go all-in with a Bundle — our AI assembles the full combo so you don&apos;t have to.
           </p>
         </div>
 
-        {/* ── Section 1: Monthly Plans ─────────────────────────────────── */}
-        <div className="mb-16">
-          <div className="flex items-center gap-3 mb-6">
-            <Star className="w-5 h-5 text-brand-yellow fill-current" />
-            <h2 className="text-white font-black text-xl">Monthly Subscription Plans</h2>
-            <span className="text-brand-muted text-sm">— unlimited access</span>
+        {/* ── Free Tier Banner ─────────────────────────────────── */}
+        <div className="mb-10 bg-brand-card border border-brand-border rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-brand-dark border border-brand-border rounded-xl flex items-center justify-center shrink-0">
+              <Star className="w-6 h-6 text-brand-muted" />
+            </div>
+            <div>
+              <h2 className="text-white font-black text-lg leading-none mb-1">Free — Always</h2>
+              <p className="text-brand-muted text-sm">2 free predictions every day, no card required. See match odds, confidence badges, and our full results history.</p>
+            </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {monthlyPlans.map((plan) => {
-              const Icon = plan.icon;
-              return (
-                <div
-                  key={plan.id}
-                  className={`relative rounded-2xl border p-6 flex flex-col ${plan.cardStyle}`}
-                >
-                  {plan.badge && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <span className={`text-xs font-black px-3 py-1 rounded-full border ${plan.badgeStyle}`}>
-                        {plan.badge}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${plan.iconBg}`}>
-                      <Icon className={`w-5 h-5 ${plan.iconColor}`} />
-                    </div>
-                    <div>
-                      <h3 className="text-white font-black text-lg leading-none">{plan.name}</h3>
-                      <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-white font-black text-2xl">{plan.price}</span>
-                        <span className="text-brand-muted text-xs">{plan.period}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-brand-muted text-sm mb-5 leading-relaxed">{plan.tagline}</p>
-
-                  <div className="space-y-2.5 flex-1 mb-6">
-                    {plan.included.map((f) => (
-                      <div key={f} className="flex items-start gap-2.5">
-                        <CheckCircle className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
-                        <span className="text-white text-sm">{f}</span>
-                      </div>
-                    ))}
-                    {plan.excluded.map((f) => (
-                      <div key={f} className="flex items-start gap-2.5">
-                        <XCircle className="w-4 h-4 text-brand-muted/40 shrink-0 mt-0.5" />
-                        <span className="text-brand-muted text-sm line-through">{f}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <Link
-                    href={plan.ctaHref}
-                    className={`w-full py-3 rounded-xl text-sm text-center transition-colors block ${plan.ctaStyle}`}
-                  >
-                    {plan.cta}
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
+          <Link
+            href="/auth/signup"
+            className="shrink-0 inline-flex items-center gap-2 bg-brand-card border border-brand-border hover:border-gray-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors"
+          >
+            Create Free Account <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
 
         {/* Divider */}
         <div className="flex items-center gap-4 mb-10">
           <div className="flex-1 border-t border-brand-border" />
-          <span className="text-brand-muted text-sm font-bold uppercase tracking-widest">or</span>
+          <span className="text-brand-muted text-xs font-bold uppercase tracking-widest">Want more?</span>
           <div className="flex-1 border-t border-brand-border" />
         </div>
 
-        {/* ── Section 2: Pay-as-You-Go ─────────────────────────────────── */}
+        {/* ── Section 1: Bundles ─────────────────────────────────── */}
+        <div className="mb-16">
+          <div className="flex items-center gap-3 mb-2">
+            <Flame className="w-5 h-5 text-brand-red" />
+            <h2 className="text-white font-black text-2xl">🔥 Bundles</h2>
+          </div>
+          <p className="text-brand-muted text-sm mb-8 ml-8 max-w-xl">
+            Our AI assembles a ready-to-bet combo. Pay once — every pick in the bundle unlocks instantly. New bundles generated daily.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            {BUNDLES.map((b) => {
+              const Icon = b.icon;
+              return (
+                <div
+                  key={b.tier}
+                  className={`relative rounded-2xl border p-6 flex flex-col ${b.cardBg} ${b.borderColor}`}
+                >
+                  {b.badge && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span className={`text-[10px] font-black px-3 py-1 rounded-full border ${b.badgeColor}`}>
+                        {b.badge}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${b.iconBg}`}>
+                      <Icon className={`w-5 h-5 ${b.iconColor}`} />
+                    </div>
+                    <div>
+                      <h3 className="text-white font-black text-base leading-none">{b.name}</h3>
+                      <p className={`text-xs font-black mt-0.5 ${b.iconColor}`}>{b.odds} odds</p>
+                    </div>
+                  </div>
+
+                  <p className="text-brand-muted text-xs leading-relaxed mb-4 flex-1">{b.desc}</p>
+
+                  <div className="space-y-1.5 mb-5">
+                    {b.features.map((f) => (
+                      <div key={f} className="flex items-start gap-2">
+                        <CheckCircle className="w-3.5 h-3.5 text-brand-green shrink-0 mt-0.5" />
+                        <span className="text-white text-xs">{f}</span>
+                      </div>
+                    ))}
+                    <div className="flex items-start gap-2">
+                      <Lock className="w-3.5 h-3.5 text-brand-muted shrink-0 mt-0.5" />
+                      <span className="text-brand-muted text-xs">{b.picks} hidden until purchased</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-white font-black text-2xl">{b.price}</span>
+                    <span className="text-brand-muted text-xs">one-time</span>
+                  </div>
+
+                  <Link
+                    href="/bundles"
+                    className="w-full py-3 rounded-xl text-sm text-center font-bold transition-colors block bg-brand-red hover:bg-red-700 text-white"
+                  >
+                    Get {b.name}
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="text-center text-brand-muted text-xs mt-5">
+            Bundles are pre-generated daily by our AI engine from today&apos;s highest-confidence predictions.{" "}
+            <Link href="/bundles" className="text-white hover:text-brand-green underline underline-offset-2">
+              Browse today&apos;s bundles →
+            </Link>
+          </p>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 mb-10">
+          <div className="flex-1 border-t border-brand-border" />
+          <span className="text-brand-muted text-xs font-bold uppercase tracking-widest">or</span>
+          <div className="flex-1 border-t border-brand-border" />
+        </div>
+
+        {/* ── Section 2: Pay-as-You-Go Credits ─────────────────────────────────── */}
         <div className="mb-16">
           <div className="flex items-center gap-3 mb-2">
             <CreditCard className="w-5 h-5 text-brand-green" />
-            <h2 className="text-white font-black text-xl">Pay-as-You-Go Credits</h2>
-            <span className="text-brand-muted text-sm">— no subscription</span>
+            <h2 className="text-white font-black text-2xl">Pick Credits</h2>
           </div>
-          <p className="text-brand-muted text-sm mb-6 ml-8">
-            Not ready to subscribe? Buy individual pick credits and unlock only what you need. Credits never expire.
+          <p className="text-brand-muted text-sm mb-8 ml-8 max-w-xl">
+            Prefer to choose your own matches? Buy a pack of credits and unlock individual predictions one at a time. Credits never expire.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {payAsYouGoPackages.map((pkg) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {CREDIT_PACKAGES.map((pkg) => (
               <div
-                key={pkg.id}
+                key={pkg.name}
                 className={`relative rounded-2xl border p-6 flex flex-col ${
                   pkg.highlight
                     ? "border-brand-green/50 bg-gradient-to-b from-green-950/20 to-brand-card"
@@ -201,23 +269,19 @@ export default function PricingPage() {
               >
                 {pkg.highlight && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="text-xs font-black px-3 py-1 rounded-full border bg-green-950/40 text-brand-green border-brand-green/30">
+                    <span className="text-[10px] font-black px-3 py-1 rounded-full border bg-green-950/40 text-brand-green border-brand-green/30">
                       Popular
                     </span>
                   </div>
                 )}
 
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-3">
                   <h3 className="text-white font-black text-lg">{pkg.name}</h3>
                   <div className="bg-brand-green/10 border border-brand-green/20 rounded-lg px-2.5 py-1">
-                    <span className="text-brand-green text-xs font-bold">{pkg.picks} picks</span>
+                    <span className="text-brand-green text-xs font-bold">{pkg.picks}</span>
                   </div>
                 </div>
 
-                <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-white font-black text-3xl">{pkg.price}</span>
-                </div>
-                <p className="text-brand-muted text-xs mb-3">{pkg.perPick}</p>
                 <p className="text-brand-muted text-sm mb-6 flex-1">{pkg.desc}</p>
 
                 <div className="space-y-2 mb-6">
@@ -233,7 +297,7 @@ export default function PricingPage() {
                   href="/auth/login?redirect=/packages"
                   className="w-full py-3 rounded-xl text-sm text-center transition-colors block border border-brand-green/40 text-brand-green hover:bg-brand-green/10 font-bold"
                 >
-                  Buy {pkg.picks} Picks
+                  Buy {pkg.picks}
                 </Link>
               </div>
             ))}
@@ -247,12 +311,52 @@ export default function PricingPage() {
           </p>
         </div>
 
+        {/* Comparison Table */}
+        <div className="mb-16 bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
+          <div className="px-6 py-5 border-b border-brand-border">
+            <h2 className="text-white font-black text-lg">Compare Your Options</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-brand-border">
+                  <th className="text-left text-xs text-brand-muted font-medium px-6 py-3 w-1/3">Feature</th>
+                  <th className="text-center text-xs text-brand-muted font-medium px-4 py-3">Free</th>
+                  <th className="text-center text-xs text-brand-muted font-medium px-4 py-3">Pick Credits</th>
+                  <th className="text-center text-xs text-brand-muted font-medium px-4 py-3 text-brand-red">Bundles</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-border">
+                {[
+                  ["Daily predictions", "2 picks", "Unlimited*", "Full bundle"],
+                  ["Full probability breakdown", "✗", "✓", "✓"],
+                  ["Confidence badges", "✓", "✓", "✓"],
+                  ["AI-assembled combos", "✗", "✗", "✓"],
+                  ["Pick selection", "Random 2", "You choose", "AI chooses"],
+                  ["Pricing", "Free", "Per pack", "$10–$50"],
+                  ["Best for", "Casual browsing", "Cherry-picking", "Combo bettors"],
+                ].map(([feat, free, credits, bundles]) => (
+                  <tr key={feat} className="hover:bg-white/5 transition-colors">
+                    <td className="px-6 py-3 text-white text-sm font-medium">{feat}</td>
+                    <td className="px-4 py-3 text-center text-brand-muted text-sm">{free}</td>
+                    <td className="px-4 py-3 text-center text-brand-muted text-sm">{credits}</td>
+                    <td className="px-4 py-3 text-center text-white text-sm font-bold">{bundles}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-brand-muted px-6 py-3 border-t border-brand-border">
+            * Credits unlock individual picks; each credit = 1 pick
+          </p>
+        </div>
+
         {/* Trust Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
           {[
-            { title: "Cancel anytime", body: "No contracts. Cancel your monthly subscription with one click, no questions asked." },
+            { title: "No subscriptions", body: "We don't lock you into monthly plans. Pay only when you want picks — credits or bundles, your call." },
             { title: "Secure payments", body: "All payments processed securely through Paystack. We never store your card details." },
-            { title: "Data-driven only", body: "Every prediction is generated from historical data and statistical models — no gut feelings." },
+            { title: "Data-driven only", body: "Every prediction is generated from historical data and statistical models — no gut feelings, no tipster bias." },
           ].map(({ title, body }) => (
             <div key={title} className="bg-brand-card border border-brand-border rounded-xl p-5">
               <h3 className="text-white font-bold text-sm mb-1">{title}</h3>
