@@ -8,7 +8,7 @@ import MobileNav from "@/components/layout/MobileNav";
 import Footer from "@/components/layout/Footer";
 import {
   Zap, CreditCard, TrendingUp, CheckCircle, Lock, BarChart2,
-  Star, Loader2, ArrowRight, Gift, Users
+  Star, Loader2, ArrowRight, Gift, Users, PlusCircle, RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { fetchUserCredits, fetchPaymentStatus } from "@/lib/api";
@@ -66,7 +66,10 @@ function DashboardContent() {
       <div className="min-h-screen bg-brand-dark flex flex-col items-center justify-center gap-4 px-4">
         <Lock className="w-12 h-12 text-brand-muted" />
         <p className="text-white font-bold text-lg">Login required</p>
-        <Link href="/auth/login?redirect=/dashboard" className="bg-brand-red hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-colors">
+        <Link
+          href="/auth/login?redirect=/dashboard"
+          className="bg-brand-red hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-colors"
+        >
           Login to Continue
         </Link>
       </div>
@@ -75,7 +78,6 @@ function DashboardContent() {
 
   const isPaid = paymentStatus?.is_paid ?? false;
   const username = user?.email?.split("@")[0] ?? "User";
-  const subscriptionLabel = isPaid ? "Premium" : "Free";
 
   return (
     <div className="min-h-screen bg-brand-dark">
@@ -84,26 +86,73 @@ function DashboardContent() {
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         {/* Welcome Header */}
-        <div className="mb-8">
-          <p className="text-brand-muted text-sm mb-1">Welcome back,</p>
-          <h1 className="text-white font-black text-3xl">{username}</h1>
-          <div className="flex items-center gap-2 mt-2">
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
-              isPaid
-                ? "bg-brand-yellow/10 text-brand-yellow border-brand-yellow/30"
-                : "bg-brand-card text-brand-muted border-brand-border"
-            }`}>
-              {subscriptionLabel} Plan
-            </span>
-            <span className="text-brand-muted text-xs">{user?.email}</span>
+        <div className="flex items-start justify-between gap-4 mb-8">
+          <div>
+            <p className="text-brand-muted text-sm mb-1">Welcome back,</p>
+            <h1 className="text-white font-black text-3xl">{username}</h1>
+            <div className="flex items-center gap-2 mt-2">
+              <span
+                className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                  isPaid
+                    ? "bg-brand-yellow/10 text-brand-yellow border-brand-yellow/30"
+                    : "bg-brand-card text-brand-muted border-brand-border"
+                }`}
+              >
+                {isPaid ? "Premium" : "Free"} Plan
+              </span>
+              <span className="text-brand-muted text-xs hidden sm:block">{user?.email}</span>
+            </div>
           </div>
+
+          {/* Refresh button */}
+          <button
+            onClick={loadData}
+            disabled={dataLoading}
+            className="p-2 rounded-lg border border-brand-border text-brand-muted hover:text-white hover:border-gray-500 transition-colors disabled:opacity-40 mt-1"
+            title="Refresh dashboard"
+          >
+            <RefreshCw className={`w-4 h-4 ${dataLoading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+
+        {/* Credits Hero Card */}
+        <div className="bg-gradient-to-r from-green-950/30 via-brand-card to-brand-card border border-green-900/40 rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-green-950/60 border border-green-900/60 rounded-2xl flex items-center justify-center shrink-0">
+              <Zap className="w-7 h-7 text-brand-green" />
+            </div>
+            <div>
+              <p className="text-brand-muted text-xs font-bold uppercase tracking-widest mb-0.5">
+                Pick Credits
+              </p>
+              <p className="text-white font-black text-4xl leading-none">
+                {dataLoading ? (
+                  <span className="text-brand-muted text-2xl animate-pulse">—</span>
+                ) : (
+                  credits
+                )}
+              </p>
+              <p className="text-brand-muted text-xs mt-1">
+                {credits > 0
+                  ? `${credits} credit${credits !== 1 ? "s" : ""} ready — go unlock your picks`
+                  : "No credits — top up to unlock premium picks"}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/packages"
+            className="flex items-center gap-2 bg-brand-green hover:bg-green-600 text-black font-black px-6 py-3 rounded-xl transition-colors text-sm shrink-0 w-full sm:w-auto justify-center"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Add Balance
+          </Link>
         </div>
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
           {[
             {
-              label: "Pick Credits",
+              label: "Credits",
               value: dataLoading ? "—" : credits.toString(),
               icon: Zap,
               color: "text-brand-green",
@@ -112,14 +161,14 @@ function DashboardContent() {
             },
             {
               label: "Plan",
-              value: dataLoading ? "—" : subscriptionLabel,
+              value: dataLoading ? "—" : isPaid ? "Premium" : "Free",
               icon: Star,
               color: "text-brand-yellow",
               bg: "bg-yellow-950/20",
               border: "border-yellow-900/30",
             },
             {
-              label: "Predictions",
+              label: "Daily Picks",
               value: isPaid ? "Unlimited" : "2/day",
               icon: BarChart2,
               color: "text-brand-muted",
@@ -151,22 +200,28 @@ function DashboardContent() {
           <div className="bg-brand-card border border-brand-border rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-1">
               <CreditCard className="w-5 h-5 text-brand-green" />
-              <h2 className="text-white font-black text-lg">Buy Pick Credits</h2>
+              <h2 className="text-white font-black text-lg">Pick Credit Packs</h2>
             </div>
             <p className="text-brand-muted text-sm mb-5">
-              No subscription needed. Buy credits and unlock individual high-confidence picks on demand.
+              No subscription. Buy credits, unlock individual high-confidence picks. Credits never expire.
             </p>
 
             <div className="space-y-2 mb-5">
               {[
-                { label: "Starter — 2 picks", price: "$2.99", tag: null },
-                { label: "Value Pack — 5 picks", price: "$4.99", tag: "Popular" },
-                { label: "Pro Bundle — 10 picks", price: "$8.99", tag: null },
-              ].map(({ label, price, tag }) => (
-                <div key={label} className="flex items-center justify-between py-2 border-b border-brand-border last:border-0">
+                { label: "Starter", sub: "2 picks", price: "$2.99", tag: null },
+                { label: "Value Pack", sub: "5 picks", price: "$4.99", tag: "Popular" },
+                { label: "Pro Bundle", sub: "10 picks", price: "$8.99", tag: null },
+              ].map(({ label, sub, price, tag }) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between py-2 border-b border-brand-border last:border-0"
+                >
                   <div className="flex items-center gap-2">
                     <Zap className="w-3.5 h-3.5 text-brand-green" />
-                    <span className="text-white text-sm">{label}</span>
+                    <div>
+                      <span className="text-white text-sm font-medium">{label}</span>
+                      <span className="text-brand-muted text-xs ml-1.5">{sub}</span>
+                    </div>
                     {tag && (
                       <span className="text-[10px] font-black px-1.5 py-0.5 bg-brand-green/10 text-brand-green border border-brand-green/20 rounded">
                         {tag}
@@ -180,20 +235,15 @@ function DashboardContent() {
 
             <Link
               href="/packages"
-              className="w-full py-3 rounded-xl bg-brand-green hover:bg-green-600 text-black font-black text-sm text-center transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-brand-red hover:bg-red-700 text-white font-black text-sm text-center transition-colors flex items-center justify-center gap-2"
             >
+              <PlusCircle className="w-4 h-4" />
               Buy Credits Now
               <ArrowRight className="w-4 h-4" />
             </Link>
-
-            {credits > 0 && (
-              <p className="text-center text-brand-green text-xs mt-3 font-bold">
-                You have {credits} credit{credits !== 1 ? "s" : ""} ready to use
-              </p>
-            )}
           </div>
 
-          {/* Upgrade Card (shown for free users) / Plan details (for paid) */}
+          {/* Upgrade Card / Premium Active */}
           {!isPaid ? (
             <div className="bg-gradient-to-b from-yellow-950/30 to-brand-card border border-brand-yellow/30 rounded-2xl p-6">
               <div className="flex items-center gap-2 mb-1">
@@ -201,16 +251,14 @@ function DashboardContent() {
                 <h2 className="text-white font-black text-lg">Upgrade to Premium</h2>
               </div>
               <p className="text-brand-muted text-sm mb-4">
-                Get unlimited daily predictions with full probability breakdowns, confidence badges, and multi-market analysis.
+                Unlimited daily predictions with full probability breakdowns, confidence badges, and multi-market analysis.
               </p>
-
               <div className="space-y-2 mb-5">
                 {[
                   "Unlimited predictions every day",
                   "Full 1X2, Over 2.5 & BTTS markets",
                   "High / Medium / Low confidence badges",
                   "Email alerts for top picks",
-                  "Priority support",
                 ].map((f) => (
                   <div key={f} className="flex items-center gap-2">
                     <CheckCircle className="w-3.5 h-3.5 text-brand-yellow shrink-0" />
@@ -218,7 +266,6 @@ function DashboardContent() {
                   </div>
                 ))}
               </div>
-
               <Link
                 href="/pricing"
                 className="w-full py-3 rounded-xl bg-brand-yellow hover:bg-yellow-500 text-black font-black text-sm text-center transition-colors block"
@@ -249,20 +296,49 @@ function DashboardContent() {
           {/* Quick Links */}
           <div className="bg-brand-card border border-brand-border rounded-2xl p-6">
             <h2 className="text-white font-black text-lg mb-4">Quick Links</h2>
-            <div className="space-y-2">
+            <div className="space-y-1">
               {[
-                { href: "/predictions", label: "Today's Predictions", icon: BarChart2, color: "text-brand-red" },
-                { href: "/results", label: "Results & Track Record", icon: TrendingUp, color: "text-brand-green" },
-                { href: "/pricing", label: "View All Plans", icon: Star, color: "text-brand-yellow" },
-                { href: "/partner", label: "Earn 30% — Affiliate Program", icon: Gift, color: "text-brand-muted" },
-              ].map(({ href, label, icon: Icon, color }) => (
+                {
+                  href: "/predictions",
+                  label: "Today's Predictions",
+                  sub: "View today's matches",
+                  icon: BarChart2,
+                  color: "text-brand-red",
+                },
+                {
+                  href: "/results",
+                  label: "Results & Track Record",
+                  sub: "See our accuracy",
+                  icon: TrendingUp,
+                  color: "text-brand-green",
+                },
+                {
+                  href: "/packages",
+                  label: "Buy Pick Credits",
+                  sub: "Top up your balance",
+                  icon: CreditCard,
+                  color: "text-brand-yellow",
+                },
+                {
+                  href: "/partner",
+                  label: "Earn 30% Commission",
+                  sub: "Affiliate program",
+                  icon: Gift,
+                  color: "text-brand-muted",
+                },
+              ].map(({ href, label, sub, icon: Icon, color }) => (
                 <Link
                   key={href}
                   href={href}
-                  className="flex items-center gap-3 py-2.5 border-b border-brand-border last:border-0 hover:text-white group transition-colors"
+                  className="flex items-center gap-3 py-2.5 px-2 rounded-lg hover:bg-brand-dark group transition-colors"
                 >
                   <Icon className={`w-4 h-4 ${color} shrink-0`} />
-                  <span className="text-brand-muted group-hover:text-white text-sm transition-colors">{label}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium group-hover:text-white transition-colors">
+                      {label}
+                    </p>
+                    <p className="text-brand-muted text-xs">{sub}</p>
+                  </div>
                   <ArrowRight className="w-3.5 h-3.5 text-brand-border group-hover:text-brand-muted ml-auto transition-colors" />
                 </Link>
               ))}
@@ -276,13 +352,20 @@ function DashboardContent() {
               <h2 className="text-white font-black text-lg">Earn with Referrals</h2>
             </div>
             <p className="text-brand-muted text-sm mb-4">
-              Share your referral link and earn 30% commission on every referred subscription — forever.
+              Share your referral link and earn 30% commission on every referred purchase — for life.
             </p>
+            <div className="bg-brand-dark border border-brand-border rounded-lg px-4 py-3 mb-4">
+              <p className="text-brand-muted text-xs mb-1">Your invite link</p>
+              <p className="text-white text-xs font-mono truncate">
+                https://sureodds.pro/invite?code=
+                <span className="text-brand-green">{username.toUpperCase()}</span>
+              </p>
+            </div>
             <Link
               href="/partner"
-              className="w-full py-3 rounded-xl border border-brand-border text-white font-bold text-sm text-center transition-colors hover:bg-brand-card block"
+              className="w-full py-3 rounded-xl border border-brand-border text-white font-bold text-sm text-center transition-colors hover:bg-brand-dark block"
             >
-              Start Earning
+              View Partner Dashboard
             </Link>
           </div>
         </div>
@@ -297,11 +380,13 @@ function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-brand-dark flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-brand-red animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-brand-dark flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-brand-red animate-spin" />
+        </div>
+      }
+    >
       <DashboardContent />
     </Suspense>
   );

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileNav from "@/components/layout/MobileNav";
@@ -9,8 +9,10 @@ import Footer from "@/components/layout/Footer";
 import MatchCard from "@/components/matches/MatchCard";
 import PredictionSlip from "@/components/matches/PredictionSlip";
 import type { Prediction, PredictionSlipItem } from "@/types";
-import { fetchPredictions, fetchUserCredits } from "@/lib/api";
-import { Loader2, AlertCircle, CalendarX, Lock, Zap, CreditCard } from "lucide-react";
+import { fetchPredictions, fetchUserCredits, unlockPick } from "@/lib/api";
+import { Loader2, AlertCircle, CalendarX, Lock, Zap, CreditCard, RefreshCw } from "lucide-react";
+import toast from "react-hot-toast";
+import Link from "next/link";
 
 function getDateStr(filter: "today" | "tomorrow"): string {
   const d = new Date();
@@ -18,8 +20,9 @@ function getDateStr(filter: "today" | "tomorrow"): string {
   return d.toISOString().split("T")[0];
 }
 
-export default function PredictionsPage() {
+function PredictionsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [slipItems, setSlipItems] = useState<PredictionSlipItem[]>([]);
   const [selectedLeague, setSelectedLeague] = useState<number | null>(null);
   const [filter, setFilter] = useState<"today" | "tomorrow">("today");
@@ -27,9 +30,16 @@ export default function PredictionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
+  const [unlocking, setUnlocking] = useState<number | null>(null);
 
   const lockedCount = predictions.filter((p) => p.locked).length;
   const unlockedCount = predictions.filter((p) => !p.locked).length;
+
+  const refreshCredits = useCallback(() => {
+    fetchUserCredits()
+      .then((c) => setCredits(c.remaining_picks))
+      .catch(() => null);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,6 +61,77 @@ export default function PredictionsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Show success toast if returning from payment
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const paid = searchParams.get("credits");
+    if (paid === "added") {
+      refreshCredits();
+      toast.success("Credits added! Tap any 🔒 pick to unlock it with 1 credit.", {
+        duration: 6000,
+        icon: "⚡",
+      });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("credits");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams, refreshCredits]);
+
+  const handleUnlock = useCallback(
+    async (matchId: number) => {
+      if (credits === null || credits <= 0) {
+        router.push("/packages");
+        return;
+      }
+
+      setUnlocking(matchId);
+      try {
+        const data = await unlockPick(matchId);
+        // Update the prediction in state with the unlocked data
+        setPredictions((prev) =>
+          prev.map((p) =>
+            p.matchId === matchId
+              ? {
+                  ...p,
+                  locked: false,
+                  homeWinPct: data.homeWinPct ?? p.homeWinPct,
+                  drawPct: data.drawPct ?? p.drawPct,
+                  awayWinPct: data.awayWinPct ?? p.awayWinPct,
+                  over25Pct: data.over25Pct ?? p.over25Pct,
+                  bttsPct: data.bttsPct ?? p.bttsPct,
+                  bestPick: data.bestPick ?? p.bestPick,
+                  confidence: data.confidence ?? p.confidence,
+                }
+              : p
+          )
+        );
+        const remaining = data.creditsRemaining ?? (credits - 1);
+        setCredits(remaining);
+        toast.success(
+          `Pick unlocked! ${remaining} credit${remaining !== 1 ? "s" : ""} remaining.`,
+          { icon: "⚡" }
+        );
+      } catch (err: unknown) {
+        const status =
+          err && typeof err === "object" && "response" in err
+            ? (err as { response?: { status?: number } }).response?.status
+            : null;
+        if (status === 402) {
+          toast.error("No credits left. Buy more to unlock picks.");
+          router.push("/packages");
+        } else if (status === 401) {
+          toast.error("Please log in to unlock picks.");
+          router.push("/auth/login?redirect=/predictions");
+        } else {
+          toast.error("Could not unlock this pick. Please try again.");
+        }
+      } finally {
+        setUnlocking(null);
+      }
+    },
+    [credits, router]
+  );
 
   const handleAddToSlip = (item: PredictionSlipItem) => {
     setSlipItems((prev) => {
@@ -83,24 +164,57 @@ export default function PredictionsPage() {
         />
 
         <main className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-4">
-            <div>
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <div className="min-w-0">
               <h1 className="text-white font-black text-xl">{label} Predictions</h1>
               <p className="text-brand-muted text-xs mt-0.5">
-                {loading ? "Loading..." : `${predictions.length} matches · Updated daily`}
+                {loading
+                  ? "Loading matches..."
+                  : `${predictions.length} matches · Updated daily`}
               </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {credits !== null && credits > 0 && (
+                <div className="hidden sm:flex items-center gap-1.5 bg-green-950/40 border border-green-900/40 rounded-lg px-3 py-1.5">
+                  <Zap className="w-3.5 h-3.5 text-brand-green" />
+                  <span className="text-brand-green text-xs font-bold">
+                    {credits} credit{credits !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={load}
+                disabled={loading}
+                className="p-2 rounded-lg border border-brand-border text-brand-muted hover:text-white hover:border-gray-500 transition-colors disabled:opacity-40"
+                title="Refresh predictions"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              </button>
+              <Link
+                href="/packages"
+                className="hidden sm:flex items-center gap-1.5 bg-brand-red hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                Add Credits
+              </Link>
             </div>
           </div>
 
+          {/* Skeleton loading */}
           {loading && (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 text-brand-red animate-spin" />
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="h-28 rounded-lg bg-brand-card border border-brand-border animate-pulse"
+                />
+              ))}
             </div>
           )}
 
           {!loading && error && (
-            <div className="bg-red-950 border border-red-900 rounded-xl p-6 flex items-center gap-3 text-brand-red">
-              <AlertCircle className="w-5 h-5 shrink-0" />
+            <div className="bg-red-950 border border-red-900 rounded-xl p-6 flex items-start gap-3 text-brand-red">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold text-sm">Failed to load predictions</p>
                 <p className="text-xs mt-0.5 text-red-400">{error}</p>
@@ -120,20 +234,28 @@ export default function PredictionsPage() {
               <p className="text-white font-bold text-lg mb-1">No matches scheduled</p>
               <p className="text-brand-muted text-sm max-w-sm">
                 {filter === "today"
-                  ? "No fixtures found for today. This may be an international break or a rest day for the tracked leagues. Try switching to Tomorrow or check back later."
-                  : "No fixtures found for tomorrow yet. The schedule may not have been released, or there could be an international break. Check back later today."}
+                  ? "No fixtures found for today. This may be an international break. Try switching to Tomorrow."
+                  : "No fixtures found for tomorrow yet. Check back later today."}
               </p>
+              <button
+                onClick={() => setFilter(filter === "today" ? "tomorrow" : "today")}
+                className="mt-4 text-sm text-brand-red hover:text-red-400 font-bold transition-colors"
+              >
+                Switch to {filter === "today" ? "Tomorrow" : "Today"}
+              </button>
             </div>
           )}
 
           {!loading && !error && predictions.length > 0 && (
             <>
-              {/* Credits display */}
+              {/* Credits banner */}
               {credits !== null && credits > 0 && (
-                <div className="mb-3 flex items-center gap-2 text-xs">
-                  <Zap className="w-3.5 h-3.5 text-brand-green" />
-                  <span className="text-brand-muted">
-                    You have <span className="text-white font-bold">{credits}</span> pick {credits === 1 ? "credit" : "credits"} — tap a locked pick to unlock it.
+                <div className="mb-3 flex items-center gap-2 bg-green-950/20 border border-green-900/30 rounded-lg px-3 py-2">
+                  <Zap className="w-3.5 h-3.5 text-brand-green shrink-0" />
+                  <span className="text-brand-muted text-xs">
+                    You have{" "}
+                    <span className="text-white font-bold">{credits}</span>{" "}
+                    pick {credits === 1 ? "credit" : "credits"} — tap the 🔒 lock on any pick to unlock it instantly.
                   </span>
                 </div>
               )}
@@ -145,7 +267,9 @@ export default function PredictionsPage() {
                     prediction={prediction}
                     onAddToSlip={handleAddToSlip}
                     selectedPick={slipItems.find((i) => i.matchId === prediction.matchId)?.pick}
-                    onUnlockClick={() => router.push("/packages")}
+                    onUnlockClick={() => handleUnlock(prediction.matchId)}
+                    isUnlocking={unlocking === prediction.matchId}
+                    hasCredits={(credits ?? 0) > 0}
                   />
                 ))}
               </div>
@@ -161,19 +285,19 @@ export default function PredictionsPage() {
                       </p>
                       <p className="text-brand-muted text-xs mt-0.5">
                         {credits !== null && credits > 0
-                          ? `Use your ${credits} remaining ${credits === 1 ? "credit" : "credits"} — tap a locked pick above to unlock it.`
-                          : `You're seeing ${unlockedCount} free ${unlockedCount === 1 ? "pick" : "picks"}. Buy pick credits to unlock more.`}
+                          ? `Use your ${credits} remaining ${credits === 1 ? "credit" : "credits"} — tap the 🔒 icon to unlock.`
+                          : `You're seeing ${unlockedCount} free ${unlockedCount === 1 ? "pick" : "picks"}. Buy credits to unlock the rest.`}
                       </p>
                     </div>
                   </div>
                   {(!credits || credits === 0) && (
-                    <button
-                      onClick={() => router.push("/packages")}
+                    <Link
+                      href="/packages"
                       className="shrink-0 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors"
                     >
                       <CreditCard className="w-4 h-4" />
                       Buy Credits
-                    </button>
+                    </Link>
                   )}
                 </div>
               )}
@@ -192,5 +316,19 @@ export default function PredictionsPage() {
       <MobileNav />
       <div className="h-16 md:h-0" />
     </div>
+  );
+}
+
+export default function PredictionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-brand-dark flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-brand-red animate-spin" />
+        </div>
+      }
+    >
+      <PredictionsContent />
+    </Suspense>
   );
 }

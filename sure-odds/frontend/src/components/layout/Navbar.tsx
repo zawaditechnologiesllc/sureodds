@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, X, LogIn, Zap, LayoutDashboard, ChevronDown } from "lucide-react";
+import { Menu, X, LogIn, Zap, LayoutDashboard, ChevronDown, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/lib/supabase";
@@ -98,6 +98,14 @@ export default function Navbar() {
                     >
                       <Zap className="w-4 h-4" />
                       Today&apos;s Picks
+                    </Link>
+                    <Link
+                      href="/packages"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-brand-card hover:text-white transition-colors"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      Add Credits
                     </Link>
                     <button
                       onClick={handleLogout}
