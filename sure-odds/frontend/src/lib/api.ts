@@ -17,9 +17,26 @@ api.interceptors.request.use((config) => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Attach admin key for all /admin/* calls
+    const adminKey = sessionStorage.getItem("admin_key");
+    if (adminKey && config.url?.startsWith("/admin")) {
+      config.headers["x-admin-key"] = adminKey;
+    }
   }
   return config;
 });
+
+// Admin key helpers
+export const saveAdminKey = (key: string) => {
+  if (typeof window !== "undefined") sessionStorage.setItem("admin_key", key);
+};
+export const clearAdminKey = () => {
+  if (typeof window !== "undefined") sessionStorage.removeItem("admin_key");
+};
+export const getStoredAdminKey = (): string | null => {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem("admin_key");
+};
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

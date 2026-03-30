@@ -37,6 +37,9 @@ import {
   fetchAdminBundles,
   activateBundle,
   deactivateBundle,
+  saveAdminKey,
+  clearAdminKey,
+  getStoredAdminKey,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "bundles" | "partners" | "users";
@@ -103,6 +106,88 @@ const StatusBadge = ({ status }: { status: PartnerStatus }) => {
 };
 
 export default function AdminPage() {
+  // ── Admin key gate ──────────────────────────────────────────────────────────
+  const [keyInput, setKeyInput] = useState("");
+  const [keyError, setKeyError] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [keyChecked, setKeyChecked] = useState(false);
+
+  useEffect(() => {
+    const stored = getStoredAdminKey();
+    if (stored) setAuthenticated(true);
+    setKeyChecked(true);
+  }, []);
+
+  const handleKeySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!keyInput.trim()) return;
+    saveAdminKey(keyInput.trim());
+    // Try a real admin call to verify the key is correct
+    try {
+      await fetchAdminStats();
+      setAuthenticated(true);
+      setKeyError(false);
+    } catch {
+      clearAdminKey();
+      setKeyError(true);
+    }
+  };
+
+  const handleSignOut = () => {
+    clearAdminKey();
+    setAuthenticated(false);
+    setKeyInput("");
+  };
+
+  if (!keyChecked) return null;
+
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen bg-brand-dark flex items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="w-12 h-12 bg-brand-red/10 border border-brand-red/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <ShieldAlert className="w-6 h-6 text-brand-red" />
+            </div>
+            <h1 className="text-white font-black text-2xl">Admin Access</h1>
+            <p className="text-brand-muted text-sm mt-1">Enter your admin secret key to continue</p>
+          </div>
+          <form onSubmit={handleKeySubmit} className="space-y-4">
+            <div>
+              <input
+                type="password"
+                value={keyInput}
+                onChange={(e) => { setKeyInput(e.target.value); setKeyError(false); }}
+                placeholder="Admin secret key"
+                autoFocus
+                className={`w-full bg-brand-card border rounded-xl px-4 py-3 text-white placeholder-brand-muted text-sm focus:outline-none focus:ring-2 ${keyError ? "border-brand-red focus:ring-brand-red/30" : "border-brand-border focus:ring-brand-red/30"}`}
+              />
+              {keyError && (
+                <p className="text-brand-red text-xs mt-2 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5" /> Incorrect key. Check your Render environment variables.
+                </p>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={!keyInput.trim()}
+              className="w-full bg-brand-red hover:bg-red-700 disabled:opacity-50 text-white font-black py-3 rounded-xl transition-colors"
+            >
+              Enter Admin Panel
+            </button>
+          </form>
+          <p className="text-brand-muted text-xs text-center mt-6">
+            Set <code className="bg-brand-card px-1 rounded">SECRET_KEY</code> in your Render environment variables to control access.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return <AdminPanel onSignOut={handleSignOut} />;
+}
+
+function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [tab, setTab] = useState<AdminTab>("overview");
   const [applications, setApplications] = useState<PartnerApplication[]>(MOCK_APPLICATIONS);
   const [viewingApp, setViewingApp] = useState<PartnerApplication | null>(null);
@@ -226,12 +311,20 @@ export default function AdminPage() {
       <div className="max-w-5xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-white font-black text-2xl">Admin Panel</h1>
-          {stats && (
-            <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border ${stats.api_key_configured ? "bg-green-950 border-green-900 text-brand-green" : "bg-red-950 border-red-900 text-brand-red"}`}>
-              {stats.api_key_configured ? <CheckCircle className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-              {stats.api_key_configured ? "API-Football connected" : "API key not set"}
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {stats && (
+              <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border ${stats.api_key_configured ? "bg-green-950 border-green-900 text-brand-green" : "bg-red-950 border-red-900 text-brand-red"}`}>
+                {stats.api_key_configured ? <CheckCircle className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
+                {stats.api_key_configured ? "API key connected" : "API key not set"}
+              </div>
+            )}
+            <button
+              onClick={onSignOut}
+              className="text-xs text-brand-muted hover:text-white border border-brand-border hover:border-brand-muted px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
 
         {/* Tab Nav */}
