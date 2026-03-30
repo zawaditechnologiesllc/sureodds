@@ -3,16 +3,14 @@ Service for fetching and storing fixtures from Football-Data.org v4.
 Docs: https://www.football-data.org/documentation/api
 
 Architecture:
-  - A scheduler polls Football-Data.org every 10 minutes with ONE API call.
+  - A scheduler polls Football-Data.org every 6 HOURS with ONE API call.
   - Each call fetches a rolling window: 7 days back + today + 7 days ahead.
   - Endpoints serve data exclusively from the database — zero per-request calls.
-  - Rate limit: Football-Data.org free plan allows 10 requests/minute.
-    At one call per 10 minutes = 144 calls/day, well within the rate limit.
 
-API budget:
-  - 1 call per 10-minute run  ×  144 runs/day  =  144 calls/day
-  - Rate limit guard: no more than 1 call per minute (enforced in scheduler)
-  - Hard daily cap: 200 calls (safety valve, ~38% headroom)
+API budget at 6-hour intervals:
+  - 4 calls per day (00:00, 06:00, 12:00, 18:00 UTC)
+  - Hard daily cap: 20 calls (5× safety margin)
+  - Football-Data.org free plan allows 10 requests/minute — easily within limits.
 """
 
 import httpx
@@ -44,8 +42,8 @@ ACTIVE_COMPETITION_IDS = {c["id"] for c in ACTIVE_COMPETITIONS}
 
 _daily_requests: dict[str, int] = {}
 
-# Hard cap: 200 calls/day — safety valve only. Normal usage is ~144/day.
-MAX_DAILY_REQUESTS = 200
+# Hard cap: 20 calls/day — safety valve. At 6-hour intervals we use 4/day max.
+MAX_DAILY_REQUESTS = 20
 
 
 def _record_request():
@@ -92,7 +90,7 @@ async def get_api_status() -> dict:
         "remaining": MAX_DAILY_REQUESTS - daily_used,
         "source": "football-data.org",
         "season": get_current_season(),
-        "poll_interval_minutes": 10,
+        "poll_interval_hours": 6,
     }
 
 
@@ -250,19 +248,19 @@ async def ensure_leagues(db: Session):
 
 
 # ---------------------------------------------------------------------------
-# Main polling function — called every 10 minutes by the scheduler
+# Main polling function — called every 6 hours by the scheduler
 # ---------------------------------------------------------------------------
 
 async def fetch_window(db: Session, days_back: int = 7, days_ahead: int = 7) -> dict:
     """
     Single API call covering a rolling window: past N days + today + next N days.
 
-    This is the primary polling function called every 10 minutes.
+    This is the primary polling function called every 6 hours.
     One call covers both result updates (finished matches) and upcoming fixtures.
 
-    days_back=7   — captures finished matches for results page
-    days_ahead=7  — captures upcoming fixtures for predictions page
-                    Use days_ahead=14 for initial boot to cover international breaks.
+    days_back=7  — captures finished matches for results (7-day display window)
+    days_ahead=7 — captures upcoming fixtures for predictions page
+                   Use days_ahead=14 for initial boot to cover international breaks.
     """
     await ensure_leagues(db)
     today = date.today()

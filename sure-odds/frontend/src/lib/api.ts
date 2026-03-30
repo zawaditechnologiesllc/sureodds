@@ -187,3 +187,13 @@ export const generateBundle = async (tier: string) => {
   const res = await api.post(`/admin/bundles/generate/${tier}`);
   return res.data;
 };
+
+export const activateBundle = async (bundleId: string) => {
+  const res = await api.post(`/admin/bundles/${bundleId}/activate`);
+  return res.data;
+};
+
+export const deactivateBundle = async (bundleId: string) => {
+  const res = await api.post(`/admin/bundles/${bundleId}/deactivate`);
+  return res.data;
+};

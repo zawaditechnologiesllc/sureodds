@@ -35,6 +35,8 @@ import {
   fetchApiStatus,
   generateBundle,
   fetchAdminBundles,
+  activateBundle,
+  deactivateBundle,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "bundles" | "partners" | "users";
@@ -179,6 +181,21 @@ export default function AdminPage() {
     return <Play className="w-4 h-4" />;
   };
 
+  const handleToggleBundleActive = async (bundleId: string, currentlyActive: boolean) => {
+    try {
+      if (currentlyActive) {
+        await deactivateBundle(bundleId);
+        toast.success("Bundle unpublished — no longer visible to users.");
+      } else {
+        await activateBundle(bundleId);
+        toast.success("Bundle published — now visible to users.");
+      }
+      fetchAdminBundles().then(setAdminBundles).catch(() => null);
+    } catch {
+      toast.error("Could not update bundle status.");
+    }
+  };
+
   const handleGenerateBundle = async (tier: string) => {
     setBundleStatuses((prev) => ({ ...prev, [tier]: "loading" }));
     try {
@@ -259,7 +276,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-white font-bold text-lg">Data Source Status</h2>
-                  <p className="text-brand-muted text-xs mt-0.5">football-data.org · fetches at 08:00 &amp; 20:00 UTC</p>
+                  <p className="text-brand-muted text-xs mt-0.5">football-data.org · fetches every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)</p>
                 </div>
                 {!apiStatusLoading && apiStatus && (
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
@@ -286,7 +303,7 @@ export default function AdminPage() {
                       { label: "Season", value: apiStatus.season?.toString() ?? "—", color: "text-white" },
                       { label: "Daily Calls Used", value: apiStatus.daily_used != null ? `${apiStatus.daily_used}/${apiStatus.daily_limit}` : "—", color: (apiStatus.daily_used ?? 0) >= (apiStatus.daily_limit ?? 20) ? "text-brand-red" : "text-brand-green" },
                       { label: "Remaining Today", value: apiStatus.remaining != null ? `${apiStatus.remaining}` : "—", color: (apiStatus.remaining ?? 20) <= 4 ? "text-brand-red" : "text-brand-green" },
-                      { label: "Next Fetches", value: "08:00 / 20:00", color: "text-brand-yellow" },
+                      { label: "Poll Interval", value: apiStatus.poll_interval_hours != null ? `Every ${apiStatus.poll_interval_hours}h` : "Every 6h", color: "text-brand-yellow" },
                     ].map(({ label, value, color }) => (
                       <div key={label} className="bg-brand-dark border border-brand-border rounded-lg p-3">
                         <p className="text-brand-muted text-[10px] uppercase font-bold mb-1">{label}</p>
@@ -325,7 +342,7 @@ export default function AdminPage() {
                     <div className="bg-green-950/30 border border-green-900/30 rounded-lg p-3 flex items-start gap-2">
                       <CheckCircle className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
                       <p className="text-green-300 text-xs">
-                        Data source is healthy. Fixtures are fetched twice daily (2 API calls/run, 4/day max).
+                        Data source is healthy. Fixtures are fetched every 6 hours (1 API call per run, 4 calls/day max).
                         Season {apiStatus.season} is active — Premier League, La Liga, Serie A, and Bundesliga are tracked.
                       </p>
                     </div>
@@ -443,6 +460,7 @@ export default function AdminPage() {
                         <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Price</th>
                         <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Status</th>
                         <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Created</th>
+                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-border">
@@ -470,6 +488,18 @@ export default function AdminPage() {
                           </td>
                           <td className="px-5 py-3 text-brand-muted text-xs">
                             {b.created_at ? new Date(b.created_at).toLocaleDateString("en-GB") : "—"}
+                          </td>
+                          <td className="px-5 py-3">
+                            <button
+                              onClick={() => handleToggleBundleActive(b.id, b.is_active)}
+                              className={`text-[10px] font-black px-3 py-1 rounded border transition-colors ${
+                                b.is_active
+                                  ? "bg-red-950 border-red-900 text-brand-red hover:bg-red-900"
+                                  : "bg-green-950 border-green-900 text-brand-green hover:bg-green-900"
+                              }`}
+                            >
+                              {b.is_active ? "Unpublish" : "Publish"}
+                            </button>
                           </td>
                         </tr>
                       ))}

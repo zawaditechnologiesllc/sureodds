@@ -2,10 +2,12 @@
 Service for reconciling match results and scoring predictions.
 
 Data is NOT fetched here — the scheduler fetches and stores it via
-fixtures_service.fetch_results(). This module simply reads finished
+fixtures_service.fetch_window(). This module simply reads finished
 matches from the DB and marks prediction outcomes.
 
 No external API calls are made.
+Results are reconciled for a 7-day rolling window, matching the
+7-day display window shown to users on the results page.
 """
 
 import logging
@@ -15,6 +17,9 @@ from sqlalchemy import cast, Date
 from app.models.models import Fixture, Prediction
 
 logger = logging.getLogger(__name__)
+
+# Results are shown and reconciled for a 7-day rolling window.
+RESULTS_WINDOW_DAYS = 7
 
 
 def determine_actual_result(home_score: int, away_score: int) -> str:
@@ -38,11 +43,12 @@ def check_prediction_correct(
     return False
 
 
-def reconcile_results(db: Session, days_back: int = 5) -> dict:
+def reconcile_results(db: Session, days_back: int = RESULTS_WINDOW_DAYS) -> dict:
     """
     Read finished fixtures from the DB for the past N days and
     mark prediction outcomes (is_correct, actual_result).
 
+    Covers today as well (matches that finished today are included via <=).
     No API calls — data was stored during the last scheduled fetch.
     """
     updated = 0
@@ -53,7 +59,7 @@ def reconcile_results(db: Session, days_back: int = 5) -> dict:
         db.query(Fixture)
         .filter(
             cast(Fixture.kickoff, Date) >= today - timedelta(days=days_back),
-            cast(Fixture.kickoff, Date) < today,
+            cast(Fixture.kickoff, Date) <= today,  # include today's finished matches
             Fixture.status == "finished",
         )
         .all()
@@ -90,5 +96,5 @@ def reconcile_results(db: Session, days_back: int = 5) -> dict:
 
 
 # Keep backward-compatible async wrapper so existing callers don't break
-async def update_results(db: Session, days_back: int = 5) -> dict:
+async def update_results(db: Session, days_back: int = RESULTS_WINDOW_DAYS) -> dict:
     return reconcile_results(db, days_back=days_back)

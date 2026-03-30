@@ -254,10 +254,21 @@ async def generate_bundle_endpoint(tier: str, db: Session = Depends(get_db)):
 
 @router.post("/bundles/{bundle_id}/deactivate", dependencies=[Depends(verify_admin)])
 async def deactivate_bundle(bundle_id: str, db: Session = Depends(get_db)):
-    """Manually deactivate a bundle."""
+    """Manually deactivate (unpublish) a bundle so users cannot see or buy it."""
     bundle = db.query(Bundle).filter(Bundle.id == bundle_id).first()
     if not bundle:
         raise HTTPException(status_code=404, detail="Bundle not found")
     bundle.is_active = False
     db.commit()
-    return {"success": True, "bundle_id": bundle_id}
+    return {"success": True, "bundle_id": bundle_id, "is_active": False}
+
+
+@router.post("/bundles/{bundle_id}/activate", dependencies=[Depends(verify_admin)])
+async def activate_bundle(bundle_id: str, db: Session = Depends(get_db)):
+    """Manually activate (publish) a bundle so users can see and buy it."""
+    bundle = db.query(Bundle).filter(Bundle.id == bundle_id).first()
+    if not bundle:
+        raise HTTPException(status_code=404, detail="Bundle not found")
+    bundle.is_active = True
+    db.commit()
+    return {"success": True, "bundle_id": bundle_id, "is_active": True}

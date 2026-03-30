@@ -8,6 +8,14 @@
 - Added idempotent Alembic migration — uses `IF NOT EXISTS` checks so Render build doesn't crash on re-deploy
 - Added `DIRECT_DATABASE_URL` support for running Alembic migrations via direct Supabase connection (bypasses pgbouncer)
 - Added `FOOTBALL_DATA_API_KEY` and `LIVE_SECRET_KEY` to render.yaml env var list
+- **CRITICAL BUG FIX**: Fixed bundle payment verify route — `/verify/payment` was declared after `/{bundle_id}`, so FastAPI matched "verify" as a bundle ID and every payment return 404'd. Moved fixed route before parameterised route.
+- Changed scheduler from every 10 minutes → **every 6 hours** (4 API calls/day max, was 144/day). `MAX_DAILY_REQUESTS` lowered from 200 → 20.
+- Changed results reconciliation window from 5 days → **7 days** to match the 7-day display window on the results page.
+- Fixed `reconcile_results` date filter: changed `< today` to `<= today` so same-day finished matches are included.
+- Results endpoint now enforces a **7-day expiry**: dates older than 7 days return empty rather than showing stale data.
+- Admin panel: added **Publish / Unpublish** toggle buttons per bundle row. Admin can deactivate a bundle (hides from users) or reactivate it without regenerating.
+- Backend: added `POST /admin/bundles/{id}/activate` endpoint to complement the existing `/deactivate`.
+- Updated admin panel Data Source Status panel to accurately show "every 6 hours" and poll interval from live API response.
 
 ## Overview
 

@@ -1,5 +1,8 @@
 """
 Bundles router — list, view, and purchase pre-generated betting bundles.
+
+IMPORTANT: /verify/payment MUST be declared BEFORE /{bundle_id} so FastAPI
+does not swallow the literal path segment "verify" as a bundle_id parameter.
 """
 import json
 import secrets
@@ -37,7 +40,7 @@ class BundleOut(BaseModel):
     pick_count: int
     is_active: bool
     expires_at: Optional[str]
-    picks: Optional[list]       # None when locked, list when purchased/unlocked
+    picks: Optional[list]
     purchased: bool
 
     class Config:
@@ -88,7 +91,8 @@ def _bundle_to_out(bundle: Bundle, purchased: bool) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Routes
+# Routes — NOTE: fixed-path routes (/verify/payment) MUST come before
+# parameterised routes (/{bundle_id}) or FastAPI will match the wrong handler.
 # ---------------------------------------------------------------------------
 
 @router.get("")
@@ -96,9 +100,7 @@ async def list_bundles(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(optional_current_user),
 ):
-    """
-    List all active bundles. Picks are hidden until purchased.
-    """
+    """List all active bundles. Picks are hidden until purchased."""
     bundles = (
         db.query(Bundle)
         .filter(Bundle.is_active == True)
@@ -107,11 +109,69 @@ async def list_bundles(
     )
     result = []
     for b in bundles:
-        purchased = False
-        if current_user:
-            purchased = _has_purchased(db, b.id, current_user.id)
+        purchased = _has_purchased(db, b.id, current_user.id) if current_user else False
         result.append(_bundle_to_out(b, purchased))
     return result
+
+
+# ── This MUST be before /{bundle_id} ────────────────────────────────────────
+@router.get("/verify/payment")
+async def verify_bundle_payment(
+    reference: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Verify a bundle payment and unlock picks for the user.
+    Called after returning from Paystack redirect.
+    """
+    purchase = db.query(BundlePurchase).filter(
+        BundlePurchase.reference == reference
+    ).first()
+
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase record not found")
+
+    if purchase.status == "success":
+        bundle = db.query(Bundle).filter(Bundle.id == purchase.bundle_id).first()
+        picks_raw = json.loads(bundle.picks) if bundle and bundle.picks else []
+        return {
+            "status": "already_verified",
+            "reference": reference,
+            "picks": picks_raw,
+        }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{PAYSTACK_BASE}/transaction/verify/{reference}",
+                headers=_get_paystack_headers(),
+                timeout=30,
+            )
+            data = resp.json()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Paystack bundle verify error: {e}")
+        raise HTTPException(status_code=502, detail="Payment gateway unreachable. Please try again.")
+
+    if not data.get("status") or data["data"]["status"] != "success":
+        purchase.status = "failed"
+        db.commit()
+        raise HTTPException(status_code=400, detail="Payment not successful or not found")
+
+    purchase.status = "success"
+    purchase.verified_at = datetime.utcnow()
+    db.commit()
+
+    bundle = db.query(Bundle).filter(Bundle.id == purchase.bundle_id).first()
+    picks_raw = json.loads(bundle.picks) if bundle and bundle.picks else []
+
+    return {
+        "status": "success",
+        "reference": reference,
+        "bundle_id": purchase.bundle_id,
+        "picks": picks_raw,
+    }
 
 
 @router.get("/{bundle_id}")
@@ -120,17 +180,12 @@ async def get_bundle(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(optional_current_user),
 ):
-    """
-    Get a single bundle. Picks revealed only if user purchased it.
-    """
+    """Get a single bundle. Picks revealed only if user purchased it."""
     bundle = db.query(Bundle).filter(Bundle.id == bundle_id).first()
     if not bundle:
         raise HTTPException(status_code=404, detail="Bundle not found")
 
-    purchased = False
-    if current_user:
-        purchased = _has_purchased(db, bundle_id, current_user.id)
-
+    purchased = _has_purchased(db, bundle_id, current_user.id) if current_user else False
     return _bundle_to_out(bundle, purchased)
 
 
@@ -151,7 +206,6 @@ async def purchase_bundle(
     if not bundle:
         raise HTTPException(status_code=404, detail="Bundle not found or no longer available")
 
-    # Check if already purchased
     if _has_purchased(db, bundle_id, current_user.id):
         raise HTTPException(status_code=400, detail="You have already purchased this bundle")
 
@@ -210,63 +264,4 @@ async def purchase_bundle(
             "price": bundle.price,
             "tier": bundle.tier,
         },
-    }
-
-
-@router.get("/verify/payment")
-async def verify_bundle_payment(
-    reference: str = Query(...),
-    db: Session = Depends(get_db),
-):
-    """
-    Verify a bundle payment and unlock picks for the user.
-    Called after returning from Paystack redirect.
-    """
-    purchase = db.query(BundlePurchase).filter(
-        BundlePurchase.reference == reference
-    ).first()
-
-    if not purchase:
-        raise HTTPException(status_code=404, detail="Purchase record not found")
-
-    if purchase.status == "success":
-        bundle = db.query(Bundle).filter(Bundle.id == purchase.bundle_id).first()
-        picks_raw = json.loads(bundle.picks) if bundle and bundle.picks else []
-        return {
-            "status": "already_verified",
-            "reference": reference,
-            "picks": picks_raw,
-        }
-
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{PAYSTACK_BASE}/transaction/verify/{reference}",
-                headers=_get_paystack_headers(),
-                timeout=30,
-            )
-            data = resp.json()
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Paystack bundle verify error: {e}")
-        raise HTTPException(status_code=502, detail="Payment gateway unreachable. Please try again.")
-
-    if not data.get("status") or data["data"]["status"] != "success":
-        purchase.status = "failed"
-        db.commit()
-        raise HTTPException(status_code=400, detail="Payment not successful or not found")
-
-    purchase.status = "success"
-    purchase.verified_at = datetime.utcnow()
-    db.commit()
-
-    bundle = db.query(Bundle).filter(Bundle.id == purchase.bundle_id).first()
-    picks_raw = json.loads(bundle.picks) if bundle and bundle.picks else []
-
-    return {
-        "status": "success",
-        "reference": reference,
-        "bundle_id": purchase.bundle_id,
-        "picks": picks_raw,
     }
