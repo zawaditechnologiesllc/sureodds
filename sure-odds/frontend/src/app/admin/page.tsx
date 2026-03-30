@@ -16,6 +16,7 @@ import {
   Clock,
   XCircle,
   Eye,
+  EyeOff,
   Loader2,
   Database,
   Zap,
@@ -26,6 +27,7 @@ import {
   Star,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { supabase } from "@/lib/supabase";
 import {
   triggerUpdateFixtures,
   triggerRunPredictions,
@@ -37,9 +39,9 @@ import {
   fetchAdminBundles,
   activateBundle,
   deactivateBundle,
-  saveAdminKey,
-  clearAdminKey,
-  getStoredAdminKey,
+  saveAdminToken,
+  clearAdminToken,
+  getStoredAdminToken,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "bundles" | "partners" | "users";
@@ -106,79 +108,117 @@ const StatusBadge = ({ status }: { status: PartnerStatus }) => {
 };
 
 export default function AdminPage() {
-  // ── Admin key gate ──────────────────────────────────────────────────────────
-  const [keyInput, setKeyInput] = useState("");
-  const [keyError, setKeyError] = useState(false);
+  // ── Auth gate ───────────────────────────────────────────────────────────────
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
-  const [keyChecked, setKeyChecked] = useState(false);
+  const [checking, setChecking] = useState(true);
 
+  // On mount — restore session if we already have a stored token that works
   useEffect(() => {
-    const stored = getStoredAdminKey();
-    if (stored) setAuthenticated(true);
-    setKeyChecked(true);
+    const stored = getStoredAdminToken();
+    if (!stored) { setChecking(false); return; }
+    // Verify the stored token still grants admin access
+    fetchAdminStats()
+      .then(() => setAuthenticated(true))
+      .catch(() => { clearAdminToken(); })
+      .finally(() => setChecking(false));
   }, []);
 
-  const handleKeySubmit = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!keyInput.trim()) return;
-    saveAdminKey(keyInput.trim());
-    // Try a real admin call to verify the key is correct
+    setLoginError("");
+    setLoggingIn(true);
     try {
-      await fetchAdminStats();
-      setAuthenticated(true);
-      setKeyError(false);
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error || !data.session) {
+        setLoginError("Incorrect email or password.");
+        return;
+      }
+      const token = data.session.access_token;
+      saveAdminToken(token);
+      // Verify the account actually has admin access
+      try {
+        await fetchAdminStats();
+        setAuthenticated(true);
+      } catch {
+        clearAdminToken();
+        await supabase.auth.signOut();
+        setLoginError("This account does not have access.");
+      }
     } catch {
-      clearAdminKey();
-      setKeyError(true);
+      setLoginError("Sign in failed. Please try again.");
+    } finally {
+      setLoggingIn(false);
     }
   };
 
-  const handleSignOut = () => {
-    clearAdminKey();
+  const handleSignOut = async () => {
+    clearAdminToken();
+    await supabase.auth.signOut();
     setAuthenticated(false);
-    setKeyInput("");
+    setEmail("");
+    setPassword("");
   };
 
-  if (!keyChecked) return null;
+  if (checking) return null;
 
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-brand-dark flex items-center justify-center px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <div className="w-12 h-12 bg-brand-red/10 border border-brand-red/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <ShieldAlert className="w-6 h-6 text-brand-red" />
+            <div className="w-10 h-10 bg-brand-red rounded-xl flex items-center justify-center mx-auto mb-4">
+              <Zap className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-white font-black text-2xl">Admin Access</h1>
-            <p className="text-brand-muted text-sm mt-1">Enter your admin secret key to continue</p>
+            <h1 className="text-white font-black text-2xl">Welcome back</h1>
+            <p className="text-brand-muted text-sm mt-1">Sign in to your account</p>
           </div>
-          <form onSubmit={handleKeySubmit} className="space-y-4">
-            <div>
+          <form onSubmit={handleSignIn} className="space-y-4">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setLoginError(""); }}
+              placeholder="Email address"
+              autoComplete="email"
+              required
+              className="w-full bg-brand-card border border-brand-border rounded-xl px-4 py-3 text-white placeholder-brand-muted text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/30"
+            />
+            <div className="relative">
               <input
-                type="password"
-                value={keyInput}
-                onChange={(e) => { setKeyInput(e.target.value); setKeyError(false); }}
-                placeholder="Admin secret key"
-                autoFocus
-                className={`w-full bg-brand-card border rounded-xl px-4 py-3 text-white placeholder-brand-muted text-sm focus:outline-none focus:ring-2 ${keyError ? "border-brand-red focus:ring-brand-red/30" : "border-brand-border focus:ring-brand-red/30"}`}
+                type={showPw ? "text" : "password"}
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setLoginError(""); }}
+                placeholder="Password"
+                autoComplete="current-password"
+                required
+                className="w-full bg-brand-card border border-brand-border rounded-xl px-4 py-3 pr-11 text-white placeholder-brand-muted text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/30"
               />
-              {keyError && (
-                <p className="text-brand-red text-xs mt-2 flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5" /> Incorrect key. Check your Render environment variables.
-                </p>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowPw((p) => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted hover:text-white"
+              >
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
+            {loginError && (
+              <p className="text-brand-red text-xs flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {loginError}
+              </p>
+            )}
             <button
               type="submit"
-              disabled={!keyInput.trim()}
-              className="w-full bg-brand-red hover:bg-red-700 disabled:opacity-50 text-white font-black py-3 rounded-xl transition-colors"
+              disabled={loggingIn || !email || !password}
+              className="w-full bg-brand-red hover:bg-red-700 disabled:opacity-50 text-white font-black py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
             >
-              Enter Admin Panel
+              {loggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {loggingIn ? "Signing in…" : "Sign in"}
             </button>
           </form>
-          <p className="text-brand-muted text-xs text-center mt-6">
-            Set <code className="bg-brand-card px-1 rounded">SECRET_KEY</code> in your Render environment variables to control access.
-          </p>
         </div>
       </div>
     );

@@ -13,30 +13,36 @@ export const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    // Attach admin key for all /admin/* calls
-    const adminKey = sessionStorage.getItem("admin_key");
-    if (adminKey && config.url?.startsWith("/admin")) {
-      config.headers["x-admin-key"] = adminKey;
+    const isAdminCall = config.url?.startsWith("/admin");
+    if (isAdminCall) {
+      // Admin calls use the stored Supabase session token
+      const adminToken = sessionStorage.getItem("admin_token");
+      if (adminToken) config.headers.Authorization = `Bearer ${adminToken}`;
+    } else {
+      // Regular calls use the logged-in user's token
+      const token = localStorage.getItem("access_token");
+      if (token) config.headers.Authorization = `Bearer ${token}`;
     }
   }
   return config;
 });
 
-// Admin key helpers
-export const saveAdminKey = (key: string) => {
-  if (typeof window !== "undefined") sessionStorage.setItem("admin_key", key);
+// Admin session helpers
+export const saveAdminToken = (token: string) => {
+  if (typeof window !== "undefined") sessionStorage.setItem("admin_token", token);
 };
-export const clearAdminKey = () => {
-  if (typeof window !== "undefined") sessionStorage.removeItem("admin_key");
+export const clearAdminToken = () => {
+  if (typeof window !== "undefined") sessionStorage.removeItem("admin_token");
 };
-export const getStoredAdminKey = (): string | null => {
+export const getStoredAdminToken = (): string | null => {
   if (typeof window === "undefined") return null;
-  return sessionStorage.getItem("admin_key");
+  return sessionStorage.getItem("admin_token");
 };
+
+// Legacy — kept so old imports don't break during transition
+export const saveAdminKey = saveAdminToken;
+export const clearAdminKey = clearAdminToken;
+export const getStoredAdminKey = getStoredAdminToken;
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

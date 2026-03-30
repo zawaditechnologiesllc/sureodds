@@ -23,11 +23,34 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-def verify_admin(x_admin_key: str = Header(None)):
+_sb_admin = None
+
+
+def _get_supabase():
+    global _sb_admin
+    if _sb_admin is None:
+        from supabase import create_client
+        _sb_admin = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+    return _sb_admin
+
+
+def verify_admin(authorization: str = Header(None), x_admin_key: str = Header(None)):
     if settings.ENVIRONMENT == "development":
         return
-    if x_admin_key != settings.SECRET_KEY:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Primary: Supabase JWT — verify token and check admin email
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        try:
+            sb = _get_supabase()
+            user_resp = sb.auth.get_user(token)
+            if user_resp.user and user_resp.user.email == settings.ADMIN_EMAIL:
+                return
+        except Exception:
+            pass
+    # Fallback: x-admin-key header
+    if x_admin_key and x_admin_key == settings.SECRET_KEY:
+        return
+    raise HTTPException(status_code=403, detail="Not authorized")
 
 
 class UserAdminOut(BaseModel):
