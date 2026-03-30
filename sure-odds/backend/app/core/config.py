@@ -29,6 +29,7 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = secrets.token_hex(32)
     ADMIN_EMAIL: str = "info@sureodds.pro"
+    ADMIN_PASSWORD: str = ""
     ENVIRONMENT: str = "development"
 
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5000"

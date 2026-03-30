@@ -15,11 +15,11 @@ api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const isAdminCall = config.url?.startsWith("/admin");
     if (isAdminCall) {
-      // Admin calls use the stored Supabase session token
+      // Admin calls use the stored password as x-admin-key
       const adminToken = sessionStorage.getItem("admin_token");
-      if (adminToken) config.headers.Authorization = `Bearer ${adminToken}`;
+      if (adminToken) config.headers["x-admin-key"] = adminToken;
     } else {
-      // Regular calls use the logged-in user's token
+      // Regular calls use the logged-in user's bearer token
       const token = localStorage.getItem("access_token");
       if (token) config.headers.Authorization = `Bearer ${token}`;
     }
@@ -39,7 +39,13 @@ export const getStoredAdminToken = (): string | null => {
   return sessionStorage.getItem("admin_token");
 };
 
-// Legacy — kept so old imports don't break during transition
+// Verify admin credentials with backend and store token on success
+export const adminLogin = async (email: string, password: string): Promise<void> => {
+  await api.post("/admin/token", { email, password });
+  saveAdminToken(password);
+};
+
+// Legacy aliases
 export const saveAdminKey = saveAdminToken;
 export const clearAdminKey = clearAdminToken;
 export const getStoredAdminKey = getStoredAdminToken;

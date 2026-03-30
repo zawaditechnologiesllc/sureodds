@@ -23,34 +23,39 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-_sb_admin = None
+def _valid_admin_key(key: str) -> bool:
+    """Return True if the key matches any configured admin credential."""
+    if settings.ADMIN_PASSWORD and key == settings.ADMIN_PASSWORD:
+        return True
+    if key == settings.SECRET_KEY:
+        return True
+    return False
 
 
-def _get_supabase():
-    global _sb_admin
-    if _sb_admin is None:
-        from supabase import create_client
-        _sb_admin = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
-    return _sb_admin
-
-
-def verify_admin(authorization: str = Header(None), x_admin_key: str = Header(None)):
+def verify_admin(x_admin_key: str = Header(None)):
     if settings.ENVIRONMENT == "development":
         return
-    # Primary: Supabase JWT — verify token and check admin email
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
-        try:
-            sb = _get_supabase()
-            user_resp = sb.auth.get_user(token)
-            if user_resp.user and user_resp.user.email == settings.ADMIN_EMAIL:
-                return
-        except Exception:
-            pass
-    # Fallback: x-admin-key header
-    if x_admin_key and x_admin_key == settings.SECRET_KEY:
+    if x_admin_key and _valid_admin_key(x_admin_key):
         return
     raise HTTPException(status_code=403, detail="Not authorized")
+
+
+class AdminLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+@router.post("/token")
+def admin_login(body: AdminLoginRequest):
+    """Exchange admin email+password for confirmation.
+    Returns 200 so the frontend knows the credentials are valid.
+    The password itself is then used as the x-admin-key on subsequent calls.
+    """
+    email_ok = body.email.strip().lower() == settings.ADMIN_EMAIL.strip().lower()
+    password_ok = bool(settings.ADMIN_PASSWORD) and body.password == settings.ADMIN_PASSWORD
+    if not (email_ok and password_ok):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    return {"ok": True}
 
 
 class UserAdminOut(BaseModel):

@@ -27,7 +27,6 @@ import {
   Star,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { supabase } from "@/lib/supabase";
 import {
   triggerUpdateFixtures,
   triggerRunPredictions,
@@ -39,7 +38,7 @@ import {
   fetchAdminBundles,
   activateBundle,
   deactivateBundle,
-  saveAdminToken,
+  adminLogin,
   clearAdminToken,
   getStoredAdminToken,
 } from "@/lib/api";
@@ -133,32 +132,18 @@ export default function AdminPage() {
     setLoginError("");
     setLoggingIn(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error || !data.session) {
-        setLoginError("Incorrect email or password.");
-        return;
-      }
-      const token = data.session.access_token;
-      saveAdminToken(token);
-      // Verify the account actually has admin access
-      try {
-        await fetchAdminStats();
-        setAuthenticated(true);
-      } catch {
-        clearAdminToken();
-        await supabase.auth.signOut();
-        setLoginError("This account does not have access.");
-      }
+      await adminLogin(email, password);
+      setAuthenticated(true);
     } catch {
-      setLoginError("Sign in failed. Please try again.");
+      clearAdminToken();
+      setLoginError("Incorrect email or password.");
     } finally {
       setLoggingIn(false);
     }
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     clearAdminToken();
-    await supabase.auth.signOut();
     setAuthenticated(false);
     setEmail("");
     setPassword("");
