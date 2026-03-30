@@ -134,9 +134,18 @@ export default function AdminPage() {
     try {
       await adminLogin(email, password);
       setAuthenticated(true);
-    } catch {
+    } catch (err: any) {
       clearAdminToken();
-      setLoginError("Incorrect email or password.");
+      const status = err?.response?.status;
+      if (status === 401) {
+        setLoginError("Incorrect email or password.");
+      } else if (status === 403) {
+        setLoginError("Access denied.");
+      } else if (!status) {
+        setLoginError("Cannot reach the server. Check your API URL settings.");
+      } else {
+        setLoginError(`Server error (${status}). Try again.`);
+      }
     } finally {
       setLoggingIn(false);
     }

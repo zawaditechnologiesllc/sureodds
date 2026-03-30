@@ -77,7 +77,7 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> List[str]:
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        return [origin.strip().rstrip("/") for origin in self.CORS_ORIGINS.split(",")]
 
     def validate_production(self):
         errors = []
