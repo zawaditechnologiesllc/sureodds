@@ -59,7 +59,7 @@ async def initialize_payment(
         "email": body.email,
         "amount": amount_kobo,
         "reference": reference,
-        "currency": "KES",
+        "currency": "USD",
         "metadata": {
             "package_id": package.id,
             "package_name": package.name,

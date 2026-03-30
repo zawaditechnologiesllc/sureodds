@@ -93,9 +93,9 @@ class Package(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
-    price = Column(Float, nullable=False)         # Amount in KES
+    price = Column(Float, nullable=False)         # Amount in USD
     picks_count = Column(Integer, nullable=False)
-    currency = Column(String, default="KES")
+    currency = Column(String, default="USD")
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -181,3 +181,24 @@ class BundlePurchase(Base):
 
     bundle = relationship("Bundle", back_populates="purchases")
     user = relationship("User")
+
+
+class PartnerApplication(Base):
+    """Partner / affiliate program application."""
+    __tablename__ = "partner_applications"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False, index=True)
+    platform = Column(String, nullable=False)
+    handle = Column(String, nullable=False)
+    followers = Column(String, nullable=False)
+    website = Column(String, nullable=True)
+    why = Column(Text, nullable=False)
+    status = Column(String, default="pending")  # pending / approved / rejected
+    notes = Column(Text, nullable=True)
+    submitted_at = Column(DateTime(timezone=True), server_default=func.now())
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # When approved, a user_id is linked
+    user_id = Column(String, ForeignKey("users.id"), nullable=True)

@@ -13,6 +13,7 @@ from app.models.models import Fixture, Prediction
 from app.routers import (
     predictions, results, users, referrals, admin, paystack, packages,
     fixtures as fixtures_router,
+    partners as partners_router,
 )
 from app.routers import bundles as bundles_router
 from app.models.models import Package
@@ -117,9 +118,9 @@ async def run_poll():
 def seed_packages(db):
     """Ensure the 3 pick packages exist in the database."""
     defaults = [
-        {"id": 1, "name": "Starter Pack — 5 Picks",  "price": 0.20, "picks_count": 5},
-        {"id": 2, "name": "Value Pack — 10 Picks",   "price": 0.70, "picks_count": 10},
-        {"id": 3, "name": "Pro Pack — 20 Picks",     "price": 1.50, "picks_count": 20},
+        {"id": 1, "name": "Starter Pack — 5 Picks",  "price": 2.99, "picks_count": 5},
+        {"id": 2, "name": "Value Pack — 10 Picks",   "price": 4.99, "picks_count": 10},
+        {"id": 3, "name": "Pro Pack — 20 Picks",     "price": 8.99, "picks_count": 20},
     ]
     for pkg_data in defaults:
         existing = db.query(Package).filter(Package.id == pkg_data["id"]).first()
@@ -243,6 +244,23 @@ app.include_router(admin.router)
 app.include_router(paystack.router)
 app.include_router(packages.router)
 app.include_router(bundles_router.router)
+app.include_router(partners_router.router)
+
+
+@app.get("/stats")
+async def public_stats():
+    """Public endpoint returning platform statistics for the homepage."""
+    db = SessionLocal()
+    try:
+        from app.models.models import User as UserModel, Prediction as PredictionModel
+        total_predictions = db.query(PredictionModel).count()
+        total_users = db.query(UserModel).count()
+        return {
+            "total_predictions": total_predictions,
+            "total_users": total_users,
+        }
+    finally:
+        db.close()
 
 
 @app.get("/health")

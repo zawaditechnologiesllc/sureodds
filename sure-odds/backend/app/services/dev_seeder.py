@@ -15,7 +15,6 @@ SAMPLE_LEAGUES = [
     {"id": 140,  "name": "La Liga",               "country": "Spain"},
     {"id": 135,  "name": "Serie A",               "country": "Italy"},
     {"id": 78,   "name": "Bundesliga",            "country": "Germany"},
-    {"id": 1644, "name": "Kenyan Premier League", "country": "Kenya"},
 ]
 
 SAMPLE_FIXTURES = [
@@ -110,18 +109,6 @@ SAMPLE_FIXTURES = [
         "home_win_pct": 66.0, "draw_pct": 18.0, "away_win_pct": 16.0,
         "over25_pct": 78.0, "btts_pct": 72.0, "best_pick": "Home Win",
         "confidence": "high_confidence",
-    },
-    # Kenya Premier League
-    {
-        "id": 900009, "league_id": 1644, "season": 2025,
-        "home_team_id": 9995, "home_team_name": "Gor Mahia",
-        "home_team_logo": None,
-        "away_team_id": 9996, "away_team_name": "AFC Leopards",
-        "away_team_logo": None,
-        "offset_hours": 7,
-        "home_win_pct": 52.0, "draw_pct": 28.0, "away_win_pct": 20.0,
-        "over25_pct": 42.0, "btts_pct": 38.0, "best_pick": "Home Win",
-        "confidence": "medium",
     },
 ]
 

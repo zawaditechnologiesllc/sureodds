@@ -12,7 +12,6 @@ import {
   Twitter,
   Youtube,
   Send,
-  Clock,
   XCircle,
   Eye,
   EyeOff,
@@ -23,7 +22,8 @@ import {
   Flame,
   Shield,
   TrendingUp,
-  Star,
+  Clock,
+  ExternalLink,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -40,6 +40,9 @@ import {
   adminLogin,
   clearAdminToken,
   getStoredAdminToken,
+  fetchAdminPartners,
+  approvePartner,
+  rejectPartner,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "bundles" | "partners" | "users";
@@ -72,17 +75,11 @@ interface PartnerApplication {
   platform: string;
   handle: string;
   followers: string;
+  website?: string;
   why: string;
   submittedAt: string;
   status: PartnerStatus;
 }
-
-const MOCK_APPLICATIONS: PartnerApplication[] = [
-  { id: "p1", name: "James Odhiambo", email: "james@example.com", platform: "instagram", handle: "jamesbets_ke", followers: "20,000 – 100,000", why: "I have a sports tips page with high engagement. My audience trusts my analysis.", submittedAt: "2026-03-23", status: "pending" },
-  { id: "p2", name: "Sarah Wanjiru", email: "sarah@example.com", platform: "twitter", handle: "sarahsports", followers: "5,000 – 20,000", why: "I tweet daily football analysis and have a loyal following that asks for tipster recommendations.", submittedAt: "2026-03-22", status: "pending" },
-  { id: "p3", name: "Tony Mwangi", email: "tony@example.com", platform: "youtube", handle: "TonyFootball", followers: "100,000 – 500,000", why: "YouTube channel on football betting analysis.", submittedAt: "2026-03-21", status: "approved" },
-  { id: "p4", name: "Linda Achieng", email: "linda@example.com", platform: "telegram", handle: "linda_tipster", followers: "2,000 – 5,000", why: "I run a Telegram channel for football predictions.", submittedAt: "2026-03-20", status: "rejected" },
-];
 
 const PLATFORM_ICONS: Record<string, React.ElementType> = {
   instagram: Instagram,
@@ -90,6 +87,7 @@ const PLATFORM_ICONS: Record<string, React.ElementType> = {
   youtube: Youtube,
   telegram: Send,
   tiktok: BarChart2,
+  other: Users,
 };
 
 const StatusBadge = ({ status }: { status: PartnerStatus }) => {
@@ -106,7 +104,6 @@ const StatusBadge = ({ status }: { status: PartnerStatus }) => {
 };
 
 export default function AdminPage() {
-  // ── Auth gate ───────────────────────────────────────────────────────────────
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -115,11 +112,9 @@ export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
 
-  // On mount — restore session if we already have a stored token that works
   useEffect(() => {
     const stored = getStoredAdminToken();
     if (!stored) { setChecking(false); return; }
-    // Verify the stored token still grants admin access
     fetchAdminStats()
       .then(() => setAuthenticated(true))
       .catch(() => { clearAdminToken(); })
@@ -222,14 +217,14 @@ export default function AdminPage() {
 
 function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [tab, setTab] = useState<AdminTab>("overview");
-  const [applications, setApplications] = useState<PartnerApplication[]>(MOCK_APPLICATIONS);
+  const [applications, setApplications] = useState<PartnerApplication[]>([]);
+  const [partnersLoading, setPartnersLoading] = useState(false);
   const [viewingApp, setViewingApp] = useState<PartnerApplication | null>(null);
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [usersLoading, setUsersLoading] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [apiStatus, setApiStatus] = useState<Record<string, any> | null>(null);
   const [apiStatusLoading, setApiStatusLoading] = useState(true);
 
@@ -270,6 +265,13 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         .catch(() => toast.error("Could not load bundles."))
         .finally(() => setBundlesLoading(false));
     }
+    if (tab === "partners") {
+      setPartnersLoading(true);
+      fetchAdminPartners()
+        .then((data) => setApplications(data))
+        .catch(() => toast.error("Could not load partner applications."))
+        .finally(() => setPartnersLoading(false));
+    }
   }, [tab]);
 
   const runAction = async (action: () => Promise<unknown>, setStatus: (s: ActionStatus) => void, label: string) => {
@@ -278,7 +280,6 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
       await action();
       setStatus("success");
       toast.success(`${label} completed!`);
-      // Refresh stats after a successful action
       fetchAdminStats().then((data) => setStats(data)).catch(() => null);
     } catch {
       setStatus("error");
@@ -286,10 +287,26 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
     }
   };
 
-  const updateAppStatus = (id: string, status: PartnerStatus) => {
-    setApplications((prev) => prev.map((a) => a.id === id ? { ...a, status } : a));
-    setViewingApp(null);
-    toast.success(`Application ${status}`);
+  const handleApprovePartner = async (id: string) => {
+    try {
+      await approvePartner(id);
+      setApplications((prev) => prev.map((a) => a.id === id ? { ...a, status: "approved" as PartnerStatus } : a));
+      setViewingApp(null);
+      toast.success("Application approved.");
+    } catch {
+      toast.error("Could not approve application.");
+    }
+  };
+
+  const handleRejectPartner = async (id: string) => {
+    try {
+      await rejectPartner(id);
+      setApplications((prev) => prev.map((a) => a.id === id ? { ...a, status: "rejected" as PartnerStatus } : a));
+      setViewingApp(null);
+      toast.success("Application rejected.");
+    } catch {
+      toast.error("Could not reject application.");
+    }
   };
 
   const StatusIcon = ({ status }: { status: ActionStatus }) => {
@@ -395,7 +412,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
               </div>
             )}
 
-            {/* Football-Data.org Live Status */}
+            {/* Data Source Status */}
             <div className="mb-6 bg-brand-card border border-brand-border rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -506,7 +523,6 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         {/* BUNDLES TAB */}
         {tab === "bundles" && (
           <>
-            {/* Generate Buttons */}
             <div className="bg-brand-card border border-brand-border rounded-xl p-5 mb-6">
               <h2 className="text-white font-bold text-lg mb-1">Generate Bundles</h2>
               <p className="text-brand-muted text-xs mb-5">
@@ -519,30 +535,21 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                   { tier: "medium", label: "Medium Slip", icon: TrendingUp, color: "text-blue-400",    odds: "20–50x",   price: "$20" },
                   { tier: "high",   label: "High Roller", icon: Zap,       color: "text-brand-yellow", odds: "100–300x", price: "$30" },
                   { tier: "mega",   label: "Mega Slip",   icon: Flame,     color: "text-brand-red",    odds: "500–1000x", price: "$50" },
-                ] as { tier: string; label: string; icon: React.ElementType; color: string; odds: string; price: string }[]).map(({ tier, label, icon: Icon, color, odds, price }) => {
+                ] as const).map(({ tier, label, icon: Icon, color, odds, price }) => {
                   const status = bundleStatuses[tier];
                   return (
                     <div key={tier} className="bg-brand-dark border border-brand-border rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Icon className={`w-4 h-4 ${color}`} />
-                        <p className="text-white font-bold text-sm">{label}</p>
-                      </div>
-                      <p className={`text-xs font-black mb-0.5 ${color}`}>{odds} odds</p>
-                      <p className="text-brand-muted text-[10px] mb-3">{price} per bundle</p>
+                      <Icon className={`w-5 h-5 ${color} mb-2`} />
+                      <p className="text-white font-bold text-sm mb-0.5">{label}</p>
+                      <p className="text-brand-muted text-xs mb-0.5">{odds}</p>
+                      <p className="text-brand-muted text-xs mb-3">{price}</p>
                       <button
                         onClick={() => handleGenerateBundle(tier)}
                         disabled={status === "loading"}
-                        className="w-full flex items-center justify-center gap-2 bg-brand-red hover:bg-red-700 disabled:opacity-60 text-white text-xs font-bold py-2 rounded-lg transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 bg-brand-red hover:bg-red-700 disabled:opacity-60 text-white text-xs font-bold py-2 rounded transition-colors"
                       >
-                        {status === "loading" ? (
-                          <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating...</>
-                        ) : status === "success" ? (
-                          <><CheckCircle className="w-3.5 h-3.5 text-white" /> Generated!</>
-                        ) : status === "error" ? (
-                          <><AlertCircle className="w-3.5 h-3.5" /> Retry</>
-                        ) : (
-                          <><Play className="w-3.5 h-3.5" /> Generate</>
-                        )}
+                        {status === "loading" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                        {status === "loading" ? "Generating..." : "Generate"}
                       </button>
                     </div>
                   );
@@ -550,76 +557,58 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
               </div>
             </div>
 
-            {/* Bundle List */}
-            <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-brand-border flex items-center justify-between">
-                <h2 className="text-white font-bold">All Bundles</h2>
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-white font-bold text-lg">All Bundles</h2>
                 <button
                   onClick={() => {
                     setBundlesLoading(true);
                     fetchAdminBundles().then(setAdminBundles).catch(() => null).finally(() => setBundlesLoading(false));
                   }}
-                  className="flex items-center gap-1.5 text-xs text-brand-muted hover:text-white border border-brand-border rounded px-3 py-1.5 transition-colors"
+                  className="text-brand-muted hover:text-white text-xs flex items-center gap-1 transition-colors"
                 >
-                  <RefreshCw className="w-3 h-3" /> Refresh
+                  <RefreshCw className="w-3.5 h-3.5" /> Refresh
                 </button>
               </div>
               {bundlesLoading ? (
-                <div className="flex justify-center py-10">
+                <div className="flex justify-center py-8">
                   <Loader2 className="w-6 h-6 text-brand-red animate-spin" />
                 </div>
               ) : adminBundles.length === 0 ? (
-                <div className="px-5 py-10 text-center text-brand-muted text-sm">
-                  No bundles generated yet. Use the buttons above to create your first bundle.
-                </div>
+                <p className="text-brand-muted text-sm text-center py-8">No bundles yet. Generate one above.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-brand-border">
-                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Bundle</th>
-                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Tier</th>
-                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Odds</th>
-                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Picks</th>
-                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Price</th>
-                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Status</th>
-                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Created</th>
-                        <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Actions</th>
+                        {["Name", "Tier", "Odds", "Picks", "Price", "Status", "Created", "Actions"].map((h) => (
+                          <th key={h} className="text-left text-xs text-brand-muted font-medium py-2 pr-4 whitespace-nowrap">{h}</th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-border">
                       {adminBundles.map((b) => (
-                        <tr key={b.id} className="hover:bg-white/5 transition-colors">
-                          <td className="px-5 py-3">
-                            <p className="text-white text-sm font-bold truncate max-w-[200px]">{b.name}</p>
-                            <p className="text-brand-muted text-[10px] font-mono">{b.id.slice(0, 8)}…</p>
-                          </td>
-                          <td className="px-5 py-3">
-                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${
-                              b.tier === "safe" ? "bg-green-950 text-brand-green border-green-900" :
-                              b.tier === "medium" ? "bg-blue-950 text-blue-400 border-blue-900" :
-                              b.tier === "high" ? "bg-yellow-950 text-brand-yellow border-yellow-900" :
-                              "bg-red-950 text-brand-red border-red-900"
-                            }`}>{b.tier}</span>
-                          </td>
-                          <td className="px-5 py-3 text-white font-bold text-sm">{b.total_odds}x</td>
-                          <td className="px-5 py-3 text-brand-muted text-sm">{b.pick_count}</td>
-                          <td className="px-5 py-3 text-white text-sm font-bold">${b.price}</td>
-                          <td className="px-5 py-3">
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${b.is_active ? "bg-green-950 text-brand-green border-green-900" : "bg-gray-900 text-gray-500 border-gray-700"}`}>
-                              {b.is_active ? "Active" : "Inactive"}
+                        <tr key={b.id}>
+                          <td className="py-3 pr-4 text-white text-xs font-medium max-w-[160px] truncate">{b.name}</td>
+                          <td className="py-3 pr-4 text-brand-muted text-xs capitalize">{b.tier}</td>
+                          <td className="py-3 pr-4 text-brand-yellow text-xs font-bold">{b.total_odds}x</td>
+                          <td className="py-3 pr-4 text-brand-muted text-xs">{b.pick_count}</td>
+                          <td className="py-3 pr-4 text-white text-xs">${b.price}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${b.is_active ? "bg-green-950 text-brand-green border-green-900" : "bg-gray-900 text-gray-500 border-gray-700"}`}>
+                              {b.is_active ? "Live" : "Hidden"}
                             </span>
                           </td>
-                          <td className="px-5 py-3 text-brand-muted text-xs">
+                          <td className="py-3 pr-4 text-brand-muted text-xs whitespace-nowrap">
                             {b.created_at ? new Date(b.created_at).toLocaleDateString("en-GB") : "—"}
                           </td>
-                          <td className="px-5 py-3">
+                          <td className="py-3">
                             <button
                               onClick={() => handleToggleBundleActive(b.id, b.is_active)}
-                              className={`text-[10px] font-black px-3 py-1 rounded border transition-colors ${
+                              className={`text-xs font-bold px-2.5 py-1 rounded border transition-colors ${
                                 b.is_active
-                                  ? "bg-red-950 border-red-900 text-brand-red hover:bg-red-900"
-                                  : "bg-green-950 border-green-900 text-brand-green hover:bg-green-900"
+                                  ? "border-red-900 text-brand-red hover:bg-red-950"
+                                  : "border-green-900 text-brand-green hover:bg-green-950"
                               }`}
                             >
                               {b.is_active ? "Unpublish" : "Publish"}
@@ -638,166 +627,154 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         {/* PARTNERS TAB */}
         {tab === "partners" && (
           <>
-            {/* Review Modal */}
-            {viewingApp && (
-              <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-                <div className="bg-brand-darker border border-brand-border rounded-xl w-full max-w-lg p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-white font-black text-lg">{viewingApp.name}</h3>
-                      <p className="text-brand-muted text-xs">{viewingApp.email}</p>
+            {viewingApp ? (
+              <div className="bg-brand-card border border-brand-border rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-white font-bold text-lg">Application Detail</h2>
+                  <button onClick={() => setViewingApp(null)} className="text-brand-muted hover:text-white text-sm">← Back</button>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4 mb-5">
+                  {[
+                    { label: "Name", value: viewingApp.name },
+                    { label: "Email", value: viewingApp.email },
+                    { label: "Platform", value: viewingApp.platform },
+                    { label: "Handle", value: `@${viewingApp.handle}` },
+                    { label: "Followers", value: viewingApp.followers },
+                    { label: "Submitted", value: viewingApp.submittedAt ? new Date(viewingApp.submittedAt).toLocaleDateString("en-GB") : "—" },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-brand-muted text-xs font-bold uppercase mb-1">{label}</p>
+                      <p className="text-white text-sm">{value}</p>
                     </div>
-                    <StatusBadge status={viewingApp.status} />
+                  ))}
+                </div>
+                {viewingApp.website && (
+                  <div className="mb-4">
+                    <p className="text-brand-muted text-xs font-bold uppercase mb-1">Website</p>
+                    <a href={viewingApp.website} target="_blank" rel="noopener noreferrer" className="text-brand-red text-sm flex items-center gap-1 hover:underline">
+                      {viewingApp.website} <ExternalLink className="w-3 h-3" />
+                    </a>
                   </div>
-                  <div className="space-y-3 mb-6">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-brand-dark border border-brand-border rounded-lg p-3">
-                        <p className="text-brand-muted text-[10px] uppercase font-bold mb-1">Platform</p>
-                        <p className="text-white text-sm font-bold capitalize">{viewingApp.platform}</p>
-                      </div>
-                      <div className="bg-brand-dark border border-brand-border rounded-lg p-3">
-                        <p className="text-brand-muted text-[10px] uppercase font-bold mb-1">Handle</p>
-                        <p className="text-white text-sm font-bold">@{viewingApp.handle}</p>
-                      </div>
-                      <div className="bg-brand-dark border border-brand-border rounded-lg p-3 col-span-2">
-                        <p className="text-brand-muted text-[10px] uppercase font-bold mb-1">Followers</p>
-                        <p className="text-white text-sm font-bold">{viewingApp.followers}</p>
-                      </div>
-                    </div>
-                    <div className="bg-brand-dark border border-brand-border rounded-lg p-3">
-                      <p className="text-brand-muted text-[10px] uppercase font-bold mb-1">Why they want to partner</p>
-                      <p className="text-white text-xs leading-relaxed">{viewingApp.why}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-brand-muted text-xs">
-                      <Clock className="w-3 h-3" />
-                      Submitted: {viewingApp.submittedAt}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setViewingApp(null)} className="flex-1 py-2.5 rounded-lg border border-brand-border text-brand-muted hover:text-white text-sm font-bold transition-colors">
-                      Close
+                )}
+                <div className="mb-5">
+                  <p className="text-brand-muted text-xs font-bold uppercase mb-1">Why they want to partner</p>
+                  <p className="text-white text-sm leading-relaxed bg-brand-dark border border-brand-border rounded-lg p-3">{viewingApp.why}</p>
+                </div>
+                <div className="flex items-center gap-2 mb-4">
+                  <StatusBadge status={viewingApp.status} />
+                </div>
+                {viewingApp.status === "pending" && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleApprovePartner(viewingApp.id)}
+                      className="flex-1 bg-brand-green hover:bg-green-600 text-black font-black py-2.5 rounded-lg text-sm transition-colors"
+                    >
+                      Approve
                     </button>
-                    {viewingApp.status !== "rejected" && (
-                      <button onClick={() => updateAppStatus(viewingApp.id, "rejected")} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-red-950 border border-red-900 text-brand-red hover:bg-red-900 text-sm font-bold transition-colors">
-                        <XCircle className="w-4 h-4" /> Reject
-                      </button>
-                    )}
-                    {viewingApp.status !== "approved" && (
-                      <button onClick={() => updateAppStatus(viewingApp.id, "approved")} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-green-950 border border-green-900 text-brand-green hover:bg-green-900 text-sm font-bold transition-colors">
-                        <CheckCircle className="w-4 h-4" /> Approve
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleRejectPartner(viewingApp.id)}
+                      className="flex-1 bg-red-950 hover:bg-red-900 border border-red-900 text-brand-red font-black py-2.5 rounded-lg text-sm transition-colors"
+                    >
+                      Reject
+                    </button>
                   </div>
-                </div>
+                )}
               </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              {[
-                { label: "Pending Review", value: applications.filter((a) => a.status === "pending").length, color: "text-brand-yellow" },
-                { label: "Approved Partners", value: applications.filter((a) => a.status === "approved").length, color: "text-brand-green" },
-                { label: "Rejected", value: applications.filter((a) => a.status === "rejected").length, color: "text-brand-red" },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="bg-brand-card border border-brand-border rounded-xl p-4 text-center">
-                  <div className={`text-3xl font-black ${color} mb-1`}>{value}</div>
-                  <div className="text-brand-muted text-xs">{label}</div>
+            ) : (
+              <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-white font-bold text-lg">Partner Applications</h2>
+                  <button
+                    onClick={() => {
+                      setPartnersLoading(true);
+                      fetchAdminPartners().then(setApplications).catch(() => null).finally(() => setPartnersLoading(false));
+                    }}
+                    className="text-brand-muted hover:text-white text-xs flex items-center gap-1 transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Refresh
+                  </button>
                 </div>
-              ))}
-            </div>
-
-            <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-brand-border">
-                <h2 className="text-white font-bold">Partner Applications</h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-brand-border">
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Applicant</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Platform</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Followers</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Submitted</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Status</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-brand-border">
+                {partnersLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 text-brand-red animate-spin" />
+                  </div>
+                ) : applications.length === 0 ? (
+                  <p className="text-brand-muted text-sm text-center py-8">No partner applications yet.</p>
+                ) : (
+                  <div className="space-y-3">
                     {applications.map((app) => {
-                      const PlatformIcon = PLATFORM_ICONS[app.platform] || Users;
+                      const Icon = PLATFORM_ICONS[app.platform] || Users;
                       return (
-                        <tr key={app.id} className="hover:bg-white/5 transition-colors">
-                          <td className="px-5 py-3">
-                            <p className="text-white text-sm font-bold">{app.name}</p>
-                            <p className="text-brand-muted text-xs">{app.email}</p>
-                          </td>
-                          <td className="px-5 py-3">
-                            <div className="flex items-center gap-1.5 text-brand-muted text-sm">
-                              <PlatformIcon className="w-3.5 h-3.5" />
-                              <span className="capitalize text-xs">{app.platform}</span>
+                        <div key={app.id} className="bg-brand-dark border border-brand-border rounded-lg p-4 flex items-center gap-4">
+                          <div className="w-8 h-8 bg-brand-card border border-brand-border rounded-lg flex items-center justify-center shrink-0">
+                            <Icon className="w-4 h-4 text-brand-muted" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <p className="text-white font-bold text-sm">{app.name}</p>
+                              <StatusBadge status={app.status} />
                             </div>
-                            <p className="text-brand-muted text-[10px] mt-0.5">@{app.handle}</p>
-                          </td>
-                          <td className="px-5 py-3 text-white text-xs font-medium">{app.followers}</td>
-                          <td className="px-5 py-3 text-brand-muted text-xs">{app.submittedAt}</td>
-                          <td className="px-5 py-3"><StatusBadge status={app.status} /></td>
-                          <td className="px-5 py-3">
-                            <button onClick={() => setViewingApp(app)} className="flex items-center gap-1.5 text-xs text-brand-muted hover:text-white border border-brand-border hover:border-gray-500 rounded px-3 py-1.5 transition-colors">
-                              <Eye className="w-3 h-3" /> Review
+                            <p className="text-brand-muted text-xs">
+                              @{app.handle} · {app.followers} followers · {app.email}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-brand-muted text-xs hidden sm:block">
+                              {app.submittedAt ? new Date(app.submittedAt).toLocaleDateString("en-GB") : ""}
+                            </span>
+                            <button
+                              onClick={() => setViewingApp(app)}
+                              className="text-xs font-bold px-3 py-1.5 border border-brand-border rounded-lg text-brand-muted hover:text-white hover:border-gray-500 transition-colors"
+                            >
+                              View
                             </button>
-                          </td>
-                        </tr>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </>
         )}
 
         {/* USERS TAB */}
         {tab === "users" && (
-          <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-brand-border flex items-center justify-between">
+          <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-bold text-lg">Users</h2>
-              {stats && (
-                <div className="flex items-center gap-4 text-xs text-brand-muted">
-                  <span><span className="text-white font-bold">{stats.total_users}</span> total</span>
-                  <span><span className="text-brand-green font-bold">{stats.paid_users}</span> paid</span>
-                  <span><span className="text-brand-muted font-bold">{stats.free_users}</span> free</span>
-                </div>
-              )}
+              <span className="text-brand-muted text-xs">{users.length} loaded</span>
             </div>
             {usersLoading ? (
-              <div className="flex justify-center py-10">
+              <div className="flex justify-center py-8">
                 <Loader2 className="w-6 h-6 text-brand-red animate-spin" />
               </div>
             ) : users.length === 0 ? (
-              <div className="px-5 py-10 text-center text-brand-muted text-sm">
-                No users registered yet.
-              </div>
+              <p className="text-brand-muted text-sm text-center py-8">No users yet.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-brand-border">
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Email</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Status</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Referral Code</th>
-                      <th className="text-left text-xs text-brand-muted font-medium px-5 py-3">Joined</th>
+                      {["Email", "Plan", "Referral Code", "Joined"].map((h) => (
+                        <th key={h} className="text-left text-xs text-brand-muted font-medium py-2 pr-4">{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-brand-border">
-                    {users.map((user) => (
-                      <tr key={user.id} className="hover:bg-white/5 transition-colors">
-                        <td className="px-5 py-3 text-sm text-white">{user.email}</td>
-                        <td className="px-5 py-3">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded border ${user.isPaid ? "bg-green-950 text-brand-green border-green-900" : "bg-brand-dark text-brand-muted border-brand-border"}`}>
-                            {user.isPaid ? "PAID" : "FREE"}
+                    {users.map((u) => (
+                      <tr key={u.id}>
+                        <td className="py-3 pr-4 text-white text-xs">{u.email}</td>
+                        <td className="py-3 pr-4">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${u.isPaid ? "bg-yellow-950 text-brand-yellow border-yellow-900" : "bg-brand-dark text-brand-muted border-brand-border"}`}>
+                            {u.isPaid ? "Premium" : "Free"}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-brand-muted text-xs font-mono">{user.referralCode}</td>
-                        <td className="px-5 py-3 text-sm text-brand-muted">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</td>
+                        <td className="py-3 pr-4 text-brand-muted text-xs font-mono">{u.referralCode || "—"}</td>
+                        <td className="py-3 text-brand-muted text-xs">
+                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-GB") : "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

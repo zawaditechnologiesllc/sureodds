@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Zap, Twitter, Instagram, Send, Mail } from "lucide-react";
+import { Zap, Twitter, Instagram, Send, Mail, MapPin } from "lucide-react";
 
 export default function Footer() {
   const year = new Date().getFullYear();
@@ -18,12 +18,16 @@ export default function Footer() {
                 SURE<span className="text-brand-red">ODDS</span>
               </span>
             </Link>
-            <p className="text-brand-muted text-xs leading-relaxed mb-4">
+            <p className="text-brand-muted text-xs leading-relaxed mb-3">
               Data-driven sports predictions backed by AI and historical data. We show probabilities, not promises.
             </p>
+            <div className="flex items-start gap-1.5 text-brand-muted text-xs mb-4">
+              <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
+              <span>Calea Floreasca 169A, Sector 1<br />014459 Bucharest, Romania</span>
+            </div>
             <div className="flex items-center gap-3">
               <a
-                href="https://twitter.com/sureodds"
+                href="https://twitter.com/sureodds_pro"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 bg-brand-card border border-brand-border rounded flex items-center justify-center text-brand-muted hover:text-white hover:border-gray-500 transition-colors"
@@ -31,7 +35,7 @@ export default function Footer() {
                 <Twitter className="w-3.5 h-3.5" />
               </a>
               <a
-                href="https://instagram.com/sureodds"
+                href="https://instagram.com/sureodds_pro"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 bg-brand-card border border-brand-border rounded flex items-center justify-center text-brand-muted hover:text-white hover:border-gray-500 transition-colors"
@@ -39,7 +43,7 @@ export default function Footer() {
                 <Instagram className="w-3.5 h-3.5" />
               </a>
               <a
-                href="https://t.me/sureodds"
+                href="https://t.me/sureodds_pro"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 bg-brand-card border border-brand-border rounded flex items-center justify-center text-brand-muted hover:text-white hover:border-gray-500 transition-colors"
@@ -47,7 +51,7 @@ export default function Footer() {
                 <Send className="w-3.5 h-3.5" />
               </a>
               <a
-                href="mailto:support@sureodds.app"
+                href="mailto:info@sureodds.pro"
                 className="w-8 h-8 bg-brand-card border border-brand-border rounded flex items-center justify-center text-brand-muted hover:text-white hover:border-gray-500 transition-colors"
               >
                 <Mail className="w-3.5 h-3.5" />
@@ -83,8 +87,8 @@ export default function Footer() {
               {[
                 { label: "How It Works", href: "/#how-it-works" },
                 { label: "FAQ", href: "/#faq" },
-                { label: "Contact Us", href: "mailto:support@sureodds.app" },
-                { label: "Telegram Community", href: "https://t.me/sureodds" },
+                { label: "Contact Us", href: "mailto:info@sureodds.pro" },
+                { label: "Telegram Community", href: "https://t.me/sureodds_pro" },
               ].map(({ label, href }) => (
                 <li key={label}>
                   <Link href={href} className="text-brand-muted text-xs hover:text-white transition-colors">
@@ -122,14 +126,13 @@ export default function Footer() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-brand-muted text-xs">
-              &copy; {year} SureOdds. All rights reserved.
+              &copy; {year} SureOdds &mdash; Bucharest, Romania. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1 text-brand-muted text-xs">
                 <span className="w-2 h-2 rounded-full bg-brand-green inline-block" />
                 All systems operational
               </div>
-              {/* Powered by Paystack — as required by Paystack documentation */}
               <a
                 href="https://paystack.com"
                 target="_blank"

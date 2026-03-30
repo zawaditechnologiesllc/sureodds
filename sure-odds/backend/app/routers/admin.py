@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
-from datetime import date, timedelta
-from typing import List
+from datetime import date, timedelta, datetime, timezone
+from typing import List, Optional
 from app.core.database import get_db
-from app.models.models import User, Fixture, Prediction, Bundle
+from app.models.models import User, Fixture, Prediction, Bundle, PartnerApplication
 from app.services.fixtures_service import (
     update_all_fixtures,
     fetch_upcoming,
@@ -300,3 +300,59 @@ async def activate_bundle(bundle_id: str, db: Session = Depends(get_db)):
     bundle.is_active = True
     db.commit()
     return {"success": True, "bundle_id": bundle_id, "is_active": True}
+
+
+# ---------------------------------------------------------------------------
+# Partner application management
+# ---------------------------------------------------------------------------
+
+@router.get("/partners", dependencies=[Depends(verify_admin)])
+async def list_partner_applications(db: Session = Depends(get_db)):
+    """List all partner applications ordered by submission date."""
+    apps = (
+        db.query(PartnerApplication)
+        .order_by(PartnerApplication.submitted_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        {
+            "id": a.id,
+            "name": a.name,
+            "email": a.email,
+            "platform": a.platform,
+            "handle": a.handle,
+            "followers": a.followers,
+            "website": a.website,
+            "why": a.why,
+            "status": a.status,
+            "notes": a.notes,
+            "submittedAt": a.submitted_at.isoformat() if a.submitted_at else None,
+            "reviewedAt": a.reviewed_at.isoformat() if a.reviewed_at else None,
+        }
+        for a in apps
+    ]
+
+
+@router.post("/partners/{app_id}/approve", dependencies=[Depends(verify_admin)])
+async def approve_partner(app_id: str, db: Session = Depends(get_db)):
+    """Approve a partner application."""
+    app = db.query(PartnerApplication).filter(PartnerApplication.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    app.status = "approved"
+    app.reviewed_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"success": True, "id": app_id, "status": "approved"}
+
+
+@router.post("/partners/{app_id}/reject", dependencies=[Depends(verify_admin)])
+async def reject_partner(app_id: str, db: Session = Depends(get_db)):
+    """Reject a partner application."""
+    app = db.query(PartnerApplication).filter(PartnerApplication.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    app.status = "rejected"
+    app.reviewed_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"success": True, "id": app_id, "status": "rejected"}

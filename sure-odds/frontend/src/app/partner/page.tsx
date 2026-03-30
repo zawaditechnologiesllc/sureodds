@@ -20,8 +20,10 @@ import {
   Star,
   Shield,
   Zap,
+  AlertCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { submitPartnerApplication } from "@/lib/api";
 
 type Tab = "overview" | "apply";
 
@@ -41,14 +43,14 @@ const HOW_IT_WORKS = [
   {
     num: "3",
     icon: Zap,
-    title: "Go Live",
-    desc: "Approved partners receive a unique referral link and access to their dashboard immediately.",
+    title: "Get Your Link",
+    desc: "Approved partners receive a unique invite link and access to their dashboard immediately.",
   },
   {
     num: "4",
     icon: DollarSign,
     title: "Earn 30%",
-    desc: "Earn 30% of every subscription your referrals pay — for as long as they stay subscribed. No cap, no expiry.",
+    desc: "Earn 30% of every purchase your referrals make — for as long as they stay active. No cap, no expiry.",
   },
 ];
 
@@ -64,13 +66,6 @@ const EARNINGS_ESTIMATE = [
   { followers: "5K–20K", referred: "30–100", monthly: "$90–$300" },
   { followers: "20K–100K", referred: "100–500", monthly: "$300–$1,500" },
   { followers: "100K+", referred: "500+", monthly: "$1,500+" },
-];
-
-const MOCK_STATS = [
-  { label: "Link Clicks", value: "142", icon: MousePointer, color: "text-white" },
-  { label: "Sign Ups", value: "23", icon: Users, color: "text-brand-green" },
-  { label: "Earnings (This Month)", value: "$69.00", icon: DollarSign, color: "text-brand-yellow" },
-  { label: "Conversion Rate", value: "16.2%", icon: TrendingUp, color: "text-brand-green" },
 ];
 
 const PLATFORMS = [
@@ -92,9 +87,7 @@ const FOLLOWER_RANGES = [
 
 export default function PartnerPage() {
   const [tab, setTab] = useState<Tab>("overview");
-  const [copied, setCopied] = useState(false);
 
-  // Application form state
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -106,25 +99,34 @@ export default function PartnerPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-
-  const MOCK_REF_CODE = "SURE-DEMO123";
-  const refLink = `https://sureodds.app?ref=${MOCK_REF_CODE}`;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(refLink);
-    setCopied(true);
-    toast.success("Referral link copied!");
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const [submitError, setSubmitError] = useState("");
 
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError("");
     setSubmitting(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1200));
-    setSubmitting(false);
-    setSubmitted(true);
-    toast.success("Application submitted! We'll review it within 48 hours.");
+    try {
+      await submitPartnerApplication({
+        name: form.name,
+        email: form.email,
+        platform: form.platform,
+        handle: form.handle,
+        followers: form.followers,
+        website: form.website || undefined,
+        why: form.why,
+      });
+      setSubmitted(true);
+      toast.success("Application submitted! We'll review it within 48 hours.");
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      if (detail && detail.includes("already pending")) {
+        setSubmitError("An application from this email is already pending or approved.");
+      } else {
+        setSubmitError("Could not submit your application. Please try again.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -145,7 +147,7 @@ export default function PartnerPage() {
           </h1>
           <p className="text-gray-400 text-lg max-w-xl mx-auto">
             Turn your sports audience into monthly recurring income. Apply to partner with Sure Odds
-            and earn 30% of every subscription — forever.
+            and earn 30% of every purchase your referrals make.
           </p>
         </div>
 
@@ -200,7 +202,7 @@ export default function PartnerPage() {
               </ul>
               <div className="mt-4 p-3 bg-brand-dark border border-brand-border rounded-lg text-xs text-brand-muted">
                 <strong className="text-white">Note:</strong> Higher follower counts with strong engagement are approved faster.
-                Pro subscribers get priority review. Applications are reviewed within 48 hours.
+                Applications are reviewed within 48 hours.
               </div>
             </div>
 
@@ -231,7 +233,7 @@ export default function PartnerPage() {
                 </table>
               </div>
               <p className="text-brand-muted text-[11px] mt-3">
-                * Estimates based on a $9.99/month Premium plan at 30% commission.
+                * Estimates based on an average purchase value at 30% commission.
               </p>
             </div>
 
@@ -240,12 +242,12 @@ export default function PartnerPage() {
               <h3 className="text-white font-bold text-lg mb-3">Payout Details</h3>
               <ul className="space-y-2 text-sm">
                 {[
-                  "Earn 30% of every subscription your referrals pay — recurring, for life",
-                  "Payouts sent monthly via M-Pesa or bank transfer",
-                  "Minimum payout: $10",
+                  "Earn 30% of every purchase your referrals make — recurring, for life",
+                  "Payouts processed monthly via bank transfer or USDT (TRC-20)",
+                  "Minimum payout threshold: $10",
                   "Track all earnings in real-time on your partner dashboard",
                   "No limit on how many people you can refer",
-                  "Pro subscribers get priority access and a dedicated partner manager",
+                  "Approved partners get a dedicated invite link to share",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2 text-gray-300">
                     <CheckCircle className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
@@ -300,7 +302,7 @@ export default function PartnerPage() {
                         required
                         value={form.name}
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        placeholder="John Doe"
+                        placeholder="Your full name"
                         className="w-full bg-brand-dark border border-brand-border rounded-lg px-4 py-2.5 text-white placeholder:text-brand-muted text-sm focus:outline-none focus:border-brand-red transition-colors"
                       />
                     </div>
@@ -398,10 +400,17 @@ export default function PartnerPage() {
                     />
                   </div>
 
+                  {submitError && (
+                    <div className="flex items-start gap-2 bg-red-950 border border-red-900 rounded-lg p-3 text-brand-red text-xs">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      {submitError}
+                    </div>
+                  )}
+
                   <div className="bg-brand-dark border border-brand-border rounded-lg p-4 text-xs text-brand-muted">
                     <strong className="text-white">What happens next:</strong> Our team will review your application
                     within 48 hours. Higher-follower accounts with engaged, sports-focused audiences are prioritised.
-                    If approved, you&apos;ll get an email with your referral link and dashboard access.
+                    If approved, you&apos;ll get an email with your invite link and dashboard access.
                   </div>
 
                   <button

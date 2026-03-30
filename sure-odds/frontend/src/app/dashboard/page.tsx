@@ -159,9 +159,9 @@ function DashboardContent() {
 
             <div className="space-y-2 mb-5">
               {[
-                { label: "Starter — 2 picks", price: "KES 10", tag: null },
-                { label: "Value Pack — 5 picks", price: "KES 20", tag: "Popular" },
-                { label: "Pro Bundle — 10 picks", price: "KES 100", tag: null },
+                { label: "Starter — 2 picks", price: "$2.99", tag: null },
+                { label: "Value Pack — 5 picks", price: "$4.99", tag: "Popular" },
+                { label: "Pro Bundle — 10 picks", price: "$8.99", tag: null },
               ].map(({ label, price, tag }) => (
                 <div key={label} className="flex items-center justify-between py-2 border-b border-brand-border last:border-0">
                   <div className="flex items-center gap-2">

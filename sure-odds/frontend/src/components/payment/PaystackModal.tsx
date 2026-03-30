@@ -147,10 +147,10 @@ export default function PaystackModal({ onClose, onSuccess }: PaystackModalProps
                     </span>
                   </div>
                   <span className={cn("font-black text-base", selected === pkg.id ? "text-white" : "text-brand-muted")}>
-                    KES {pkg.price.toLocaleString()}
+                    ${Number(pkg.price).toFixed(2)}
                   </span>
                 </div>
-                <p className="text-brand-muted text-xs ml-6">{pkg.picks_count} picks · KES {(pkg.price / pkg.picks_count).toFixed(0)} per pick</p>
+                <p className="text-brand-muted text-xs ml-6">{pkg.picks_count} picks · ${(Number(pkg.price) / pkg.picks_count).toFixed(2)} per pick</p>
               </button>
             ))}
           </div>
@@ -193,7 +193,7 @@ export default function PaystackModal({ onClose, onSuccess }: PaystackModalProps
             ) : (
               <>
                 <Lock className="w-4 h-4" />
-                Pay {selectedPkg ? `KES ${selectedPkg.price.toLocaleString()}` : ""} via Paystack
+                Pay {selectedPkg ? `$${Number(selectedPkg.price).toFixed(2)}` : ""} via Paystack
               </>
             )}
           </button>

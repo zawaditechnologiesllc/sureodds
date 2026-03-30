@@ -226,3 +226,33 @@ export const deactivateBundle = async (bundleId: string) => {
   const res = await api.post(`/admin/bundles/${bundleId}/deactivate`);
   return res.data;
 };
+
+// ─── Partners ────────────────────────────────────────────────────────────────
+
+export const submitPartnerApplication = async (form: {
+  name: string;
+  email: string;
+  platform: string;
+  handle: string;
+  followers: string;
+  website?: string;
+  why: string;
+}) => {
+  const res = await api.post("/partners/apply", form);
+  return res.data;
+};
+
+export const fetchAdminPartners = async () => {
+  const res = await api.get("/admin/partners");
+  return res.data;
+};
+
+export const approvePartner = async (appId: string) => {
+  const res = await api.post(`/admin/partners/${appId}/approve`);
+  return res.data;
+};
+
+export const rejectPartner = async (appId: string) => {
+  const res = await api.post(`/admin/partners/${appId}/reject`);
+  return res.data;
+};

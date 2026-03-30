@@ -39,7 +39,7 @@ async def get_referral_stats(
 
     return ReferralStatsOut(
         referralCode=current_user.referral_code,
-        referralLink=f"https://sureodds.app?ref={current_user.referral_code}",
+        referralLink=f"https://sureodds.pro/invite?code={current_user.referral_code}",
         clicks=0,  # Track via analytics (e.g. Plausible / Vercel Analytics)
         signups=signups,
         earnings=float(total_earnings),

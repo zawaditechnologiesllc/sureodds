@@ -87,7 +87,7 @@ const PRICING_PLANS = [
   },
   {
     name: "Pick Credits",
-    price: "From KES 10",
+    price: "From $2.99",
     period: "per pack",
     desc: "Unlock individual matches on demand. Credits never expire.",
     features: [
@@ -154,7 +154,7 @@ const FAQS = [
   },
   {
     q: "How are affiliate payouts processed?",
-    a: "Affiliate commissions are paid monthly via M-Pesa or bank transfer. The minimum payout threshold is $10.",
+    a: "Affiliate commissions are paid monthly via bank transfer or USDT (TRC-20). The minimum payout threshold is $10.",
   },
 ];
 
