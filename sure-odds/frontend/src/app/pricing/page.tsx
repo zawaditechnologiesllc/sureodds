@@ -5,120 +5,60 @@ import MobileNav from "@/components/layout/MobileNav";
 import {
   CheckCircle,
   Zap,
-  Shield,
   CreditCard,
-  Flame,
-  TrendingUp,
-  Lock,
   ArrowRight,
   Star,
-  Crown,
+  ShieldCheck,
   Clock,
-  CalendarDays,
-  CalendarCheck,
 } from "lucide-react";
 
-const BUNDLES = [
+const VALUE_PACKS = [
   {
-    tier: "safe",
-    name: "Safe Slip",
-    icon: Shield,
-    iconColor: "text-brand-green",
-    iconBg: "bg-green-950/40",
-    borderColor: "border-green-900/60",
-    cardBg: "bg-gradient-to-b from-green-950/20 to-brand-card",
-    badgeColor: "bg-green-950 text-brand-green border-green-900",
-    odds: "5–10x",
-    picks: "3–5 picks",
-    price: "$10",
-    desc: "Safer combos built from our highest-confidence predictions. Great starting point.",
-    features: [
-      "3–5 AI-selected picks",
-      "Full probability breakdown",
-      "Match-level confidence scores",
-      "All picks revealed after payment",
-    ],
-  },
-  {
-    tier: "medium",
-    name: "Medium Slip",
-    icon: TrendingUp,
-    iconColor: "text-blue-400",
-    iconBg: "bg-blue-950/40",
-    borderColor: "border-blue-900/60",
-    cardBg: "bg-gradient-to-b from-blue-950/20 to-brand-card",
-    badgeColor: "bg-blue-950 text-blue-400 border-blue-900",
-    odds: "20–50x",
-    picks: "5–8 picks",
-    price: "$20",
-    desc: "Medium-risk combos balancing probability and returns. Most popular tier.",
-    badge: "Most Popular",
-    features: [
-      "5–8 AI-selected picks",
-      "Full probability breakdown",
-      "Match-level confidence scores",
-      "All picks revealed after payment",
-    ],
-  },
-  {
-    tier: "high",
-    name: "High Roller",
-    icon: Zap,
-    iconColor: "text-brand-yellow",
-    iconBg: "bg-yellow-950/40",
-    borderColor: "border-yellow-900/60",
-    cardBg: "bg-gradient-to-b from-yellow-950/20 to-brand-card",
-    badgeColor: "bg-yellow-950 text-brand-yellow border-yellow-900",
-    odds: "100–300x",
-    picks: "8–12 picks",
-    price: "$30",
-    desc: "High-risk, high-reward combos for experienced punters chasing big returns.",
-    features: [
-      "8–12 AI-selected picks",
-      "Full probability breakdown",
-      "Match-level confidence scores",
-      "All picks revealed after payment",
-    ],
-  },
-  {
-    tier: "mega",
-    name: "Mega Slip",
-    icon: Flame,
-    iconColor: "text-brand-red",
-    iconBg: "bg-red-950/40",
-    borderColor: "border-red-900/60",
-    cardBg: "bg-gradient-to-b from-red-950/10 to-brand-card",
-    badgeColor: "bg-red-950 text-brand-red border-red-900",
-    odds: "500–1000x",
-    picks: "10–15 picks",
-    price: "$50",
-    desc: "The biggest combos we build. Maximum picks, maximum multiplier. Only for the brave.",
-    features: [
-      "10–15 AI-selected picks",
-      "Full probability breakdown",
-      "Match-level confidence scores",
-      "All picks revealed after payment",
-    ],
-  },
-];
-
-const CREDIT_PACKAGES = [
-  {
-    name: "Starter",
-    picks: "5 picks",
+    id: 1,
+    name: "Starter Pack",
+    picks: 5,
+    price: "$2.99",
+    perPick: "$0.598",
     desc: "Try a few premium picks without committing.",
+    features: [
+      "5 premium picks",
+      "Full probability breakdown",
+      "Confidence ratings included",
+      "Credits never expire",
+    ],
     highlight: false,
   },
   {
+    id: 2,
     name: "Value Pack",
-    picks: "10 picks",
+    picks: 10,
+    price: "$4.99",
+    perPick: "$0.499",
     desc: "Best for a week of daily premium predictions.",
+    features: [
+      "10 premium picks",
+      "Full probability breakdown",
+      "Confidence ratings included",
+      "Credits never expire",
+      "Save 17% vs Starter",
+    ],
     highlight: true,
+    badge: "Most Popular",
   },
   {
+    id: 3,
     name: "Pro Pack",
-    picks: "20 picks",
+    picks: 20,
+    price: "$8.99",
+    perPick: "$0.449",
     desc: "A full month of high-confidence unlocks.",
+    features: [
+      "20 premium picks",
+      "Full probability breakdown",
+      "Confidence ratings included",
+      "Credits never expire",
+      "Lowest cost per pick",
+    ],
     highlight: false,
   },
 ];
@@ -128,359 +68,186 @@ export default function PricingPage() {
     <div className="min-h-screen bg-brand-dark">
       <Navbar />
 
-      <div className="max-w-6xl mx-auto px-4 py-12">
-        {/* Header */}
-        <div className="text-center mb-14">
-          <div className="inline-flex items-center gap-2 bg-brand-red/10 border border-brand-red/20 rounded-full px-4 py-1.5 mb-4">
-            <Zap className="w-3.5 h-3.5 text-brand-red" />
-            <span className="text-brand-red text-xs font-bold uppercase tracking-wide">Pricing</span>
+      <div className="max-w-5xl mx-auto px-4 py-12">
+
+        {/* ── Header ── */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 bg-brand-green/10 border border-brand-green/30 rounded-full px-4 py-1.5 mb-4">
+            <CreditCard className="w-3.5 h-3.5 text-brand-green" />
+            <span className="text-brand-green text-xs font-bold uppercase tracking-widest">Value Packs</span>
           </div>
           <h1 className="text-white font-black text-4xl md:text-5xl mb-4 leading-tight">
-            Choose How You Play
+            Pick Credits
           </h1>
           <p className="text-brand-muted text-base max-w-lg mx-auto">
-            Browse free. Unlock individual picks with credits. Or go all-in with a Bundle — our AI assembles the full combo so you don&apos;t have to.
+            Buy a pack of credits and unlock individual predictions one at a time — your picks, your matches. Credits never expire.
           </p>
         </div>
 
-        {/* ── Free Tier Banner ─────────────────────────────────── */}
-        <div className="mb-10 bg-brand-card border border-brand-border rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-brand-dark border border-brand-border rounded-xl flex items-center justify-center shrink-0">
-              <Star className="w-6 h-6 text-brand-muted" />
+        {/* ── Free Tier Note ── */}
+        <div className="mb-10 bg-brand-card border border-brand-border rounded-2xl p-5 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-brand-dark border border-brand-border rounded-xl flex items-center justify-center shrink-0">
+              <Star className="w-5 h-5 text-brand-muted" />
             </div>
             <div>
-              <h2 className="text-white font-black text-lg leading-none mb-1">Free — Always</h2>
-              <p className="text-brand-muted text-sm">2 free predictions every day, no card required. See match odds, confidence badges, and our full results history.</p>
+              <p className="text-white font-bold text-sm">Free — Always</p>
+              <p className="text-brand-muted text-xs mt-0.5">2 free predictions every day. No card required.</p>
             </div>
           </div>
           <Link
             href="/auth/signup"
-            className="shrink-0 inline-flex items-center gap-2 bg-brand-card border border-brand-border hover:border-gray-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors"
+            className="shrink-0 inline-flex items-center gap-2 border border-brand-border hover:border-gray-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
           >
             Create Free Account <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
 
-        {/* Divider */}
-        <div className="flex items-center gap-4 mb-10">
-          <div className="flex-1 border-t border-brand-border" />
-          <span className="text-brand-muted text-xs font-bold uppercase tracking-widest">Want more?</span>
-          <div className="flex-1 border-t border-brand-border" />
-        </div>
-
-        {/* ── Section 1: Bundles ─────────────────────────────────── */}
-        <div className="mb-16">
-          <div className="flex items-center gap-3 mb-2">
-            <Flame className="w-5 h-5 text-brand-red" />
-            <h2 className="text-white font-black text-2xl">🔥 Bundles</h2>
-          </div>
-          <p className="text-brand-muted text-sm mb-8 ml-8 max-w-xl">
-            Our AI assembles a ready-to-bet combo. Pay once — every pick in the bundle unlocks instantly. New bundles generated daily.
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-            {BUNDLES.map((b) => {
-              const Icon = b.icon;
-              return (
-                <div
-                  key={b.tier}
-                  className={`relative rounded-2xl border p-6 flex flex-col ${b.cardBg} ${b.borderColor}`}
-                >
-                  {b.badge && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <span className={`text-[10px] font-black px-3 py-1 rounded-full border ${b.badgeColor}`}>
-                        {b.badge}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${b.iconBg}`}>
-                      <Icon className={`w-5 h-5 ${b.iconColor}`} />
-                    </div>
-                    <div>
-                      <h3 className="text-white font-black text-base leading-none">{b.name}</h3>
-                      <p className={`text-xs font-black mt-0.5 ${b.iconColor}`}>{b.odds} odds</p>
-                    </div>
-                  </div>
-
-                  <p className="text-brand-muted text-xs leading-relaxed mb-4 flex-1">{b.desc}</p>
-
-                  <div className="space-y-1.5 mb-5">
-                    {b.features.map((f) => (
-                      <div key={f} className="flex items-start gap-2">
-                        <CheckCircle className="w-3.5 h-3.5 text-brand-green shrink-0 mt-0.5" />
-                        <span className="text-white text-xs">{f}</span>
-                      </div>
-                    ))}
-                    <div className="flex items-start gap-2">
-                      <Lock className="w-3.5 h-3.5 text-brand-muted shrink-0 mt-0.5" />
-                      <span className="text-brand-muted text-xs">{b.picks} hidden until purchased</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-white font-black text-2xl">{b.price}</span>
-                    <span className="text-brand-muted text-xs">one-time</span>
-                  </div>
-
-                  <Link
-                    href="/bundles"
-                    className="w-full py-3 rounded-xl text-sm text-center font-bold transition-colors block bg-brand-red hover:bg-red-700 text-white"
-                  >
-                    Get {b.name}
-                  </Link>
+        {/* ── Pack Cards ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {VALUE_PACKS.map((pack) => (
+            <div
+              key={pack.id}
+              className={`relative rounded-2xl border p-7 flex flex-col ${
+                pack.highlight
+                  ? "border-brand-green/50 bg-gradient-to-b from-green-950/20 to-brand-card"
+                  : "border-brand-border bg-brand-card"
+              }`}
+            >
+              {pack.badge && (
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                  <span className="text-[10px] font-black px-3 py-1 rounded-full border bg-green-950/40 text-brand-green border-brand-green/30 whitespace-nowrap">
+                    {pack.badge}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+              )}
 
-          <p className="text-center text-brand-muted text-xs mt-5">
-            Bundles are pre-generated daily by our AI engine from today&apos;s highest-confidence predictions.{" "}
-            <Link href="/bundles" className="text-white hover:text-brand-green underline underline-offset-2">
-              Browse today&apos;s bundles →
-            </Link>
-          </p>
-        </div>
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="text-white font-black text-xl leading-none">{pack.name}</h3>
+                <div className="text-right shrink-0 ml-3">
+                  <p className="text-brand-green font-black text-2xl leading-none">{pack.price}</p>
+                  <p className="text-brand-muted text-[11px] mt-0.5">{pack.perPick} / pick</p>
+                </div>
+              </div>
 
-        {/* Divider */}
-        <div className="flex items-center gap-4 mb-10">
-          <div className="flex-1 border-t border-brand-border" />
-          <span className="text-brand-muted text-xs font-bold uppercase tracking-widest">or</span>
-          <div className="flex-1 border-t border-brand-border" />
-        </div>
+              <p className="text-brand-muted text-sm mb-5">{pack.desc}</p>
 
-        {/* ── Section 2: Pay-as-You-Go Credits ─────────────────────────────────── */}
-        <div className="mb-16">
-          <div className="flex items-center gap-3 mb-2">
-            <CreditCard className="w-5 h-5 text-brand-green" />
-            <h2 className="text-white font-black text-2xl">Pick Credits</h2>
-          </div>
-          <p className="text-brand-muted text-sm mb-8 ml-8 max-w-xl">
-            Prefer to choose your own matches? Buy a pack of credits and unlock individual predictions one at a time. Credits never expire.
-          </p>
+              <div className="space-y-2.5 flex-1 mb-7">
+                {pack.features.map((f) => (
+                  <div key={f} className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
+                    <span className="text-white text-sm">{f}</span>
+                  </div>
+                ))}
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {CREDIT_PACKAGES.map((pkg) => (
-              <div
-                key={pkg.name}
-                className={`relative rounded-2xl border p-6 flex flex-col ${
-                  pkg.highlight
-                    ? "border-brand-green/50 bg-gradient-to-b from-green-950/20 to-brand-card"
-                    : "border-brand-border bg-brand-card"
+              <Link
+                href="/auth/login?redirect=/packages"
+                className={`w-full py-3.5 rounded-xl text-sm text-center font-black transition-all block ${
+                  pack.highlight
+                    ? "bg-brand-green hover:bg-green-600 text-black"
+                    : "border border-brand-green/40 text-brand-green hover:bg-brand-green/10"
                 }`}
               >
-                {pkg.highlight && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="text-[10px] font-black px-3 py-1 rounded-full border bg-green-950/40 text-brand-green border-brand-green/30">
-                      Popular
-                    </span>
-                  </div>
-                )}
+                Buy {pack.picks} Picks — {pack.price}
+              </Link>
+            </div>
+          ))}
+        </div>
 
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-white font-black text-lg">{pkg.name}</h3>
-                  <div className="bg-brand-green/10 border border-brand-green/20 rounded-lg px-2.5 py-1">
-                    <span className="text-brand-green text-xs font-bold">{pkg.picks}</span>
-                  </div>
+        {/* ── How credits work ── */}
+        <div className="bg-brand-card border border-brand-border rounded-2xl p-6 mb-8">
+          <h3 className="text-white font-black text-lg mb-6">How Pick Credits work</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { icon: CreditCard, step: "1", title: "Buy a pack", body: "Choose Starter (5), Value (10), or Pro (20). Pay via card or M-Pesa." },
+              { icon: Zap, step: "2", title: "Pick your matches", body: "Browse predictions and spend one credit to unlock any match you choose." },
+              { icon: CheckCircle, step: "3", title: "Credits never expire", body: "Unused credits stay on your account forever — use them whenever you want." },
+            ].map(({ icon: Icon, step, title, body }) => (
+              <div key={step} className="flex items-start gap-3">
+                <span className="w-7 h-7 rounded-full bg-brand-green/10 border border-brand-green/30 flex items-center justify-center text-brand-green text-xs font-black shrink-0 mt-0.5">
+                  {step}
+                </span>
+                <div>
+                  <p className="text-white font-bold text-sm mb-1">{title}</p>
+                  <p className="text-brand-muted text-xs leading-relaxed">{body}</p>
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-                <p className="text-brand-muted text-sm mb-6 flex-1">{pkg.desc}</p>
-
-                <div className="space-y-2 mb-6">
-                  {["Full probability breakdown", "Confidence rating included", "Credits never expire"].map((f) => (
-                    <div key={f} className="flex items-center gap-2">
-                      <CheckCircle className="w-3.5 h-3.5 text-brand-green shrink-0" />
-                      <span className="text-white text-xs">{f}</span>
-                    </div>
+        {/* ── Compare with other options ── */}
+        <div className="bg-brand-card border border-brand-border rounded-2xl p-6 mb-8">
+          <h3 className="text-white font-black text-lg mb-4">Compare all options</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              {
+                title: "Pick Credits",
+                subtitle: "Choose your own picks",
+                price: "From $2.99",
+                href: "/auth/login?redirect=/packages",
+                cta: "Buy Credits",
+                color: "border-brand-green/40 bg-green-950/10",
+                ctaColor: "bg-brand-green hover:bg-green-600 text-black",
+                points: ["You choose each match", "Credits never expire", "Unlock one at a time"],
+              },
+              {
+                title: "VIP Access",
+                subtitle: "All tips, fixed period",
+                price: "From KSh 200",
+                href: "/vip",
+                cta: "Get VIP",
+                color: "border-yellow-700/40 bg-yellow-950/10",
+                ctaColor: "bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-black",
+                points: ["All VIP tips unlocked", "Daily, Weekly, Monthly", "No per-pick credits"],
+              },
+              {
+                title: "Bundles",
+                subtitle: "AI-assembled combos",
+                price: "From $10",
+                href: "/bundles",
+                cta: "Browse Bundles",
+                color: "border-red-900/40 bg-red-950/10",
+                ctaColor: "bg-brand-red hover:bg-red-700 text-white",
+                points: ["AI picks the combo", "3–15 matches per slip", "Pay once, full slip"],
+              },
+            ].map(({ title, subtitle, price, href, cta, color, ctaColor, points }) => (
+              <div key={title} className={`rounded-xl border p-5 flex flex-col ${color}`}>
+                <p className="text-white font-black text-base mb-0.5">{title}</p>
+                <p className="text-brand-muted text-xs mb-3">{subtitle}</p>
+                <p className="text-white font-bold text-lg mb-4">{price}</p>
+                <ul className="space-y-1.5 flex-1 mb-4">
+                  {points.map((pt) => (
+                    <li key={pt} className="flex items-center gap-2 text-xs text-brand-muted">
+                      <CheckCircle className="w-3.5 h-3.5 text-brand-green shrink-0" /> {pt}
+                    </li>
                   ))}
-                </div>
-
+                </ul>
                 <Link
-                  href="/auth/login?redirect=/packages"
-                  className="w-full py-3 rounded-xl text-sm text-center transition-colors block border border-brand-green/40 text-brand-green hover:bg-brand-green/10 font-bold"
+                  href={href}
+                  className={`w-full py-2.5 rounded-xl text-sm text-center font-bold transition-all block ${ctaColor}`}
                 >
-                  Buy {pkg.picks}
+                  {cta}
                 </Link>
               </div>
             ))}
           </div>
-
-          <p className="text-center text-brand-muted text-xs mt-4">
-            Already have an account?{" "}
-            <Link href="/auth/login?redirect=/packages" className="text-white hover:text-brand-green underline underline-offset-2">
-              Log in to buy credits
-            </Link>
-          </p>
         </div>
 
-        {/* Divider */}
-        <div className="flex items-center gap-4 mb-10">
-          <div className="flex-1 border-t border-brand-border" />
-          <span className="text-brand-muted text-xs font-bold uppercase tracking-widest">or</span>
-          <div className="flex-1 border-t border-brand-border" />
-        </div>
-
-        {/* ── Section 3: VIP Access ─────────────────────────────────── */}
-        <div className="mb-16">
-          <div className="flex items-center gap-3 mb-2">
-            <Crown className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-white font-black text-2xl">👑 VIP Access</h2>
-          </div>
-          <p className="text-brand-muted text-sm mb-8 ml-8 max-w-xl">
-            Get unlimited access to all of today&apos;s premium VIP tips for a fixed period. Pay once and enjoy every pick — no credits needed.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {[
-              {
-                name: "Daily Tips",
-                price: "KSh 200",
-                duration: "1 day access",
-                icon: Clock,
-                gradient: "from-green-600 to-emerald-700",
-                features: ["Today's premium selections", "Full probability breakdown", "Ideal for short-term access"],
-                highlight: false,
-              },
-              {
-                name: "Weekly Access",
-                price: "KSh 625",
-                duration: "7 days access",
-                icon: CalendarDays,
-                gradient: "from-yellow-500 to-amber-600",
-                features: ["Higher volume opportunities", "Full probability breakdown", "Best value — save 30%"],
-                highlight: true,
-                badge: "Best Value",
-              },
-              {
-                name: "Monthly Access",
-                price: "KSh 1,500",
-                duration: "30 days access",
-                icon: CalendarCheck,
-                gradient: "from-purple-600 to-violet-700",
-                features: ["Full access to daily VIP tips full month", "Best for serious bettors", "Consistent long-term plan"],
-                highlight: false,
-                badge: "Most Popular",
-              },
-            ].map((plan) => {
-              const Icon = plan.icon;
-              return (
-                <div
-                  key={plan.name}
-                  className={`relative rounded-2xl border p-6 flex flex-col ${
-                    plan.highlight
-                      ? "border-yellow-500/50 bg-gradient-to-b from-yellow-950/20 to-brand-card"
-                      : "border-brand-border bg-brand-card"
-                  }`}
-                >
-                  {plan.badge && plan.highlight && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <span className="text-[10px] font-black px-3 py-1 rounded-full border bg-yellow-950/40 text-yellow-400 border-yellow-500/30">
-                        {plan.badge}
-                      </span>
-                    </div>
-                  )}
-                  {plan.badge && !plan.highlight && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <span className="text-[10px] font-black px-3 py-1 rounded-full border bg-purple-950/40 text-purple-400 border-purple-500/30">
-                        {plan.badge}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${plan.gradient} flex items-center justify-center shrink-0`}>
-                      <Icon className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-white font-black text-base leading-none">{plan.name}</h3>
-                      <p className="text-brand-muted text-xs mt-0.5">{plan.duration}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-baseline justify-between mb-4">
-                    <span className="text-yellow-400 font-black text-2xl">{plan.price}</span>
-                  </div>
-
-                  <div className="space-y-2 mb-6 flex-1">
-                    {plan.features.map((f) => (
-                      <div key={f} className="flex items-start gap-2">
-                        <CheckCircle className="w-3.5 h-3.5 text-yellow-500 shrink-0 mt-0.5" />
-                        <span className="text-white text-xs">{f}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <Link
-                    href="/vip"
-                    className="w-full py-3 rounded-xl text-sm text-center font-black transition-all block bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-black shadow-md"
-                  >
-                    Pay — {plan.price}
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
-
-          <p className="text-center text-brand-muted text-xs mt-5">
-            VIP access is activated instantly after payment.{" "}
-            <Link href="/vip" className="text-white hover:text-yellow-400 underline underline-offset-2">
-              Go to VIP Access page →
-            </Link>
-          </p>
-        </div>
-
-        {/* Comparison Table */}
-        <div className="mb-16 bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
-          <div className="px-6 py-5 border-b border-brand-border">
-            <h2 className="text-white font-black text-lg">Compare Your Options</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-brand-border">
-                  <th className="text-left text-xs text-brand-muted font-medium px-6 py-3 w-1/3">Feature</th>
-                  <th className="text-center text-xs text-brand-muted font-medium px-4 py-3">Free</th>
-                  <th className="text-center text-xs text-brand-muted font-medium px-4 py-3">Pick Credits</th>
-                  <th className="text-center text-xs text-brand-muted font-medium px-4 py-3 text-brand-red">Bundles</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brand-border">
-                {[
-                  ["Daily predictions", "2 picks", "Unlimited*", "Full bundle"],
-                  ["Full probability breakdown", "✗", "✓", "✓"],
-                  ["Confidence badges", "✓", "✓", "✓"],
-                  ["AI-assembled combos", "✗", "✗", "✓"],
-                  ["Pick selection", "Random 2", "You choose", "AI chooses"],
-                  ["Pricing", "Free", "Per pack", "$10–$50"],
-                  ["Best for", "Casual browsing", "Cherry-picking", "Combo bettors"],
-                ].map(([feat, free, credits, bundles]) => (
-                  <tr key={feat} className="hover:bg-white/5 transition-colors">
-                    <td className="px-6 py-3 text-white text-sm font-medium">{feat}</td>
-                    <td className="px-4 py-3 text-center text-brand-muted text-sm">{free}</td>
-                    <td className="px-4 py-3 text-center text-brand-muted text-sm">{credits}</td>
-                    <td className="px-4 py-3 text-center text-white text-sm font-bold">{bundles}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-[10px] text-brand-muted px-6 py-3 border-t border-brand-border">
-            * Credits unlock individual picks; each credit = 1 pick
-          </p>
-        </div>
-
-        {/* Trust Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+        {/* ── Trust row ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { title: "No subscriptions", body: "We don't lock you into monthly plans. Pay only when you want picks — credits or bundles, your call." },
-            { title: "Secure payments", body: "All payments processed securely through Paystack. We never store your card details." },
-            { title: "Data-driven only", body: "Every prediction is generated from historical data and statistical models — no gut feelings, no tipster bias." },
-          ].map(({ title, body }) => (
-            <div key={title} className="bg-brand-card border border-brand-border rounded-xl p-5">
-              <h3 className="text-white font-bold text-sm mb-1">{title}</h3>
-              <p className="text-brand-muted text-xs leading-relaxed">{body}</p>
+            { icon: CreditCard, title: "No subscriptions", body: "Pay only when you want picks. No monthly fees, no auto-renewals." },
+            { icon: ShieldCheck, title: "Secure payments", body: "All payments processed securely through Paystack. Card & Mobile Money supported." },
+            { icon: Clock, title: "Credits never expire", body: "Unused credits stay on your account indefinitely — use them at your own pace." },
+          ].map(({ icon: Icon, title, body }) => (
+            <div key={title} className="bg-brand-card border border-brand-border rounded-xl p-5 flex items-start gap-3">
+              <Icon className="w-5 h-5 text-brand-green shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-white font-bold text-sm mb-1">{title}</h3>
+                <p className="text-brand-muted text-xs leading-relaxed">{body}</p>
+              </div>
             </div>
           ))}
         </div>
