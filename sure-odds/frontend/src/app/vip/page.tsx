@@ -30,31 +30,33 @@ interface VipStatus {
   duration_days: number | null;
 }
 
+const USD_TO_KES = 130;
+
 const STATIC_PLANS = [
   {
     id: 4,
     name: "Daily Tips",
-    price: 200,
+    price: 1.50,
     picks_count: 0,
-    currency: "KES",
+    currency: "USD",
     duration_days: 1,
     features: ["Today's premium selections", "Ideal for short-term access"],
   },
   {
     id: 5,
     name: "Weekly Access",
-    price: 625,
+    price: 5.00,
     picks_count: 0,
-    currency: "KES",
+    currency: "USD",
     duration_days: 7,
     features: ["Higher volume opportunities", "Best value"],
   },
   {
     id: 6,
     name: "Monthly Access",
-    price: 1500,
+    price: 12.00,
     picks_count: 0,
-    currency: "KES",
+    currency: "USD",
     duration_days: 30,
     features: [
       "Full access to daily VIP tips full month",
@@ -213,9 +215,12 @@ function VipContent() {
               {/* Title + price row */}
               <div className="flex items-start justify-between mb-5">
                 <p className="text-white font-black text-lg leading-tight">{plan.name}</p>
-                <p className="text-brand-green font-black text-xl leading-tight shrink-0 ml-3">
-                  KSh {plan.price.toLocaleString()}
-                </p>
+                <div className="text-right shrink-0 ml-3">
+                  <p className="text-brand-green font-black text-xl leading-tight">
+                    ${plan.price.toFixed(2)}
+                  </p>
+                  <p className="text-brand-muted text-[10px]">≈ KSh {Math.round(plan.price * USD_TO_KES).toLocaleString()}</p>
+                </div>
               </div>
 
               {/* Feature list */}
@@ -233,7 +238,7 @@ function VipContent() {
                 onClick={() => handlePay(plan.id)}
                 className="w-full py-3.5 rounded-xl font-black text-sm text-white transition-all bg-[#1a3d2b] hover:bg-[#1f4d35] border border-green-900/60 hover:border-green-700"
               >
-                Pay — KSh {plan.price.toLocaleString()}
+                Pay — ${plan.price.toFixed(2)} <span className="text-[11px] opacity-70">(≈ KSh {Math.round(plan.price * USD_TO_KES).toLocaleString()})</span>
               </button>
             </div>
           ))}

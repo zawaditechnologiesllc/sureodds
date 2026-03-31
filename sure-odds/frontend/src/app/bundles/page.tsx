@@ -59,7 +59,7 @@ interface Bundle {
   purchased: boolean;
 }
 
-const TIER_META: Record<string, { color: string; bg: string; border: string; badge: string; icon: React.ElementType; desc: string }> = {
+const TIER_META: Record<string, { color: string; bg: string; border: string; badge: string; icon: React.ElementType; desc: string; oddsRange: string; usdPrice: number }> = {
   safe: {
     color: "text-brand-green",
     bg: "bg-green-950/30",
@@ -67,6 +67,8 @@ const TIER_META: Record<string, { color: string; bg: string; border: string; bad
     badge: "bg-green-950 text-brand-green border-green-900",
     icon: Shield,
     desc: "Low-risk bundle for consistent daily value. Perfect for trust-building.",
+    oddsRange: "5–10x",
+    usdPrice: 10,
   },
   medium: {
     color: "text-blue-400",
@@ -75,6 +77,8 @@ const TIER_META: Record<string, { color: string; bg: string; border: string; bad
     badge: "bg-blue-950 text-blue-400 border-blue-900",
     icon: TrendingUp,
     desc: "Balanced bundle for daily bettors seeking solid returns.",
+    oddsRange: "20–50x",
+    usdPrice: 20,
   },
   high: {
     color: "text-brand-yellow",
@@ -83,6 +87,8 @@ const TIER_META: Record<string, { color: string; bg: string; border: string; bad
     badge: "bg-yellow-950 text-brand-yellow border-yellow-900",
     icon: Zap,
     desc: "High-odds bundle with great upside. For the experienced bettor.",
+    oddsRange: "100–300x",
+    usdPrice: 30,
   },
   mega: {
     color: "text-brand-red",
@@ -91,6 +97,8 @@ const TIER_META: Record<string, { color: string; bg: string; border: string; bad
     badge: "bg-red-950 text-brand-red border-red-900",
     icon: Flame,
     desc: "Maximum excitement. Viral-level odds for the bold.",
+    oddsRange: "500–1000x",
+    usdPrice: 50,
   },
 };
 
@@ -114,6 +122,8 @@ function formatKickoff(iso: string) {
   }
 }
 
+const USD_TO_KES = 130;
+
 function PricingDisplay({ bundle }: { bundle: Bundle }) {
   const priceReduced = bundle.played_count > 0 && bundle.remaining_count > 0;
   const allPlayed = bundle.remaining_count === 0 && bundle.pick_count > 0;
@@ -123,7 +133,7 @@ function PricingDisplay({ bundle }: { bundle: Bundle }) {
     return (
       <div className="text-right">
         <div className="text-brand-muted text-lg font-black line-through">
-          KSh {Math.round(bundle.price * 130).toLocaleString()}
+          ${bundle.price.toFixed(2)}
         </div>
         <div className="text-brand-muted text-xs">All games played</div>
       </div>
@@ -134,12 +144,12 @@ function PricingDisplay({ bundle }: { bundle: Bundle }) {
     return (
       <div className="text-right">
         <div className="text-brand-muted text-sm font-bold line-through">
-          KSh {Math.round(bundle.price * 130).toLocaleString()}
+          ${bundle.price.toFixed(2)}
         </div>
         <div className={cn("text-xl font-black", meta.color)}>
-          KSh {Math.round(bundle.current_price * 130).toLocaleString()}
+          ${bundle.current_price.toFixed(2)}
         </div>
-        <div className="text-[10px] text-brand-muted">{bundle.remaining_count} games left</div>
+        <div className="text-[10px] text-brand-muted">≈ KSh {Math.round(bundle.current_price * USD_TO_KES).toLocaleString()} · {bundle.remaining_count} left</div>
       </div>
     );
   }
@@ -147,9 +157,9 @@ function PricingDisplay({ bundle }: { bundle: Bundle }) {
   return (
     <div className="text-right">
       <div className={cn("text-xl font-black", meta.color)}>
-        KSh {Math.round(bundle.price * 130).toLocaleString()}
+        ${bundle.price.toFixed(2)}
       </div>
-      <div className="text-brand-muted text-[10px]">{bundle.pick_count} picks</div>
+      <div className="text-brand-muted text-[10px]">≈ KSh {Math.round(bundle.price * USD_TO_KES).toLocaleString()} · {bundle.pick_count} picks</div>
     </div>
   );
 }
@@ -231,10 +241,14 @@ function BundleCard({ bundle, onPurchase, purchasing }: {
       </div>
 
       {/* Odds + pick summary */}
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center flex-wrap gap-2 mb-3">
         <div className="flex items-center gap-1.5 bg-brand-dark border border-brand-border rounded-lg px-3 py-1.5">
           <span className={cn("text-lg font-black", meta.color)}>{bundle.total_odds}x</span>
           <span className="text-brand-muted text-xs">total odds</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-brand-dark border border-brand-border rounded-lg px-3 py-1.5">
+          <span className={cn("text-xs font-black", meta.color)}>{meta.oddsRange}</span>
+          <span className="text-brand-muted text-xs">target range</span>
         </div>
         <div className="flex items-center gap-1.5 bg-brand-dark border border-brand-border rounded-lg px-3 py-1.5">
           <span className="text-white text-sm font-bold">{bundle.pick_count}</span>
@@ -369,7 +383,7 @@ function BundleCard({ bundle, onPurchase, purchasing }: {
           ) : (
             <>
               <Lock className="w-4 h-4" />
-              Unlock for KSh {Math.round(bundle.current_price * 130).toLocaleString()}
+              Unlock — ${bundle.current_price.toFixed(2)} <span className="text-[11px] opacity-70">(≈ KSh {Math.round(bundle.current_price * USD_TO_KES).toLocaleString()})</span>
               {priceReduced && (
                 <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold">REDUCED</span>
               )}
