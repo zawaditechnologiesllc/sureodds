@@ -361,3 +361,45 @@ async def reject_partner(app_id: str, db: Session = Depends(get_db)):
     app.reviewed_at = datetime.now(timezone.utc)
     db.commit()
     return {"success": True, "id": app_id, "status": "rejected"}
+
+
+class TestEmailRequest(BaseModel):
+    to: str
+
+
+@router.post("/test-email", dependencies=[Depends(verify_admin)])
+async def test_email(body: TestEmailRequest):
+    """
+    Send a test email to verify SMTP configuration.
+    POST /admin/test-email  {\"to\": \"someone@example.com\"}
+    """
+    from app.core.email import send_email
+    configured = bool(settings.SMTP_HOST and settings.SMTP_USER)
+    if not configured:
+        return {
+            "sent": False,
+            "reason": "SMTP not configured — set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS environment variables.",
+            "smtp_host": settings.SMTP_HOST or "(not set)",
+            "smtp_user": settings.SMTP_USER or "(not set)",
+        }
+
+    sent = send_email(
+        to=body.to,
+        subject="✅ Sure Odds — SMTP test email",
+        html="""
+        <div style="font-family:Arial,sans-serif;max-width:500px;background:#0f172a;color:#e2e8f0;padding:32px;border-radius:12px;">
+          <h2 style="color:#ef4444;">Sure Odds SMTP Test</h2>
+          <p>If you received this, your email configuration is working correctly! 🎉</p>
+          <p style="color:#94a3b8;font-size:12px;">Sent from the Sure Odds backend via SMTP.</p>
+        </div>
+        """,
+        text="Sure Odds SMTP test — if you received this, email is configured correctly!",
+    )
+
+    return {
+        "sent": sent,
+        "to": body.to,
+        "smtp_host": settings.SMTP_HOST,
+        "smtp_user": settings.SMTP_USER,
+        "smtp_port": settings.SMTP_PORT,
+    }
