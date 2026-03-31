@@ -8,6 +8,10 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  experimental: {
+    // Tree-shake large icon/component libraries so only used icons are bundled
+    optimizePackageImports: ["lucide-react", "@supabase/supabase-js"],
+  },
   images: {
     remotePatterns: [
       {

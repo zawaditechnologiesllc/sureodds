@@ -11,7 +11,7 @@ import {
   Star, Loader2, ArrowRight, Gift, Users, PlusCircle, RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
-import { fetchUserCredits, fetchPaymentStatus } from "@/lib/api";
+import { fetchPaymentStatus } from "@/lib/api";
 
 interface PaymentStatus {
   is_paid: boolean;
@@ -36,12 +36,9 @@ function DashboardContent() {
   const loadData = useCallback(async () => {
     setDataLoading(true);
     try {
-      const [status, creds] = await Promise.allSettled([
-        fetchPaymentStatus(),
-        fetchUserCredits(),
-      ]);
-      if (status.status === "fulfilled") setPaymentStatus(status.value);
-      if (creds.status === "fulfilled") setCredits(creds.value.remaining_picks ?? 0);
+      const status = await fetchPaymentStatus();
+      setPaymentStatus(status);
+      setCredits(status.picks_remaining ?? 0);
     } catch {
       /* silently fail — show zeros */
     } finally {
