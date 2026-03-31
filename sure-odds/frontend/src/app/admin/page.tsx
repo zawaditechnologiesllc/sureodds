@@ -78,6 +78,7 @@ import {
   fetchAdminVipAccess,
   fetchAdminPackages,
   updateAdminPackage,
+  testAdminEmail,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance" | "vip" | "packages";
@@ -342,6 +343,11 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [editingPackId, setEditingPackId] = useState<number | null>(null);
   const [packEditPrice, setPackEditPrice] = useState<string>("");
   const [packEditPicks, setPackEditPicks] = useState<string>("");
+
+  // Email settings / test
+  const [testEmailTo, setTestEmailTo] = useState<string>("");
+  const [testEmailLoading, setTestEmailLoading] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ sent: boolean; reason?: string; smtp_host?: string; smtp_user?: string } | null>(null);
 
   useEffect(() => {
     fetchAdminStats()
@@ -805,6 +811,84 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Email Settings */}
+            <div className="mt-6 bg-brand-card border border-brand-border rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-white font-bold text-lg">Email Notifications</h2>
+                  <p className="text-brand-muted text-xs mt-0.5">Zoho SMTP · partner approval emails · referral alerts</p>
+                </div>
+                {testEmailResult !== null && (
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${testEmailResult.sent ? "bg-green-950 border-green-900 text-brand-green" : "bg-red-950 border-red-900 text-brand-red"}`}>
+                    {testEmailResult.sent ? "SMTP OK" : "NOT CONFIGURED"}
+                  </span>
+                )}
+              </div>
+
+              {testEmailResult && !testEmailResult.sent && (
+                <div className="bg-yellow-950 border border-yellow-900 rounded-lg p-4 mb-4 flex items-start gap-3">
+                  <ShieldAlert className="w-5 h-5 text-brand-yellow shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-brand-yellow font-bold text-sm mb-1">SMTP not configured</p>
+                    <p className="text-yellow-400 text-xs leading-relaxed">
+                      {testEmailResult.reason || "Add the following secrets in Replit's Secrets panel:"}
+                    </p>
+                    <div className="mt-2 space-y-1 font-mono text-[11px] text-yellow-200">
+                      <p>SMTP_HOST = smtp.zoho.com</p>
+                      <p>SMTP_PORT = 587</p>
+                      <p>SMTP_USER = info@sureodds.pro</p>
+                      <p>SMTP_PASS = &lt;your Zoho app password&gt;</p>
+                      <p>SMTP_FROM = Sure Odds &lt;info@sureodds.pro&gt;</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {testEmailResult && testEmailResult.sent && (
+                <div className="bg-green-950/30 border border-green-900/30 rounded-lg p-3 mb-4 flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
+                  <p className="text-green-300 text-xs">
+                    Test email sent via <strong>{testEmailResult.smtp_host}</strong> ({testEmailResult.smtp_user}). Check your inbox — if it arrived, partner approval emails are working.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={testEmailTo}
+                  onChange={(e) => setTestEmailTo(e.target.value)}
+                  placeholder="your@email.com"
+                  className="flex-1 bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white text-sm placeholder-brand-muted focus:outline-none focus:ring-2 focus:ring-brand-red/30"
+                />
+                <button
+                  onClick={async () => {
+                    if (!testEmailTo.trim()) return;
+                    setTestEmailLoading(true);
+                    setTestEmailResult(null);
+                    try {
+                      const res = await testAdminEmail(testEmailTo.trim());
+                      setTestEmailResult(res);
+                      if (res.sent) toast.success("Test email sent! Check your inbox.");
+                      else toast.error("SMTP not configured — see instructions below.");
+                    } catch {
+                      toast.error("Could not reach email endpoint.");
+                    } finally {
+                      setTestEmailLoading(false);
+                    }
+                  }}
+                  disabled={testEmailLoading || !testEmailTo.trim()}
+                  className="px-4 py-2 bg-brand-red hover:bg-red-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  {testEmailLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {testEmailLoading ? "Sending…" : "Send Test"}
+                </button>
+              </div>
+              <p className="text-brand-muted text-xs mt-2">
+                Sends a test email to verify Zoho SMTP is connected. Partner approval emails fire automatically when you approve an application.
+              </p>
             </div>
           </>
         )}

@@ -2,16 +2,32 @@
 Simple SMTP email sender for transactional notifications.
 Configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS environment secrets
 to enable email delivery.
+
+Zoho Mail settings:
+  SMTP_HOST = smtp.zoho.com
+  SMTP_PORT = 587  (STARTTLS)  or  465  (SSL — set this if 587 fails)
+  SMTP_USER = info@sureodds.pro
+  SMTP_PASS = <your Zoho app password>
+  SMTP_FROM = Sure Odds <info@sureodds.pro>
 """
 import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import parseaddr
 from typing import Optional
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _envelope_address() -> str:
+    """Return a plain email address suitable for the SMTP envelope.
+    SMTP_FROM may be 'Sure Odds <info@sureodds.pro>' — parseaddr extracts
+    just the address part. Falls back to SMTP_USER."""
+    _name, addr = parseaddr(settings.SMTP_FROM)
+    return addr or settings.SMTP_USER
 
 
 def send_email(to: str, subject: str, html: str, text: Optional[str] = None) -> bool:
@@ -30,11 +46,19 @@ def send_email(to: str, subject: str, html: str, text: Optional[str] = None) -> 
             msg.attach(MIMEText(text, "plain"))
         msg.attach(MIMEText(html, "html"))
 
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASS)
-            server.sendmail(settings.SMTP_FROM, [to], msg.as_string())
+        from_addr = _envelope_address()
+
+        if settings.SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.login(settings.SMTP_USER, settings.SMTP_PASS)
+                server.sendmail(from_addr, [to], msg.as_string())
+        else:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(settings.SMTP_USER, settings.SMTP_PASS)
+                server.sendmail(from_addr, [to], msg.as_string())
 
         logger.info("Email sent to %s: %s", to, subject)
         return True
@@ -161,8 +185,7 @@ def send_partner_signup_notification(partner_email: str, partner_name: str, new_
       </div>
       <hr style="border:none;border-top:1px solid #334155;margin:28px 0;">
       <p style="color:#475569;font-size:12px;text-align:center;">
-        Sure Odds · Calea Floreasca 169A, Sector 1, 014459 Bucharest, Romania<br>
-        <a href="mailto:info@sureodds.pro" style="color:#ef4444;">info@sureodds.pro</a>
+        Sure Odds · <a href="mailto:info@sureodds.pro" style="color:#ef4444;">info@sureodds.pro</a>
       </p>
     </div>
     """

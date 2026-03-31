@@ -458,3 +458,8 @@ export const fetchAdminVipAccess = async () => {
   const res = await api.get("/admin/vip-access");
   return res.data;
 };
+
+export const testAdminEmail = async (to: string) => {
+  const res = await api.post("/admin/test-email", { to });
+  return res.data;
+};
