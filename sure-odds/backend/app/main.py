@@ -120,9 +120,9 @@ async def run_poll():
 def seed_packages(db):
     """Ensure the 3 pick packages exist in the database."""
     defaults = [
-        {"id": 1, "name": "Starter Pack — 5 Picks",  "price": 399,  "picks_count": 5},
-        {"id": 2, "name": "Value Pack — 10 Picks",   "price": 699,  "picks_count": 10},
-        {"id": 3, "name": "Pro Pack — 20 Picks",     "price": 1299, "picks_count": 20},
+        {"id": 1, "name": "Starter Pack — 5 Picks",  "price": 2.99, "picks_count": 5},
+        {"id": 2, "name": "Value Pack — 10 Picks",   "price": 4.99, "picks_count": 10},
+        {"id": 3, "name": "Pro Pack — 20 Picks",     "price": 8.99, "picks_count": 20},
     ]
     for pkg_data in defaults:
         existing = db.query(Package).filter(Package.id == pkg_data["id"]).first()
@@ -130,9 +130,9 @@ def seed_packages(db):
             existing.name        = pkg_data["name"]
             existing.price       = pkg_data["price"]
             existing.picks_count = pkg_data["picks_count"]
-            existing.currency    = "KES"
+            existing.currency    = "USD"
         else:
-            db.add(Package(**pkg_data, currency="KES"))
+            db.add(Package(**pkg_data, currency="USD"))
     db.commit()
 
 

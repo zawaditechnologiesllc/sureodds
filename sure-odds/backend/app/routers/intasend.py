@@ -83,8 +83,11 @@ async def initialize_mpesa(
             detail="Invalid phone number. Use format 07XXXXXXXX or 254XXXXXXXXX"
         )
 
+    # Package price is in USD; convert to KES for the STK push
+    kes_amount = int(float(package.price) * settings.USD_TO_KES_RATE)
+
     payload = {
-        "amount": int(float(package.price)),
+        "amount": kes_amount,
         "phone_number": phone,
         "currency": "KES",
         "email": body.email,
@@ -133,7 +136,8 @@ async def initialize_mpesa(
     return {
         "invoice_id": invoice_id,
         "package_id": package.id,
-        "amount": float(package.price),
+        "amount_usd": float(package.price),
+        "amount_kes": kes_amount,
         "currency": "KES",
         "phone": phone,
         "message": "STK push sent. Enter your M-Pesa PIN when prompted.",

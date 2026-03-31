@@ -1,6 +1,7 @@
 """
-Paystack payment integration — KES currency.
-Supports pay-as-you-go pick packages purchased with credits.
+Paystack payment integration.
+Prices are stored in USD; the conversion layer multiplies by USD_TO_KES_RATE
+so Paystack charges the user in KES (the account's settlement currency).
 """
 
 import httpx
@@ -50,15 +51,16 @@ async def initialize_payment(
 ):
     """
     Initialize a Paystack payment for a pick package.
-    Charges in KES — price field in Package is already in KES.
+    Package price is in USD; we convert to KES at the configured rate so that
+    Paystack charges the user in KES and settles to the KES account.
     """
     package = db.query(Package).filter(Package.id == body.package_id, Package.is_active == True).first()
     if not package:
         raise HTTPException(status_code=404, detail="Package not found")
 
     reference = f"SO-{secrets.token_hex(8).upper()}"
-    # price is stored in KES; Paystack amount = KES * 100 (smallest unit)
-    amount_kobo = int(float(package.price) * 100)
+    # USD → KES → Paystack smallest unit (1 KES = 100 kobo)
+    amount_kobo = int(float(package.price) * settings.USD_TO_KES_RATE * 100)
 
     payload = {
         "email": body.email,

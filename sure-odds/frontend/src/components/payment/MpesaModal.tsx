@@ -123,8 +123,9 @@ export default function MpesaModal({ pkg, email, onClose, onSuccess }: MpesaModa
             <p className="text-brand-muted text-xs mb-0.5">You are paying for</p>
             <p className="text-white font-bold text-sm">{pkg.name}</p>
             <p className="text-brand-green font-black text-xl mt-0.5">
-              KES {pkg.price.toLocaleString()}
+              ${pkg.price.toFixed(2)}
             </p>
+            <p className="text-brand-muted text-xs mt-0.5">Charged in KES via M-Pesa</p>
           </div>
 
           {/* Form stage */}
