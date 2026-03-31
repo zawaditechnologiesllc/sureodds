@@ -333,6 +333,8 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [vipAccessLoading, setVipAccessLoading] = useState(false);
   const [editingVipId, setEditingVipId] = useState<number | null>(null);
   const [vipEditPrice, setVipEditPrice] = useState<string>("");
+  const [vipEditName, setVipEditName] = useState<string>("");
+  const [vipEditFeatures, setVipEditFeatures] = useState<string>("");
 
   // Value Packs (pick credit packages)
   const [valuePacks, setValuePacks] = useState<any[]>([]);
@@ -1127,39 +1129,78 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                       </div>
 
                       {editingVipId === pkg.id ? (
-                        <div className="flex items-center gap-2 mb-3">
-                          <input
-                            type="number"
-                            value={vipEditPrice}
-                            onChange={(e) => setVipEditPrice(e.target.value)}
-                            className="flex-1 bg-brand-dark border border-brand-border rounded px-2 py-1.5 text-white text-sm"
-                            placeholder="Price in KES"
-                          />
-                          <button
-                            onClick={async () => {
-                              try {
-                                await updateAdminVipPackage(pkg.id, { price: parseFloat(vipEditPrice) });
-                                setVipPackages((prev) => prev.map((p) => p.id === pkg.id ? { ...p, price: parseFloat(vipEditPrice) } : p));
-                                toast.success("Price updated.");
-                              } catch { toast.error("Update failed."); }
-                              setEditingVipId(null);
-                            }}
-                            className="px-3 py-1.5 bg-brand-green hover:bg-green-600 text-black text-xs font-bold rounded transition-colors"
-                          >
-                            Save
-                          </button>
-                          <button onClick={() => setEditingVipId(null)} className="text-brand-muted hover:text-white">
-                            <XCircle className="w-4 h-4" />
-                          </button>
+                        <div className="space-y-2 mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-brand-muted text-xs w-14 shrink-0">Name</span>
+                            <input
+                              type="text"
+                              value={vipEditName}
+                              onChange={(e) => setVipEditName(e.target.value)}
+                              className="flex-1 bg-brand-dark border border-brand-border rounded px-2 py-1.5 text-white text-sm"
+                              placeholder="Package name"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-brand-muted text-xs w-14 shrink-0">Price</span>
+                            <input
+                              type="number"
+                              value={vipEditPrice}
+                              onChange={(e) => setVipEditPrice(e.target.value)}
+                              className="flex-1 bg-brand-dark border border-brand-border rounded px-2 py-1.5 text-white text-sm"
+                              placeholder="Price in KES"
+                            />
+                          </div>
+                          <div>
+                            <span className="text-brand-muted text-xs block mb-1">Features (one per line)</span>
+                            <textarea
+                              value={vipEditFeatures}
+                              onChange={(e) => setVipEditFeatures(e.target.value)}
+                              rows={3}
+                              className="w-full bg-brand-dark border border-brand-border rounded px-2 py-1.5 text-white text-xs resize-none"
+                              placeholder="Feature 1&#10;Feature 2&#10;Feature 3"
+                            />
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const features = vipEditFeatures.split("\n").map((f) => f.trim()).filter(Boolean);
+                                  await updateAdminVipPackage(pkg.id, {
+                                    name: vipEditName,
+                                    price: parseFloat(vipEditPrice),
+                                    features,
+                                  });
+                                  setVipPackages((prev) => prev.map((p) =>
+                                    p.id === pkg.id
+                                      ? { ...p, name: vipEditName, price: parseFloat(vipEditPrice), features }
+                                      : p
+                                  ));
+                                  toast.success("VIP package updated.");
+                                } catch { toast.error("Update failed."); }
+                                setEditingVipId(null);
+                              }}
+                              className="flex-1 py-1.5 bg-brand-green hover:bg-green-600 text-black text-xs font-bold rounded transition-colors"
+                            >
+                              Save
+                            </button>
+                            <button onClick={() => setEditingVipId(null)} className="text-brand-muted hover:text-white px-2">
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center justify-between mb-3">
                           <p className="text-yellow-400 font-black text-2xl">KSh {pkg.price?.toLocaleString()}</p>
                           <button
-                            onClick={() => { setEditingVipId(pkg.id); setVipEditPrice(String(pkg.price)); }}
+                            onClick={() => {
+                              setEditingVipId(pkg.id);
+                              setVipEditPrice(String(pkg.price));
+                              setVipEditName(pkg.name || "");
+                              setVipEditFeatures((pkg.features || []).join("\n"));
+                            }}
                             className="text-brand-muted hover:text-white text-xs flex items-center gap-1 border border-brand-border rounded px-2 py-1 transition-colors hover:border-gray-500"
                           >
-                            Edit Price
+                            Edit
                           </button>
                         </div>
                       )}
