@@ -1,0 +1,50 @@
+2026-03-31T05:34:36.19819183Z   File "/app/app/main.py", line 165, in seed_packages
+2026-03-31T05:34:36.19819508Z     existing = db.query(Package).filter(Package.id == pkg_data["id"]).first()
+2026-03-31T05:34:36.19819794Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-31T05:34:36.19820085Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2728, in first
+2026-03-31T05:34:36.198203571Z     return self.limit(1)._iter().first()  # type: ignore
+2026-03-31T05:34:36.198206431Z            ^^^^^^^^^^^^^^^^^^^^^
+2026-03-31T05:34:36.198209251Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2827, in _iter
+2026-03-31T05:34:36.198212051Z     result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+2026-03-31T05:34:36.198214851Z                                                   ^^^^^^^^^^^^^^^^^^^^^
+2026-03-31T05:34:36.198217712Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+2026-03-31T05:34:36.198220502Z     return self._execute_internal(
+2026-03-31T05:34:36.198223392Z            ^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-31T05:34:36.198226162Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2236, in _execute_internal
+2026-03-31T05:34:36.198228892Z     result: Result[Any] = compile_state_cls.orm_execute_statement(
+2026-03-31T05:34:36.198231662Z                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-31T05:34:36.198234453Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 293, in orm_execute_statement
+2026-03-31T05:34:36.198237273Z     result = conn.execute(
+2026-03-31T05:34:36.198240073Z              ^^^^^^^^^^^^^
+2026-03-31T05:34:36.198242913Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1418, in execute
+2026-03-31T05:34:36.198245703Z     return meth(
+2026-03-31T05:34:36.198248574Z            ^^^^^
+2026-03-31T05:34:36.198265275Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 515, in _execute_on_connection
+2026-03-31T05:34:36.198268135Z     return connection._execute_clauseelement(
+2026-03-31T05:34:36.198270915Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-31T05:34:36.198274115Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1640, in _execute_clauseelement
+2026-03-31T05:34:36.198276905Z     ret = self._execute_context(
+2026-03-31T05:34:36.198279606Z           ^^^^^^^^^^^^^^^^^^^^^^
+2026-03-31T05:34:36.198282476Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+2026-03-31T05:34:36.198285336Z     return self._exec_single_context(
+2026-03-31T05:34:36.198288166Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-31T05:34:36.198290946Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+2026-03-31T05:34:36.198293847Z     self._handle_dbapi_exception(
+2026-03-31T05:34:36.198297207Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2353, in _handle_dbapi_exception
+2026-03-31T05:34:36.198300117Z     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-03-31T05:34:36.198302837Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-03-31T05:34:36.198305657Z     self.dialect.do_execute(
+2026-03-31T05:34:36.198308588Z   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 924, in do_execute
+2026-03-31T05:34:36.198311528Z     cursor.execute(statement, parameters)
+2026-03-31T05:34:36.198314338Z sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column packages.package_type does not exist
+2026-03-31T05:34:36.198317378Z LINE 1: ...ks_count, packages.currency AS packages_currency, packages.p...
+2026-03-31T05:34:36.198320228Z                                                              ^
+2026-03-31T05:34:36.198322828Z 
+2026-03-31T05:34:36.19834201Z [SQL: SELECT packages.id AS packages_id, packages.name AS packages_name, packages.price AS packages_price, packages.picks_count AS packages_picks_count, packages.currency AS packages_currency, packages.package_type AS packages_package_type, packages.duration_days AS packages_duration_days, packages.description AS packages_description, packages.features AS packages_features, packages.is_active AS packages_is_active, packages.created_at AS packages_created_at 
+2026-03-31T05:34:36.19834701Z FROM packages 
+2026-03-31T05:34:36.19834974Z WHERE packages.id = %(id_1)s 
+2026-03-31T05:34:36.198352581Z  LIMIT %(param_1)s]
+2026-03-31T05:34:36.198355471Z [parameters: {'id_1': 1, 'param_1': 1}]
+2026-03-31T05:34:36.198358431Z (Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-31T05:34:36.198361031Z 
+2026-03-31T05:34:36.198367762Z ERROR:    Application startup failed. Exiting.
