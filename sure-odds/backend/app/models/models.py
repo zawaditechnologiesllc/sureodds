@@ -202,3 +202,33 @@ class PartnerApplication(Base):
 
     # When approved, a user_id is linked
     user_id = Column(String, ForeignKey("users.id"), nullable=True)
+
+
+class PartnerPayoutSettings(Base):
+    """Payout method settings for approved partners."""
+    __tablename__ = "partner_payout_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    method = Column(String, nullable=False, default="usdt")  # "usdt" | "bank"
+    usdt_address = Column(String, nullable=True)             # TRC-20 address
+    bank_name = Column(String, nullable=True)
+    bank_account_number = Column(String, nullable=True)
+    bank_account_name = Column(String, nullable=True)
+    bank_swift = Column(String, nullable=True)
+    bank_country = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    user = relationship("User")
+
+
+class ReferralClick(Base):
+    """Tracks clicks on partner invite links."""
+    __tablename__ = "referral_clicks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    referral_code = Column(String, nullable=False, index=True)
+    ip_hash = Column(String, nullable=True)
+    converted = Column(Boolean, default=False)   # True once the visitor signs up
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

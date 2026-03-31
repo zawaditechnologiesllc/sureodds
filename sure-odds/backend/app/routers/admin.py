@@ -336,14 +336,19 @@ async def list_partner_applications(db: Session = Depends(get_db)):
 
 @router.post("/partners/{app_id}/approve", dependencies=[Depends(verify_admin)])
 async def approve_partner(app_id: str, db: Session = Depends(get_db)):
-    """Approve a partner application."""
+    """Approve a partner application and link the corresponding user account."""
     app = db.query(PartnerApplication).filter(PartnerApplication.id == app_id).first()
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
     app.status = "approved"
     app.reviewed_at = datetime.now(timezone.utc)
+    # Link user account by matching email
+    if not app.user_id:
+        user = db.query(User).filter(User.email == app.email).first()
+        if user:
+            app.user_id = user.id
     db.commit()
-    return {"success": True, "id": app_id, "status": "approved"}
+    return {"success": True, "id": app_id, "status": "approved", "user_linked": app.user_id is not None}
 
 
 @router.post("/partners/{app_id}/reject", dependencies=[Depends(verify_admin)])

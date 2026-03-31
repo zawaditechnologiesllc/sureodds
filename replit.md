@@ -92,6 +92,50 @@ Two workflows run in parallel:
 - **Auth**: Sign up / login via Supabase
 - **Admin panel**: Trigger fixture updates, run predictions, generate bundles, view users
 - **Partner/Affiliate program**: 30% commission referral system
+- **Partner Dashboard** (`/partner-dashboard`): Full affiliate dashboard for approved partners
+
+## Partner Dashboard System
+
+Partners access `/partner-dashboard` after logging in with their regular account (approved via admin panel).
+
+**Features:**
+- Overview tab: Click tracking, signup count, conversion rate funnel, total sales, commission breakdown (pending vs paid)
+- Referrals tab: Table of all referred users with purchase status and commission earned per user (email partially masked)
+- Payout Settings tab: USDT TRC-20 wallet or bank transfer (name, IBAN, SWIFT, country)
+- Referral link with one-click copy button
+- Auto-refresh stats button
+
+**Commission flow:**
+1. Partner applies at `/partner` → admin approves in `/admin` panel
+2. Admin approval auto-links `PartnerApplication.user_id` by email lookup
+3. When approved, partner's referral link is `https://sureodds.pro/invite?code=SURE-XXXXXXXX`
+4. Visitor hits `/invite?code=...` → click is tracked in `referral_clicks` table (deduped by IP hash per day)
+5. Visitor signs up at `/auth/signup?ref=CODE` → `User.referred_by` is set to partner's user ID
+6. Partner receives email notification (requires SMTP env vars)
+7. When referred user pays → `ReferralEarning` record created (30% of purchase amount, status=pending)
+8. Admin pays out every 72 hours via USDT TRC-20 or bank transfer → marks earnings as `status=paid`
+
+**New Backend Models:**
+- `partner_payout_settings` — per-partner payout method (USDT address or bank details)
+- `referral_clicks` — click tracking with IP hash deduplication (privacy-safe)
+
+**New API Endpoints (`/partner-dashboard/`):**
+- `GET /status` — check if authenticated user is an approved partner
+- `GET /stats` — full analytics (requires approved partner)
+- `GET /payout-settings` — current payout method
+- `POST /payout-settings` — save/update payout method
+- `POST /track-click` — called from `/invite` page, records a referral link click
+
+**Email Notifications (opt-in via SMTP):**
+- Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` env vars to enable
+- Partners receive email when a new user signs up via their referral link
+- Email includes link to partner dashboard
+
+**Payout info shown to partners:**
+- Paid every 72 hours automatically
+- Minimum payout: $10
+- USDT TRC-20: arrives within minutes
+- Bank transfer: 2–3 business days
 
 ## Bundle System (NEW)
 

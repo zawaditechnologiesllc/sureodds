@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, X, LogIn, Zap, LayoutDashboard, ChevronDown, CreditCard } from "lucide-react";
+import { Menu, X, LogIn, Zap, LayoutDashboard, ChevronDown, CreditCard, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/lib/supabase";
@@ -107,6 +107,14 @@ export default function Navbar() {
                       <CreditCard className="w-4 h-4" />
                       Add Credits
                     </Link>
+                    <Link
+                      href="/partner-dashboard"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-brand-card hover:text-white transition-colors"
+                    >
+                      <Users className="w-4 h-4" />
+                      Partner Dashboard
+                    </Link>
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-brand-muted hover:bg-brand-card hover:text-white transition-colors border-t border-brand-border"
@@ -168,6 +176,13 @@ export default function Navbar() {
                   onClick={() => setMobileOpen(false)}
                 >
                   Dashboard
+                </Link>
+                <Link
+                  href="/partner-dashboard"
+                  className="text-sm text-gray-300 hover:text-white py-2.5 border-b border-brand-border"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Partner Dashboard
                 </Link>
                 <button
                   onClick={handleLogout}

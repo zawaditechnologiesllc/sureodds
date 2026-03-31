@@ -15,7 +15,7 @@ from typing import Optional
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.models import User, UserPackage, Package, Transaction
+from app.models.models import User, UserPackage, Package, Transaction, ReferralEarning
 from app.routers.users import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -193,6 +193,20 @@ async def verify_payment(
             remaining_picks=picks_count,
         )
         db.add(user_pkg)
+
+    # Referral commission — 30% to the partner who referred this user
+    if user.referred_by:
+        commission = round(float(txn.amount) * settings.PARTNER_COMMISSION_RATE, 2)
+        earning = ReferralEarning(
+            user_id=user.referred_by,
+            referred_user_id=user.id,
+            amount=commission,
+            subscription_amount=float(txn.amount),
+            commission_rate=settings.PARTNER_COMMISSION_RATE,
+            status="pending",
+        )
+        db.add(earning)
+        logger.info(f"Commission ${commission} created for referrer {user.referred_by}")
 
     db.commit()
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Lock, Star, TrendingUp } from "lucide-react";
+import { Lock, Star, TrendingUp, Loader2, Zap } from "lucide-react";
 import { cn, formatTime, getOddsFromProbability, getProbabilityColor } from "@/lib/utils";
 import type { Prediction, PredictionSlipItem } from "@/types";
 
@@ -22,7 +22,7 @@ const PICK_LABELS: Record<string, string> = {
   btts: "BTTS",
 };
 
-export default function MatchCard({ prediction, onAddToSlip, selectedPick, onUnlockClick }: MatchCardProps) {
+export default function MatchCard({ prediction, onAddToSlip, selectedPick, onUnlockClick, isUnlocking, hasCredits }: MatchCardProps) {
   const [localPick, setLocalPick] = useState<string | null>(selectedPick || null);
   const { match } = prediction;
 
@@ -93,10 +93,26 @@ export default function MatchCard({ prediction, onAddToSlip, selectedPick, onUnl
           {prediction.locked ? (
             <button
               onClick={onUnlockClick}
-              className="flex flex-col items-center gap-1 text-brand-muted hover:text-brand-red transition-colors"
+              disabled={isUnlocking}
+              className={cn(
+                "flex flex-col items-center gap-1 transition-colors",
+                isUnlocking
+                  ? "text-brand-red opacity-60"
+                  : hasCredits
+                  ? "text-brand-green hover:text-green-400"
+                  : "text-brand-muted hover:text-brand-red"
+              )}
             >
-              <Lock className="w-5 h-5" />
-              <span className="text-xs">Unlock</span>
+              {isUnlocking ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : hasCredits ? (
+                <Zap className="w-5 h-5" />
+              ) : (
+                <Lock className="w-5 h-5" />
+              )}
+              <span className="text-xs font-bold">
+                {isUnlocking ? "..." : hasCredits ? "1 Credit" : "Unlock"}
+              </span>
             </button>
           ) : (
             <div className="flex flex-col items-end gap-1">

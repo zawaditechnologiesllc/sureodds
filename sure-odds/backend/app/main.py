@@ -16,6 +16,7 @@ from app.routers import (
     fixtures as fixtures_router,
     partners as partners_router,
     intasend as intasend_router,
+    partner_dashboard as partner_dashboard_router,
 )
 from app.routers import bundles as bundles_router
 from app.models.models import Package
@@ -250,6 +251,7 @@ app.include_router(packages.router)
 app.include_router(bundles_router.router)
 app.include_router(partners_router.router)
 app.include_router(intasend_router.router)
+app.include_router(partner_dashboard_router.router)
 
 
 @app.get("/stats")

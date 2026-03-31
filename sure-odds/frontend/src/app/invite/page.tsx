@@ -34,6 +34,12 @@ function InviteContent() {
         if (data.valid) {
           setValid(true);
           setSignupUrl(`/auth/signup?ref=${code}`);
+          // Track the click for partner analytics
+          fetch(`${API_URL}/partner-dashboard/track-click`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ referral_code: code }),
+          }).catch(() => null);
         } else {
           setValid(false);
         }

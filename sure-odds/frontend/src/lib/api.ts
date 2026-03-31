@@ -273,3 +273,41 @@ export const rejectPartner = async (appId: string) => {
   const res = await api.post(`/admin/partners/${appId}/reject`);
   return res.data;
 };
+
+// ─── Partner Dashboard ────────────────────────────────────────────────────────
+
+export const fetchPartnerStatus = async () => {
+  const res = await api.get("/partner-dashboard/status");
+  return res.data;
+};
+
+export const fetchPartnerStats = async () => {
+  const res = await api.get("/partner-dashboard/stats");
+  return res.data;
+};
+
+export const fetchPartnerPayoutSettings = async () => {
+  const res = await api.get("/partner-dashboard/payout-settings");
+  return res.data;
+};
+
+export const savePartnerPayoutSettings = async (settings: {
+  method: string;
+  usdt_address?: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_account_name?: string;
+  bank_swift?: string;
+  bank_country?: string;
+}) => {
+  const res = await api.post("/partner-dashboard/payout-settings", settings);
+  return res.data;
+};
+
+export const trackReferralClick = async (referralCode: string) => {
+  try {
+    await api.post("/partner-dashboard/track-click", { referral_code: referralCode });
+  } catch {
+    // Silent — tracking is non-critical
+  }
+};

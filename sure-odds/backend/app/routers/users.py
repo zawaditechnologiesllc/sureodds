@@ -1,11 +1,15 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.models import User
+from app.models.models import User, PartnerApplication
 from app.core.config import settings
 from pydantic import BaseModel
 import secrets
 import string
+from threading import Thread
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -74,7 +78,32 @@ async def get_current_user(
         db.commit()
         db.refresh(db_user)
 
+        # Notify partner via email if this user was referred
+        if referrer:
+            _notify_partner_new_signup(referrer, supabase_user.email, db)
+
     return db_user
+
+
+def _notify_partner_new_signup(referrer: User, new_email: str, db: Session) -> None:
+    """Fire-and-forget email to the referrer's approved partner account (if any)."""
+    try:
+        from app.core.email import send_partner_signup_notification
+        from app.models.models import PartnerApplication as PA
+        partner_app = (
+            db.query(PA)
+            .filter(PA.user_id == referrer.id, PA.status == "approved")
+            .first()
+        )
+        if partner_app:
+            Thread(
+                target=send_partner_signup_notification,
+                args=(referrer.email, partner_app.name, new_email),
+                daemon=True,
+            ).start()
+            logger.info("Partner notification queued for %s", referrer.email)
+    except Exception as exc:
+        logger.warning("Partner notification error: %s", exc)
 
 
 class UserOut(BaseModel):

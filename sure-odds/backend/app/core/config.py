@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = ""
     ENVIRONMENT: str = "development"
 
+    # SMTP for transactional emails (partner notifications, etc.)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASS: str = ""
+    SMTP_FROM: str = "Sure Odds <info@sureodds.pro>"
+
+    # Partner commission rate (30%)
+    PARTNER_COMMISSION_RATE: float = 0.30
+
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5000,https://sureodds.pro,https://www.sureodds.pro"
 
     @property
