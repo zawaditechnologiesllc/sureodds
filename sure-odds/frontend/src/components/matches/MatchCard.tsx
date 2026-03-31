@@ -10,6 +10,8 @@ interface MatchCardProps {
   onAddToSlip?: (item: PredictionSlipItem) => void;
   selectedPick?: string;
   onUnlockClick?: () => void;
+  isUnlocking?: boolean;
+  hasCredits?: boolean;
 }
 
 const PICK_LABELS: Record<string, string> = {

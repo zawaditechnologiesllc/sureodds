@@ -10,7 +10,8 @@ import MatchCard from "@/components/matches/MatchCard";
 import PredictionSlip from "@/components/matches/PredictionSlip";
 import type { Prediction, PredictionSlipItem } from "@/types";
 import { fetchPredictions, fetchUserCredits, unlockPick } from "@/lib/api";
-import { Loader2, AlertCircle, CalendarX, Lock, Zap, CreditCard, RefreshCw } from "lucide-react";
+import { Loader2, AlertCircle, CalendarX, Lock, Zap, CreditCard, RefreshCw, Flame, Calendar } from "lucide-react";
+import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import Link from "next/link";
 
@@ -164,6 +165,34 @@ function PredictionsContent() {
         />
 
         <main className="flex-1 min-w-0">
+          {/* Mobile filter tabs — Sidebar is desktop-only */}
+          <div className="flex lg:hidden gap-2 mb-3">
+            <button
+              onClick={() => setFilter("today")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-bold transition-colors",
+                filter === "today"
+                  ? "bg-brand-red text-white"
+                  : "bg-brand-card border border-brand-border text-brand-muted"
+              )}
+            >
+              <Flame className="w-4 h-4" />
+              Today
+            </button>
+            <button
+              onClick={() => setFilter("tomorrow")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-bold transition-colors",
+                filter === "tomorrow"
+                  ? "bg-brand-red text-white"
+                  : "bg-brand-card border border-brand-border text-brand-muted"
+              )}
+            >
+              <Calendar className="w-4 h-4" />
+              Tomorrow
+            </button>
+          </div>
+
           <div className="flex items-center justify-between mb-4 gap-3">
             <div className="min-w-0">
               <h1 className="text-white font-black text-xl">{label} Predictions</h1>

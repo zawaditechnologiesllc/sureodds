@@ -134,12 +134,14 @@ export default function Navbar() {
               </>
             )}
 
-            <button
-              className="md:hidden text-gray-300"
-              onClick={() => setMobileOpen(!mobileOpen)}
-            >
-              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
+            {!isAuthenticated && (
+              <button
+                className="md:hidden text-gray-300"
+                onClick={() => setMobileOpen(!mobileOpen)}
+              >
+                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            )}
           </div>
         </div>
       </div>

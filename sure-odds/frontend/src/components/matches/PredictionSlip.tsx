@@ -1,9 +1,10 @@
 "use client";
 
-import { X, ChevronDown } from "lucide-react";
+import { X } from "lucide-react";
 import Link from "next/link";
 import type { PredictionSlipItem } from "@/types";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/useAuth";
 
 interface PredictionSlipProps {
   items: PredictionSlipItem[];
@@ -12,6 +13,8 @@ interface PredictionSlipProps {
 }
 
 export default function PredictionSlip({ items, onRemove, onClear }: PredictionSlipProps) {
+  const { isAuthenticated } = useAuth();
+
   const avgConfidence =
     items.length > 0
       ? Math.round(items.reduce((sum, i) => sum + i.confidence, 0) / items.length)
@@ -96,18 +99,35 @@ export default function PredictionSlip({ items, onRemove, onClear }: PredictionS
           )}
         </div>
 
-        {/* Upgrade CTA for free users */}
+        {/* CTA — adapts to auth state */}
         <div className="mt-3 bg-gradient-to-br from-red-950 to-brand-card border border-red-900 rounded-lg p-4">
-          <p className="text-white font-bold text-sm mb-1">Unlock All Predictions</p>
-          <p className="text-gray-400 text-xs mb-3">
-            Get full access to all confidence levels and picks
-          </p>
-          <Link
-            href="/auth/signup"
-            className="block w-full bg-brand-red hover:bg-red-700 text-white text-xs font-bold py-2 rounded text-center transition-colors"
-          >
-            Get Started — Free Trial
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <p className="text-white font-bold text-sm mb-1">Unlock More Picks</p>
+              <p className="text-gray-400 text-xs mb-3">
+                Top up your credits to unlock any locked pick instantly.
+              </p>
+              <Link
+                href="/packages"
+                className="block w-full bg-brand-red hover:bg-red-700 text-white text-xs font-bold py-2 rounded text-center transition-colors"
+              >
+                Buy Credits
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-white font-bold text-sm mb-1">Unlock All Predictions</p>
+              <p className="text-gray-400 text-xs mb-3">
+                Get full access to all confidence levels and picks
+              </p>
+              <Link
+                href="/auth/signup"
+                className="block w-full bg-brand-red hover:bg-red-700 text-white text-xs font-bold py-2 rounded text-center transition-colors"
+              >
+                Get Started — Free Trial
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </aside>
