@@ -333,3 +333,53 @@ export const trackReferralClick = async (referralCode: string) => {
     // Silent — tracking is non-critical
   }
 };
+
+// ─── Admin — Targeted day refresh ────────────────────────────────────────────
+
+export const triggerTodayRefresh = async () => {
+  const res = await api.post("/admin/run-today");
+  return res.data;
+};
+
+export const triggerTomorrowRefresh = async () => {
+  const res = await api.post("/admin/run-tomorrow");
+  return res.data;
+};
+
+// ─── Admin — Payments ─────────────────────────────────────────────────────────
+
+export const fetchAdminPayments = async () => {
+  const res = await api.get("/admin/payments");
+  return res.data;
+};
+
+export const confirmAdminPayment = async (reference: string) => {
+  const res = await api.post(`/admin/payments/${reference}/confirm`);
+  return res.data;
+};
+
+// ─── Admin — Notifications ────────────────────────────────────────────────────
+
+export const fetchAdminNotifications = async () => {
+  const res = await api.get("/admin/notifications");
+  return res.data;
+};
+
+export const createAdminNotification = async (data: {
+  title: string;
+  message: string;
+  target: string;
+}) => {
+  const res = await api.post("/admin/notifications", data);
+  return res.data;
+};
+
+export const deleteAdminNotification = async (id: number) => {
+  const res = await api.delete(`/admin/notifications/${id}`);
+  return res.data;
+};
+
+export const toggleAdminNotification = async (id: number) => {
+  const res = await api.patch(`/admin/notifications/${id}/toggle`);
+  return res.data;
+};

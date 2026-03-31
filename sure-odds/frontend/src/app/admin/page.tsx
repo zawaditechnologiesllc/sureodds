@@ -24,12 +24,22 @@ import {
   TrendingUp,
   Clock,
   ExternalLink,
+  Bell,
+  CreditCard,
+  CalendarCheck,
+  CalendarDays,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  Plus,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   triggerUpdateFixtures,
   triggerRunPredictions,
   triggerUpdateResults,
+  triggerTodayRefresh,
+  triggerTomorrowRefresh,
   fetchAdminStats,
   fetchAdminUsers,
   fetchApiStatus,
@@ -43,9 +53,15 @@ import {
   fetchAdminPartners,
   approvePartner,
   rejectPartner,
+  fetchAdminPayments,
+  confirmAdminPayment,
+  fetchAdminNotifications,
+  createAdminNotification,
+  deleteAdminNotification,
+  toggleAdminNotification,
 } from "@/lib/api";
 
-type AdminTab = "overview" | "bundles" | "partners" | "users";
+type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications";
 type ActionStatus = "idle" | "loading" | "success" | "error";
 type PartnerStatus = "pending" | "approved" | "rejected";
 
@@ -81,6 +97,27 @@ interface PartnerApplication {
   status: PartnerStatus;
 }
 
+interface AdminPayment {
+  id: number;
+  type: "package" | "bundle";
+  user_id: string;
+  amount: number;
+  status: string;
+  reference: string;
+  package_id?: number;
+  bundle_id?: string;
+  created_at: string | null;
+}
+
+interface AdminNotification {
+  id: number;
+  title: string;
+  message: string;
+  target: string;
+  is_active: boolean;
+  created_at: string | null;
+}
+
 const PLATFORM_ICONS: Record<string, React.ElementType> = {
   instagram: Instagram,
   twitter: Twitter,
@@ -101,6 +138,12 @@ const StatusBadge = ({ status }: { status: PartnerStatus }) => {
       {status}
     </span>
   );
+};
+
+const TARGET_BADGE: Record<string, string> = {
+  users: "bg-blue-950 text-blue-400 border-blue-900",
+  partners: "bg-purple-950 text-purple-400 border-purple-900",
+  all: "bg-brand-card text-brand-muted border-brand-border",
 };
 
 export default function AdminPage() {
@@ -231,12 +274,27 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [fixturesStatus, setFixturesStatus] = useState<ActionStatus>("idle");
   const [predictionsStatus, setPredictionsStatus] = useState<ActionStatus>("idle");
   const [resultsStatus, setResultsStatus] = useState<ActionStatus>("idle");
+  const [todayStatus, setTodayStatus] = useState<ActionStatus>("idle");
+  const [tomorrowStatus, setTomorrowStatus] = useState<ActionStatus>("idle");
 
   const [bundleStatuses, setBundleStatuses] = useState<Record<string, ActionStatus>>({
     safe: "idle", medium: "idle", high: "idle", mega: "idle",
   });
   const [adminBundles, setAdminBundles] = useState<any[]>([]);
   const [bundlesLoading, setBundlesLoading] = useState(false);
+
+  // Payments
+  const [payments, setPayments] = useState<AdminPayment[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [confirmingRef, setConfirmingRef] = useState<string | null>(null);
+
+  // Notifications
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifMessage, setNotifMessage] = useState("");
+  const [notifTarget, setNotifTarget] = useState("all");
+  const [creatingNotif, setCreatingNotif] = useState(false);
 
   useEffect(() => {
     fetchAdminStats()
@@ -272,6 +330,20 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         .catch(() => toast.error("Could not load partner applications."))
         .finally(() => setPartnersLoading(false));
     }
+    if (tab === "payments") {
+      setPaymentsLoading(true);
+      fetchAdminPayments()
+        .then((data) => setPayments(data))
+        .catch(() => toast.error("Could not load payments."))
+        .finally(() => setPaymentsLoading(false));
+    }
+    if (tab === "notifications") {
+      setNotificationsLoading(true);
+      fetchAdminNotifications()
+        .then((data) => setNotifications(data))
+        .catch(() => toast.error("Could not load notifications."))
+        .finally(() => setNotificationsLoading(false));
+    }
   }, [tab]);
 
   const runAction = async (action: () => Promise<unknown>, setStatus: (s: ActionStatus) => void, label: string) => {
@@ -306,6 +378,56 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
       toast.success("Application rejected.");
     } catch {
       toast.error("Could not reject application.");
+    }
+  };
+
+  const handleConfirmPayment = async (reference: string) => {
+    setConfirmingRef(reference);
+    try {
+      await confirmAdminPayment(reference);
+      toast.success("Payment confirmed — credits granted.");
+      setPayments((prev) => prev.filter((p) => p.reference !== reference));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Could not confirm payment.");
+    } finally {
+      setConfirmingRef(null);
+    }
+  };
+
+  const handleCreateNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifTitle.trim() || !notifMessage.trim()) return;
+    setCreatingNotif(true);
+    try {
+      const created = await createAdminNotification({ title: notifTitle, message: notifMessage, target: notifTarget });
+      setNotifications((prev) => [{ id: created.id, title: notifTitle, message: notifMessage, target: notifTarget, is_active: true, created_at: new Date().toISOString() }, ...prev]);
+      setNotifTitle("");
+      setNotifMessage("");
+      setNotifTarget("all");
+      toast.success("Notification created.");
+    } catch {
+      toast.error("Could not create notification.");
+    } finally {
+      setCreatingNotif(false);
+    }
+  };
+
+  const handleDeleteNotification = async (id: number) => {
+    try {
+      await deleteAdminNotification(id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      toast.success("Notification deleted.");
+    } catch {
+      toast.error("Could not delete notification.");
+    }
+  };
+
+  const handleToggleNotification = async (id: number) => {
+    try {
+      const res = await toggleAdminNotification(id);
+      setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_active: res.is_active } : n));
+    } catch {
+      toast.error("Could not toggle notification.");
     }
   };
 
@@ -346,6 +468,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   };
 
   const pendingCount = applications.filter((a) => a.status === "pending").length;
+  const pendingPaymentsCount = payments.length;
 
   const overviewCards = stats ? [
     { label: "Total Fixtures", value: stats.total_fixtures.toLocaleString(), icon: Database, color: "text-white" },
@@ -382,6 +505,8 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
             { id: "bundles", label: "🔥 Bundles" },
             { id: "partners", label: `Partners${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
             { id: "users", label: "Users" },
+            { id: "payments", label: `Payments${pendingPaymentsCount > 0 ? ` (${pendingPaymentsCount})` : ""}` },
+            { id: "notifications", label: "Notifications" },
           ] as { id: AdminTab; label: string }[]).map(({ id, label }) => (
             <button
               key={id}
@@ -494,8 +619,10 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
               )}
             </div>
 
-            <div className="bg-brand-card border border-brand-border rounded-xl p-5">
-              <h2 className="text-white font-bold text-lg mb-4">Automation Controls</h2>
+            {/* Automation Controls */}
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5 mb-6">
+              <h2 className="text-white font-bold text-lg mb-1">Automation Controls</h2>
+              <p className="text-brand-muted text-xs mb-4">Full range (14-day window). Use targeted buttons below if only today or tomorrow needs refreshing.</p>
               <div className="grid md:grid-cols-3 gap-3">
                 {[
                   { label: "Update Fixtures", desc: "Fetch latest fixtures from football-data.org (2 API calls)", status: fixturesStatus, action: () => runAction(triggerUpdateFixtures, setFixturesStatus, "Update Fixtures") },
@@ -515,6 +642,44 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                     </button>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Targeted Day Refresh */}
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+              <h2 className="text-white font-bold text-lg mb-1">Targeted Day Refresh</h2>
+              <p className="text-brand-muted text-xs mb-4">Quickly refresh predictions and results for a specific day without running the full 14-day pipeline.</p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="bg-brand-dark border border-brand-border rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CalendarCheck className="w-4 h-4 text-brand-green" />
+                    <p className="text-white font-bold text-sm">Refresh Today</p>
+                  </div>
+                  <p className="text-brand-muted text-xs mb-3">Fills missing predictions for today&apos;s fixtures and reconciles any finished results.</p>
+                  <button
+                    onClick={() => runAction(triggerTodayRefresh, setTodayStatus, "Today Refresh")}
+                    disabled={todayStatus === "loading"}
+                    className="w-full flex items-center justify-center gap-2 bg-brand-green hover:bg-green-600 disabled:opacity-60 text-black text-sm font-bold py-2 rounded transition-colors"
+                  >
+                    <StatusIcon status={todayStatus} />
+                    {todayStatus === "loading" ? "Running..." : "Refresh Today"}
+                  </button>
+                </div>
+                <div className="bg-brand-dark border border-brand-border rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CalendarDays className="w-4 h-4 text-brand-yellow" />
+                    <p className="text-white font-bold text-sm">Refresh Tomorrow</p>
+                  </div>
+                  <p className="text-brand-muted text-xs mb-3">Fills missing predictions for tomorrow&apos;s scheduled fixtures (no results, games haven&apos;t started).</p>
+                  <button
+                    onClick={() => runAction(triggerTomorrowRefresh, setTomorrowStatus, "Tomorrow Refresh")}
+                    disabled={tomorrowStatus === "loading"}
+                    className="w-full flex items-center justify-center gap-2 bg-brand-yellow hover:bg-yellow-500 disabled:opacity-60 text-black text-sm font-bold py-2 rounded transition-colors"
+                  >
+                    <StatusIcon status={tomorrowStatus} />
+                    {tomorrowStatus === "loading" ? "Running..." : "Refresh Tomorrow"}
+                  </button>
+                </div>
               </div>
             </div>
           </>
@@ -781,6 +946,217 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* PAYMENTS TAB */}
+        {tab === "payments" && (
+          <div className="space-y-6">
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-brand-yellow" />
+                  <h2 className="text-white font-bold text-lg">Pending &amp; Failed Payments</h2>
+                </div>
+                <button
+                  onClick={() => {
+                    setPaymentsLoading(true);
+                    fetchAdminPayments().then(setPayments).catch(() => null).finally(() => setPaymentsLoading(false));
+                  }}
+                  className="text-brand-muted hover:text-white text-xs flex items-center gap-1 transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Refresh
+                </button>
+              </div>
+              <p className="text-brand-muted text-xs mb-5">
+                These are payments that didn&apos;t update automatically. Confirm to manually credit the user and mark the transaction as successful.
+              </p>
+              {paymentsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-brand-red animate-spin" />
+                </div>
+              ) : payments.length === 0 ? (
+                <div className="text-center py-10">
+                  <CheckCircle className="w-8 h-8 text-brand-green mx-auto mb-3" />
+                  <p className="text-white font-bold text-sm">All payments are up to date</p>
+                  <p className="text-brand-muted text-xs mt-1">No pending or failed transactions found.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-brand-border">
+                        {["Reference", "Type", "Amount", "Status", "Date", "Action"].map((h) => (
+                          <th key={h} className="text-left text-xs text-brand-muted font-medium py-2 pr-4 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-border">
+                      {payments.map((p) => (
+                        <tr key={p.reference}>
+                          <td className="py-3 pr-4 text-white text-xs font-mono max-w-[140px] truncate" title={p.reference}>{p.reference}</td>
+                          <td className="py-3 pr-4">
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded border border-brand-border text-brand-muted uppercase">{p.type}</span>
+                          </td>
+                          <td className="py-3 pr-4 text-brand-yellow text-xs font-bold">KES {(p.amount).toLocaleString()}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${p.status === "pending" ? "bg-yellow-950 text-brand-yellow border-yellow-900" : "bg-red-950 text-brand-red border-red-900"}`}>
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4 text-brand-muted text-xs whitespace-nowrap">
+                            {p.created_at ? new Date(p.created_at).toLocaleDateString("en-GB") : "—"}
+                          </td>
+                          <td className="py-3">
+                            <button
+                              onClick={() => handleConfirmPayment(p.reference)}
+                              disabled={confirmingRef === p.reference}
+                              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 bg-brand-green hover:bg-green-600 disabled:opacity-60 text-black rounded transition-colors"
+                            >
+                              {confirmingRef === p.reference ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                              Confirm
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* NOTIFICATIONS TAB */}
+        {tab === "notifications" && (
+          <div className="space-y-6">
+            {/* Create notification form */}
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Bell className="w-5 h-5 text-brand-yellow" />
+                <h2 className="text-white font-bold text-lg">Create Notification</h2>
+              </div>
+              <form onSubmit={handleCreateNotification} className="space-y-4">
+                <div>
+                  <label className="text-brand-muted text-xs font-bold uppercase mb-1.5 block">Title</label>
+                  <input
+                    type="text"
+                    value={notifTitle}
+                    onChange={(e) => setNotifTitle(e.target.value)}
+                    placeholder="e.g. Weekend predictions are live!"
+                    required
+                    className="w-full bg-brand-dark border border-brand-border rounded-lg px-4 py-2.5 text-white placeholder-brand-muted text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/30"
+                  />
+                </div>
+                <div>
+                  <label className="text-brand-muted text-xs font-bold uppercase mb-1.5 block">Message</label>
+                  <textarea
+                    value={notifMessage}
+                    onChange={(e) => setNotifMessage(e.target.value)}
+                    placeholder="Write your notification message here..."
+                    required
+                    rows={3}
+                    className="w-full bg-brand-dark border border-brand-border rounded-lg px-4 py-2.5 text-white placeholder-brand-muted text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/30 resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-brand-muted text-xs font-bold uppercase mb-1.5 block">Target Audience</label>
+                  <div className="flex gap-2">
+                    {([
+                      { value: "all", label: "Everyone" },
+                      { value: "users", label: "Users only" },
+                      { value: "partners", label: "Partners only" },
+                    ] as const).map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setNotifTarget(value)}
+                        className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-colors ${
+                          notifTarget === value
+                            ? "bg-brand-red border-red-700 text-white"
+                            : "bg-brand-dark border-brand-border text-brand-muted hover:text-white"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={creatingNotif || !notifTitle.trim() || !notifMessage.trim()}
+                  className="flex items-center justify-center gap-2 bg-brand-red hover:bg-red-700 disabled:opacity-50 text-white font-bold text-sm px-6 py-2.5 rounded-lg transition-colors"
+                >
+                  {creatingNotif ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  {creatingNotif ? "Creating..." : "Create Notification"}
+                </button>
+              </form>
+            </div>
+
+            {/* Notification list */}
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-white font-bold text-lg">All Notifications</h2>
+                <button
+                  onClick={() => {
+                    setNotificationsLoading(true);
+                    fetchAdminNotifications().then(setNotifications).catch(() => null).finally(() => setNotificationsLoading(false));
+                  }}
+                  className="text-brand-muted hover:text-white text-xs flex items-center gap-1 transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Refresh
+                </button>
+              </div>
+              {notificationsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-brand-red animate-spin" />
+                </div>
+              ) : notifications.length === 0 ? (
+                <p className="text-brand-muted text-sm text-center py-8">No notifications yet. Create one above.</p>
+              ) : (
+                <div className="space-y-3">
+                  {notifications.map((n) => (
+                    <div key={n.id} className={`bg-brand-dark border rounded-lg p-4 ${n.is_active ? "border-brand-border" : "border-brand-border opacity-50"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <p className="text-white font-bold text-sm">{n.title}</p>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${TARGET_BADGE[n.target] ?? TARGET_BADGE.all}`}>
+                              {n.target}
+                            </span>
+                            {!n.is_active && (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded border border-gray-700 text-gray-500 uppercase">hidden</span>
+                            )}
+                          </div>
+                          <p className="text-brand-muted text-xs leading-relaxed">{n.message}</p>
+                          {n.created_at && (
+                            <p className="text-brand-muted text-[10px] mt-1.5">
+                              {new Date(n.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleToggleNotification(n.id)}
+                            className="p-1.5 rounded-lg border border-brand-border text-brand-muted hover:text-white hover:border-gray-500 transition-colors"
+                            title={n.is_active ? "Hide notification" : "Show notification"}
+                          >
+                            {n.is_active ? <ToggleRight className="w-4 h-4 text-brand-green" /> : <ToggleLeft className="w-4 h-4" />}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteNotification(n.id)}
+                            className="p-1.5 rounded-lg border border-brand-border text-brand-muted hover:text-brand-red hover:border-red-900 transition-colors"
+                            title="Delete notification"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

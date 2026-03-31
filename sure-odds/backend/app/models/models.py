@@ -232,3 +232,15 @@ class ReferralClick(Base):
     ip_hash = Column(String, nullable=True)
     converted = Column(Boolean, default=False)   # True once the visitor signs up
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Notification(Base):
+    """Admin-created notifications shown to users, partners, or both."""
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    target = Column(String, nullable=False, default="all")  # "users" | "partners" | "all"
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

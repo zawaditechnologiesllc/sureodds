@@ -4,7 +4,7 @@ from sqlalchemy import func, cast, Date
 from datetime import date, timedelta, datetime, timezone
 from typing import List, Optional
 from app.core.database import get_db
-from app.models.models import User, Fixture, Prediction, Bundle, PartnerApplication
+from app.models.models import User, Fixture, Prediction, Bundle, PartnerApplication, Notification, Transaction, BundlePurchase, UserPackage, Package
 from app.services.fixtures_service import (
     update_all_fixtures,
     fetch_upcoming,
@@ -403,3 +403,204 @@ async def test_email(body: TestEmailRequest):
         "smtp_user": settings.SMTP_USER,
         "smtp_port": settings.SMTP_PORT,
     }
+
+
+# ---------------------------------------------------------------------------
+# Targeted day refresh — today & tomorrow predictions + results
+# ---------------------------------------------------------------------------
+
+@router.post("/run-today", dependencies=[Depends(verify_admin)])
+async def trigger_run_today(db: Session = Depends(get_db)):
+    """Refresh predictions and results for today only."""
+    today = date.today()
+
+    fixtures_today = (
+        db.query(Fixture)
+        .filter(cast(Fixture.kickoff, Date) == today, Fixture.status == "scheduled")
+        .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
+        .all()
+    )
+    created = 0
+    for fixture in fixtures_today:
+        try:
+            probabilities = await generate_prediction(
+                fixture.home_team_id, fixture.away_team_id,
+                fixture.league_id, fixture.season, db=db,
+            )
+            db.add(Prediction(fixture_id=fixture.id, **probabilities))
+            created += 1
+        except Exception:
+            continue
+    db.commit()
+
+    results = await update_results(db)
+    return {"success": True, "predictions_created": created, "results": results}
+
+
+@router.post("/run-tomorrow", dependencies=[Depends(verify_admin)])
+async def trigger_run_tomorrow(db: Session = Depends(get_db)):
+    """Refresh predictions for tomorrow only."""
+    tomorrow = date.today() + timedelta(days=1)
+
+    fixtures_tomorrow = (
+        db.query(Fixture)
+        .filter(cast(Fixture.kickoff, Date) == tomorrow, Fixture.status == "scheduled")
+        .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
+        .all()
+    )
+    created = 0
+    for fixture in fixtures_tomorrow:
+        try:
+            probabilities = await generate_prediction(
+                fixture.home_team_id, fixture.away_team_id,
+                fixture.league_id, fixture.season, db=db,
+            )
+            db.add(Prediction(fixture_id=fixture.id, **probabilities))
+            created += 1
+        except Exception:
+            continue
+    db.commit()
+    return {"success": True, "predictions_created": created}
+
+
+# ---------------------------------------------------------------------------
+# Payment management — list pending/failed, manually confirm
+# ---------------------------------------------------------------------------
+
+@router.get("/payments", dependencies=[Depends(verify_admin)])
+async def list_payments(db: Session = Depends(get_db)):
+    """List all pending and failed transactions (packages + bundles)."""
+    txns = (
+        db.query(Transaction)
+        .filter(Transaction.status.in_(["pending", "failed"]))
+        .order_by(Transaction.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    bundle_txns = (
+        db.query(BundlePurchase)
+        .filter(BundlePurchase.status.in_(["pending", "failed"]))
+        .order_by(BundlePurchase.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    results = []
+    for t in txns:
+        results.append({
+            "id": t.id,
+            "type": "package",
+            "user_id": t.user_id,
+            "amount": t.amount,
+            "status": t.status,
+            "reference": t.reference,
+            "package_id": t.package_id,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        })
+    for b in bundle_txns:
+        results.append({
+            "id": b.id,
+            "type": "bundle",
+            "user_id": b.user_id,
+            "amount": b.amount,
+            "status": b.status,
+            "reference": b.reference,
+            "bundle_id": b.bundle_id,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+        })
+    results.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    return results
+
+
+@router.post("/payments/{reference}/confirm", dependencies=[Depends(verify_admin)])
+async def confirm_payment(reference: str, db: Session = Depends(get_db)):
+    """Manually confirm a pending/failed payment and credit the user."""
+    now = datetime.now(timezone.utc)
+
+    txn = db.query(Transaction).filter(Transaction.reference == reference).first()
+    if txn:
+        if txn.status == "success":
+            return {"success": True, "message": "Already confirmed", "type": "package"}
+        txn.status = "success"
+        txn.verified_at = now
+        if txn.package_id:
+            pkg = db.query(Package).filter(Package.id == txn.package_id).first()
+            if pkg:
+                up = db.query(UserPackage).filter(UserPackage.user_id == txn.user_id).first()
+                if up:
+                    up.remaining_picks += pkg.picks_count
+                else:
+                    db.add(UserPackage(user_id=txn.user_id, remaining_picks=pkg.picks_count))
+        db.commit()
+        return {"success": True, "type": "package", "reference": reference}
+
+    bundle_txn = db.query(BundlePurchase).filter(BundlePurchase.reference == reference).first()
+    if bundle_txn:
+        if bundle_txn.status == "success":
+            return {"success": True, "message": "Already confirmed", "type": "bundle"}
+        bundle_txn.status = "success"
+        bundle_txn.verified_at = now
+        db.commit()
+        return {"success": True, "type": "bundle", "reference": reference}
+
+    raise HTTPException(status_code=404, detail="Transaction not found")
+
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+
+class NotificationCreate(BaseModel):
+    title: str
+    message: str
+    target: str = "all"  # "users" | "partners" | "all"
+
+
+@router.get("/notifications", dependencies=[Depends(verify_admin)])
+async def list_notifications(db: Session = Depends(get_db)):
+    """List all admin notifications."""
+    notifs = db.query(Notification).order_by(Notification.created_at.desc()).limit(100).all()
+    return [
+        {
+            "id": n.id,
+            "title": n.title,
+            "message": n.message,
+            "target": n.target,
+            "is_active": n.is_active,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+        }
+        for n in notifs
+    ]
+
+
+@router.post("/notifications", dependencies=[Depends(verify_admin)])
+async def create_notification(body: NotificationCreate, db: Session = Depends(get_db)):
+    """Create a new notification."""
+    if body.target not in ("users", "partners", "all"):
+        raise HTTPException(status_code=400, detail="target must be 'users', 'partners', or 'all'")
+    notif = Notification(title=body.title, message=body.message, target=body.target)
+    db.add(notif)
+    db.commit()
+    db.refresh(notif)
+    return {"success": True, "id": notif.id, "title": notif.title, "target": notif.target}
+
+
+@router.delete("/notifications/{notif_id}", dependencies=[Depends(verify_admin)])
+async def delete_notification(notif_id: int, db: Session = Depends(get_db)):
+    """Delete a notification."""
+    notif = db.query(Notification).filter(Notification.id == notif_id).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    db.delete(notif)
+    db.commit()
+    return {"success": True, "id": notif_id}
+
+
+@router.patch("/notifications/{notif_id}/toggle", dependencies=[Depends(verify_admin)])
+async def toggle_notification(notif_id: int, db: Session = Depends(get_db)):
+    """Toggle a notification active/inactive."""
+    notif = db.query(Notification).filter(Notification.id == notif_id).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    notif.is_active = not notif.is_active
+    db.commit()
+    return {"success": True, "id": notif_id, "is_active": notif.is_active}
