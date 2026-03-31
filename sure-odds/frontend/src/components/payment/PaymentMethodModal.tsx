@@ -17,6 +17,7 @@ interface Package {
   price: number;
   picks_count: number;
   currency: string;
+  duration_days?: number;
 }
 
 interface PaymentMethodModalProps {
@@ -25,6 +26,12 @@ interface PaymentMethodModalProps {
   onClose: () => void;
   onSuccess: (picksAdded: number) => void;
   callbackUrl?: string;
+  /** Override the price display (e.g. "KSh 200" for VIP). Auto-detected when omitted. */
+  priceLabel?: string;
+  /** Override the sub-detail line (e.g. "7 days access"). Auto-detected when omitted. */
+  detailLabel?: string;
+  /** Success message shown after payment. Defaults to credits copy. */
+  successMessage?: string;
 }
 
 type Screen =
@@ -62,12 +69,32 @@ const MOBILE_PROVIDERS = [
 const POLL_INTERVAL = 4000;
 const POLL_MAX = 45;
 
+function formatPriceLabel(pkg: Package, override?: string): string {
+  if (override) return override;
+  return pkg.currency === "KES"
+    ? `KSh ${pkg.price.toLocaleString()}`
+    : `$${pkg.price.toFixed(2)}`;
+}
+
+function formatDetailLabel(pkg: Package, override?: string): string {
+  if (override) return override;
+  if (pkg.picks_count > 0) return `${pkg.picks_count} premium picks · Charged in KES`;
+  if (pkg.duration_days) {
+    const d = pkg.duration_days;
+    return `${d === 1 ? "1 day" : d === 7 ? "7 days" : `${d} days`} VIP access`;
+  }
+  return "Charged in KES";
+}
+
 export default function PaymentMethodModal({
   pkg,
   email,
   onClose,
   onSuccess,
   callbackUrl,
+  priceLabel,
+  detailLabel,
+  successMessage,
 }: PaymentMethodModalProps) {
   const [screen, setScreen] = useState<Screen>("method-select");
   const [provider, setProvider] = useState("mpesa");
@@ -165,6 +192,14 @@ export default function PaymentMethodModal({
     }
   };
 
+  const displayPrice = formatPriceLabel(pkg, priceLabel);
+  const displayDetail = formatDetailLabel(pkg, detailLabel);
+  const displaySuccess =
+    successMessage ||
+    (picksAdded > 0
+      ? `${picksAdded} credit${picksAdded !== 1 ? "s" : ""} added to your account.`
+      : "Your purchase was successful.");
+
   const secondsLeft = Math.max(0, (POLL_MAX - pollCount) * (POLL_INTERVAL / 1000));
   const selectedProvider = MOBILE_PROVIDERS.find((p) => p.id === provider)!;
 
@@ -210,12 +245,8 @@ export default function PaymentMethodModal({
           <div className="bg-brand-dark border border-brand-border rounded-lg px-4 py-3 mb-5">
             <p className="text-brand-muted text-xs mb-0.5">You are paying for</p>
             <p className="text-white font-bold text-sm">{pkg.name}</p>
-            <p className="text-brand-green font-black text-xl mt-0.5">
-              ${pkg.price.toFixed(2)}
-            </p>
-            <p className="text-brand-muted text-xs mt-0.5">
-              {pkg.picks_count} premium picks · Charged in KES
-            </p>
+            <p className="text-brand-green font-black text-xl mt-0.5">{displayPrice}</p>
+            <p className="text-brand-muted text-xs mt-0.5">{displayDetail}</p>
           </div>
 
           {/* Error banner */}
@@ -379,7 +410,7 @@ export default function PaymentMethodModal({
                 </p>
               </div>
               <p className="text-brand-muted text-xs mt-4">
-                Do not close this window. Credits will be added automatically.
+                Do not close this window. Your purchase will be activated automatically.
               </p>
             </div>
           )}
@@ -389,12 +420,8 @@ export default function PaymentMethodModal({
             <div className="text-center py-4">
               <CheckCircle className="w-14 h-14 text-brand-green mx-auto mb-3" />
               <p className="text-white font-black text-lg mb-1">Payment confirmed!</p>
-              <p className="text-brand-muted text-sm">
-                {picksAdded > 0
-                  ? `${picksAdded} credit${picksAdded !== 1 ? "s" : ""} added to your account.`
-                  : "Credits added to your account."}
-              </p>
-              <p className="text-brand-muted text-xs mt-2">Taking you to predictions...</p>
+              <p className="text-brand-muted text-sm">{displaySuccess}</p>
+              <p className="text-brand-muted text-xs mt-2">Redirecting you now...</p>
             </div>
           )}
 
