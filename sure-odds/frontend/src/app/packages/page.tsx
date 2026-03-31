@@ -81,11 +81,16 @@ function PackagesContent() {
         url.searchParams.delete("reference");
         url.searchParams.delete("trxref");
         window.history.replaceState({}, "", url.toString());
-        // Show success and send user to predictions immediately
-        toast.success(
-          `✅ ${data.picks_added} credit${data.picks_added !== 1 ? "s" : ""} added! Go pick your matches.`,
-          { duration: 5000 }
-        );
+        // Handle both fresh success and already-verified (e.g. page refresh)
+        const picksAdded = data.picks_added ?? 0;
+        if (data.status === "already_verified") {
+          toast.success("Payment already confirmed — your credits are ready!", { duration: 5000 });
+        } else {
+          toast.success(
+            `✅ ${picksAdded} credit${picksAdded !== 1 ? "s" : ""} added! Go pick your matches.`,
+            { duration: 5000 }
+          );
+        }
         router.push("/predictions?credits=added");
       } catch {
         toast.error("Payment verification failed. Contact support if funds were deducted.");
