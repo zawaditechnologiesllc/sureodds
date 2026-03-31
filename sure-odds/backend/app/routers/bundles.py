@@ -210,13 +210,14 @@ async def purchase_bundle(
         raise HTTPException(status_code=400, detail="You have already purchased this bundle")
 
     reference = f"SB-{secrets.token_hex(8).upper()}"
-    amount_cents = int(bundle.price * 100)
+    # price is stored in KES; Paystack amount = KES * 100 (smallest unit)
+    amount_kobo = int(float(bundle.price) * 100)
 
     payload = {
         "email": body.email,
-        "amount": amount_cents,
+        "amount": amount_kobo,
         "reference": reference,
-        "currency": "USD",
+        "currency": "KES",
         "metadata": {
             "bundle_id": bundle.id,
             "bundle_name": bundle.name,

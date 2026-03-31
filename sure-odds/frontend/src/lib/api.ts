@@ -227,6 +227,22 @@ export const deactivateBundle = async (bundleId: string) => {
   return res.data;
 };
 
+// ─── IntaSend (M-Pesa) ───────────────────────────────────────────────────────
+
+export const initializeMpesa = async (packageId: number, phone: string, email: string) => {
+  const res = await api.post("/intasend/mpesa/initialize", {
+    package_id: packageId,
+    phone_number: phone,
+    email,
+  });
+  return res.data;
+};
+
+export const checkMpesaStatus = async (invoiceId: string, packageId: number) => {
+  const res = await api.get(`/intasend/mpesa/status?invoice_id=${invoiceId}&package_id=${packageId}`);
+  return res.data;
+};
+
 // ─── Partners ────────────────────────────────────────────────────────────────
 
 export const submitPartnerApplication = async (form: {

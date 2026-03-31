@@ -1,5 +1,5 @@
 """
-Paystack payment integration.
+Paystack payment integration — KES currency.
 Supports pay-as-you-go pick packages purchased with credits.
 """
 
@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/paystack", tags=["paystack"])
 
 PAYSTACK_BASE = "https://api.paystack.co"
+
+# Paystack uses the smallest currency unit.
+# For KES: 1 KES = 100 kobo (same convention as NGN/GHS).
+CURRENCY = "KES"
 
 
 class InitializeRequest(BaseModel):
@@ -46,20 +50,21 @@ async def initialize_payment(
 ):
     """
     Initialize a Paystack payment for a pick package.
-    Does not require auth so the email can be used directly.
+    Charges in KES — price field in Package is already in KES.
     """
     package = db.query(Package).filter(Package.id == body.package_id, Package.is_active == True).first()
     if not package:
         raise HTTPException(status_code=404, detail="Package not found")
 
     reference = f"SO-{secrets.token_hex(8).upper()}"
-    amount_kobo = int(package.price * 100)  # Paystack uses smallest currency unit
+    # price is stored in KES; Paystack amount = KES * 100 (smallest unit)
+    amount_kobo = int(float(package.price) * 100)
 
     payload = {
         "email": body.email,
         "amount": amount_kobo,
         "reference": reference,
-        "currency": "USD",
+        "currency": CURRENCY,
         "metadata": {
             "package_id": package.id,
             "package_name": package.name,
@@ -109,6 +114,7 @@ async def initialize_payment(
             "id": package.id,
             "name": package.name,
             "price": package.price,
+            "currency": CURRENCY,
             "picks_count": package.picks_count,
         },
     }
@@ -164,7 +170,6 @@ async def verify_payment(
         txn.status = "success"
         txn.verified_at = datetime.utcnow()
     else:
-        # Create transaction record if it doesn't exist (e.g. from webhook)
         txn = Transaction(
             user_id=user.id,
             amount=tx_data.get("amount", 0) / 100,

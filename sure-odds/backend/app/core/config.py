@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     LIVE_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = "pk_live_9c64461a7ca5eb52276189daf930f00dc7e24a6d"
 
+    # IntaSend (M-Pesa / MOMO)
+    INTASEND_API_KEY: str = ""
+    INTASEND_SECRET_KEY: str = ""
+
     @property
     def paystack_secret_key(self) -> str:
         return self.LIVE_SECRET_KEY
@@ -32,7 +36,7 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = ""
     ENVIRONMENT: str = "development"
 
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5000"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5000,https://sureodds.pro,https://www.sureodds.pro"
 
     @property
     def active_api_key(self) -> str:

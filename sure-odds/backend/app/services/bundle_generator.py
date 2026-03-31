@@ -24,10 +24,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 TIER_CONFIG = {
-    "safe":   {"target_odds": 8.0,   "min_picks": 3, "max_picks": 5,  "price": 10.0, "label": "Safe Slip"},
-    "medium": {"target_odds": 35.0,  "min_picks": 5, "max_picks": 8,  "price": 20.0, "label": "Medium Slip"},
-    "high":   {"target_odds": 150.0, "min_picks": 8, "max_picks": 12, "price": 30.0, "label": "High Roller"},
-    "mega":   {"target_odds": 650.0, "min_picks": 10, "max_picks": 15, "price": 50.0, "label": "Mega Slip"},
+    "safe":   {"target_odds": 8.0,   "min_picks": 3, "max_picks": 5,  "price": 999.0,  "label": "Safe Slip"},
+    "medium": {"target_odds": 35.0,  "min_picks": 5, "max_picks": 8,  "price": 1999.0, "label": "Medium Slip"},
+    "high":   {"target_odds": 150.0, "min_picks": 8, "max_picks": 12, "price": 2999.0, "label": "High Roller"},
+    "mega":   {"target_odds": 650.0, "min_picks": 10, "max_picks": 15, "price": 4999.0, "label": "Mega Slip"},
 }
 
 ALLOWED_MARKETS = {"1", "X", "2", "over25", "btts"}
@@ -220,7 +220,7 @@ def generate_and_save_bundle(db: Session, tier: str) -> Optional[Bundle]:
         picks=json.dumps(result["picks"]),
         tier=tier,
         price=config["price"],
-        currency="USD",
+        currency="KES",
         is_active=True,
         expires_at=expires_at,
     )
