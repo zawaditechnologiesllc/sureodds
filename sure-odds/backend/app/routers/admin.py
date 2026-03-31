@@ -835,6 +835,53 @@ async def update_vip_package(
     return {"success": True, "id": pkg.id, "name": pkg.name, "price": pkg.price, "is_active": pkg.is_active}
 
 
+@router.get("/packages", dependencies=[Depends(verify_admin)])
+async def list_all_packages(db: Session = Depends(get_db)):
+    """Return all pick-credit (Value Pack) packages for admin management."""
+    packages = (
+        db.query(Package)
+        .filter(Package.package_type == "credits")
+        .order_by(Package.price)
+        .all()
+    )
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "price": p.price,
+            "picks_count": p.picks_count,
+            "currency": p.currency,
+            "is_active": p.is_active,
+            "description": p.description,
+        }
+        for p in packages
+    ]
+
+
+@router.patch("/packages/{package_id}", dependencies=[Depends(verify_admin)])
+async def update_package(
+    package_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+):
+    """Update a Value Pack package price, picks_count, name, or active status."""
+    pkg = db.query(Package).filter(Package.id == package_id, Package.package_type == "credits").first()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Package not found")
+    if "price" in body:
+        pkg.price = float(body["price"])
+    if "picks_count" in body:
+        pkg.picks_count = int(body["picks_count"])
+    if "name" in body:
+        pkg.name = str(body["name"])
+    if "is_active" in body:
+        pkg.is_active = bool(body["is_active"])
+    if "description" in body:
+        pkg.description = str(body["description"])
+    db.commit()
+    return {"success": True, "id": pkg.id, "name": pkg.name, "price": pkg.price, "picks_count": pkg.picks_count, "is_active": pkg.is_active}
+
+
 @router.get("/vip-access", dependencies=[Depends(verify_admin)])
 async def list_vip_access(db: Session = Depends(get_db)):
     """Return all VIP access records (active and expired) for admin oversight."""

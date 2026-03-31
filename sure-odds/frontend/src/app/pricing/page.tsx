@@ -172,7 +172,7 @@ function PricingContent() {
             <span className="text-brand-green text-xs font-bold uppercase tracking-widest">Value Packs</span>
           </div>
           <h1 className="text-white font-black text-4xl md:text-5xl mb-4 leading-tight">
-            Pick Credits
+            Value Packs
           </h1>
           <p className="text-brand-muted text-base max-w-lg mx-auto">
             Buy a pack of credits and unlock individual predictions one at a time. Your picks, your matches — credits never expire.
@@ -316,7 +316,7 @@ function PricingContent() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               {
-                title: "Pick Credits",
+                title: "Value Packs",
                 subtitle: "You choose each match",
                 href: "/pricing",
                 cta: "Buy Credits",

@@ -76,9 +76,11 @@ import {
   fetchAdminVipPackages,
   updateAdminVipPackage,
   fetchAdminVipAccess,
+  fetchAdminPackages,
+  updateAdminPackage,
 } from "@/lib/api";
 
-type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance" | "vip";
+type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance" | "vip" | "packages";
 type ActionStatus = "idle" | "loading" | "success" | "error";
 type PartnerStatus = "pending" | "approved" | "rejected";
 
@@ -332,6 +334,13 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [editingVipId, setEditingVipId] = useState<number | null>(null);
   const [vipEditPrice, setVipEditPrice] = useState<string>("");
 
+  // Value Packs (pick credit packages)
+  const [valuePacks, setValuePacks] = useState<any[]>([]);
+  const [valuePacksLoading, setValuePacksLoading] = useState(false);
+  const [editingPackId, setEditingPackId] = useState<number | null>(null);
+  const [packEditPrice, setPackEditPrice] = useState<string>("");
+  const [packEditPicks, setPackEditPicks] = useState<string>("");
+
   useEffect(() => {
     fetchAdminStats()
       .then((data) => setStats(data))
@@ -408,6 +417,13 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         .then(setVipAccess)
         .catch(() => null)
         .finally(() => setVipAccessLoading(false));
+    }
+    if (tab === "packages") {
+      setValuePacksLoading(true);
+      fetchAdminPackages()
+        .then(setValuePacks)
+        .catch(() => null)
+        .finally(() => setValuePacksLoading(false));
     }
   }, [tab]);
 
@@ -606,6 +622,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
           {([
             { id: "overview", label: "Overview" },
             { id: "vip", label: "👑 VIP Access" },
+            { id: "packages", label: "💳 Value Packs" },
             { id: "finance", label: "💰 Finance" },
             { id: "bundles", label: "🔥 Bundles" },
             { id: "partners", label: `Partners${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
@@ -1238,6 +1255,137 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VALUE PACKS TAB */}
+        {tab === "packages" && (
+          <div>
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-brand-green" />
+                  <h2 className="text-white font-bold text-lg">Value Pack Pricing</h2>
+                </div>
+                <button
+                  onClick={() => {
+                    setValuePacksLoading(true);
+                    fetchAdminPackages().then(setValuePacks).catch(() => null).finally(() => setValuePacksLoading(false));
+                  }}
+                  className="text-brand-muted hover:text-white"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-brand-muted text-xs mb-5">Edit price or pick count for each credit pack. Toggle active/inactive to show or hide from buyers.</p>
+
+              {valuePacksLoading ? (
+                <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 text-brand-green animate-spin" /></div>
+              ) : valuePacks.length === 0 ? (
+                <p className="text-brand-muted text-sm text-center py-6">No Value Packs found. Restart the backend to seed them.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {valuePacks.map((pkg: any) => (
+                    <div key={pkg.id} className={`rounded-xl border p-4 ${pkg.is_active ? "border-brand-green/40 bg-green-950/10" : "border-brand-border bg-brand-dark opacity-60"}`}>
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="text-white font-bold text-sm">{pkg.name}</p>
+                          <p className="text-brand-muted text-xs mt-0.5">{pkg.picks_count} picks · {pkg.currency}</p>
+                        </div>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${pkg.is_active ? "bg-green-950 text-brand-green border-green-900" : "bg-gray-900 text-brand-muted border-gray-800"}`}>
+                          {pkg.is_active ? "Active" : "Off"}
+                        </span>
+                      </div>
+
+                      {editingPackId === pkg.id ? (
+                        <div className="space-y-2 mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-brand-muted text-xs w-12 shrink-0">Price</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={packEditPrice}
+                              onChange={(e) => setPackEditPrice(e.target.value)}
+                              className="flex-1 bg-brand-dark border border-brand-border rounded px-2 py-1.5 text-white text-sm"
+                              placeholder="e.g. 4.99"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-brand-muted text-xs w-12 shrink-0">Picks</span>
+                            <input
+                              type="number"
+                              value={packEditPicks}
+                              onChange={(e) => setPackEditPicks(e.target.value)}
+                              className="flex-1 bg-brand-dark border border-brand-border rounded px-2 py-1.5 text-white text-sm"
+                              placeholder="e.g. 5"
+                            />
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await updateAdminPackage(pkg.id, {
+                                    price: parseFloat(packEditPrice),
+                                    picks_count: parseInt(packEditPicks),
+                                  });
+                                  setValuePacks((prev) => prev.map((p) =>
+                                    p.id === pkg.id
+                                      ? { ...p, price: parseFloat(packEditPrice), picks_count: parseInt(packEditPicks) }
+                                      : p
+                                  ));
+                                  toast.success("Pack updated.");
+                                } catch { toast.error("Update failed."); }
+                                setEditingPackId(null);
+                              }}
+                              className="flex-1 py-1.5 bg-brand-green hover:bg-green-600 text-black text-xs font-bold rounded transition-colors"
+                            >
+                              Save
+                            </button>
+                            <button onClick={() => setEditingPackId(null)} className="text-brand-muted hover:text-white px-2">
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="text-brand-green font-black text-2xl">${pkg.price?.toFixed(2)}</p>
+                            <p className="text-brand-muted text-xs">${(pkg.price / pkg.picks_count).toFixed(2)} / pick</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setEditingPackId(pkg.id);
+                              setPackEditPrice(String(pkg.price));
+                              setPackEditPicks(String(pkg.picks_count));
+                            }}
+                            className="text-brand-muted hover:text-white text-xs flex items-center gap-1 border border-brand-border rounded px-2 py-1 transition-colors hover:border-gray-500"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
+
+                      {pkg.description && (
+                        <p className="text-brand-muted text-xs mb-3 leading-relaxed">{pkg.description}</p>
+                      )}
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            await updateAdminPackage(pkg.id, { is_active: !pkg.is_active });
+                            setValuePacks((prev) => prev.map((p) => p.id === pkg.id ? { ...p, is_active: !pkg.is_active } : p));
+                            toast.success(`Pack ${pkg.is_active ? "deactivated" : "activated"}.`);
+                          } catch { toast.error("Toggle failed."); }
+                        }}
+                        className={`w-full py-1.5 rounded text-xs font-bold transition-colors ${pkg.is_active ? "bg-red-950 hover:bg-red-900 text-brand-red border border-red-900" : "bg-green-950 hover:bg-green-900 text-brand-green border border-green-900"}`}
+                      >
+                        {pkg.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

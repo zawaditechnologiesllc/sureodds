@@ -82,7 +82,8 @@ export default function Navbar() {
     { href: "/results", label: "Results" },
     { href: "/bundles", label: "🔥 Bundles" },
     { href: "/vip", label: "👑 VIP Access" },
-    { href: "/pricing", label: "Pricing" },
+    { href: "/pricing", label: "Value Packs" },
+    { href: "/about", label: "About Us" },
   ];
 
   const mobilePublicLinks = [
@@ -90,7 +91,8 @@ export default function Navbar() {
     { href: "/results", label: "Results" },
     { href: "/bundles", label: "🔥 Bundles" },
     { href: "/vip", label: "👑 VIP Access" },
-    { href: "/pricing", label: "Pricing" },
+    { href: "/pricing", label: "Value Packs" },
+    { href: "/about", label: "About Us" },
     { href: "/partner", label: "Earn 30% Commission" },
   ];
 

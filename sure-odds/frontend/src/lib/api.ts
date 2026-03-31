@@ -444,6 +444,16 @@ export const updateAdminVipPackage = async (id: number, body: Record<string, unk
   return res.data;
 };
 
+export const fetchAdminPackages = async () => {
+  const res = await api.get("/admin/packages");
+  return res.data;
+};
+
+export const updateAdminPackage = async (id: number, body: Record<string, unknown>) => {
+  const res = await api.patch(`/admin/packages/${id}`, body);
+  return res.data;
+};
+
 export const fetchAdminVipAccess = async () => {
   const res = await api.get("/admin/vip-access");
   return res.data;
