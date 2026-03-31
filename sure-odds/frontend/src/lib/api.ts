@@ -383,3 +383,39 @@ export const toggleAdminNotification = async (id: number) => {
   const res = await api.patch(`/admin/notifications/${id}/toggle`);
   return res.data;
 };
+
+// ─── User Notifications ───────────────────────────────────────────────────────
+
+export const fetchMyNotifications = async () => {
+  const res = await api.get("/users/notifications");
+  return res.data;
+};
+
+// ─── Admin — Finance ─────────────────────────────────────────────────────────
+
+export const fetchAdminFinanceSummary = async () => {
+  const res = await api.get("/admin/finance/summary");
+  return res.data;
+};
+
+export const fetchAdminFinanceTransactions = async (status?: string) => {
+  const params: Record<string, string> = {};
+  if (status) params.status = status;
+  const res = await api.get("/admin/finance/transactions", { params });
+  return res.data;
+};
+
+export const fetchAdminFinanceEarnings = async () => {
+  const res = await api.get("/admin/finance/earnings");
+  return res.data;
+};
+
+export const markEarningPaid = async (earningId: number) => {
+  const res = await api.post(`/admin/finance/earnings/${earningId}/pay`);
+  return res.data;
+};
+
+export const bulkMarkEarningsPaid = async (earningIds: number[]) => {
+  const res = await api.post("/admin/finance/earnings/bulk-pay", { earning_ids: earningIds });
+  return res.data;
+};

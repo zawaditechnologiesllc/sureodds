@@ -32,6 +32,14 @@ import {
   ToggleLeft,
   ToggleRight,
   Plus,
+  DollarSign,
+  TrendingDown,
+  Package,
+  Layers,
+  ArrowUpRight,
+  Banknote,
+  CircleDollarSign,
+  Filter,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -59,9 +67,14 @@ import {
   createAdminNotification,
   deleteAdminNotification,
   toggleAdminNotification,
+  fetchAdminFinanceSummary,
+  fetchAdminFinanceTransactions,
+  fetchAdminFinanceEarnings,
+  markEarningPaid,
+  bulkMarkEarningsPaid,
 } from "@/lib/api";
 
-type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications";
+type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance";
 type ActionStatus = "idle" | "loading" | "success" | "error";
 type PartnerStatus = "pending" | "approved" | "rejected";
 
@@ -296,6 +309,17 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [notifTarget, setNotifTarget] = useState("all");
   const [creatingNotif, setCreatingNotif] = useState(false);
 
+  // Finance
+  const [financeSummary, setFinanceSummary] = useState<Record<string, number> | null>(null);
+  const [financeSummaryLoading, setFinanceSummaryLoading] = useState(false);
+  const [financeTransactions, setFinanceTransactions] = useState<any[]>([]);
+  const [financeTransactionsLoading, setFinanceTransactionsLoading] = useState(false);
+  const [financeEarnings, setFinanceEarnings] = useState<any[]>([]);
+  const [financeEarningsLoading, setFinanceEarningsLoading] = useState(false);
+  const [txnStatusFilter, setTxnStatusFilter] = useState<string>("");
+  const [payingEarningId, setPayingEarningId] = useState<number | null>(null);
+  const [selectedEarningIds, setSelectedEarningIds] = useState<number[]>([]);
+
   useEffect(() => {
     fetchAdminStats()
       .then((data) => setStats(data))
@@ -343,6 +367,23 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         .then((data) => setNotifications(data))
         .catch(() => toast.error("Could not load notifications."))
         .finally(() => setNotificationsLoading(false));
+    }
+    if (tab === "finance") {
+      setFinanceSummaryLoading(true);
+      setFinanceTransactionsLoading(true);
+      setFinanceEarningsLoading(true);
+      fetchAdminFinanceSummary()
+        .then(setFinanceSummary)
+        .catch(() => toast.error("Could not load finance summary."))
+        .finally(() => setFinanceSummaryLoading(false));
+      fetchAdminFinanceTransactions()
+        .then(setFinanceTransactions)
+        .catch(() => toast.error("Could not load transactions."))
+        .finally(() => setFinanceTransactionsLoading(false));
+      fetchAdminFinanceEarnings()
+        .then(setFinanceEarnings)
+        .catch(() => toast.error("Could not load partner earnings."))
+        .finally(() => setFinanceEarningsLoading(false));
     }
   }, [tab]);
 
@@ -431,6 +472,44 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
     }
   };
 
+  const handleMarkEarningPaid = async (earningId: number) => {
+    setPayingEarningId(earningId);
+    try {
+      await markEarningPaid(earningId);
+      setFinanceEarnings((prev) => prev.map((e) => e.id === earningId ? { ...e, status: "paid", paid_at: new Date().toISOString() } : e));
+      toast.success("Earning marked as paid.");
+    } catch {
+      toast.error("Could not mark as paid.");
+    } finally {
+      setPayingEarningId(null);
+    }
+  };
+
+  const handleBulkPay = async () => {
+    if (selectedEarningIds.length === 0) return;
+    try {
+      const res = await bulkMarkEarningsPaid(selectedEarningIds);
+      toast.success(`${res.updated} earning(s) marked as paid.`);
+      setFinanceEarnings((prev) => prev.map((e) => selectedEarningIds.includes(e.id) ? { ...e, status: "paid", paid_at: new Date().toISOString() } : e));
+      setSelectedEarningIds([]);
+    } catch {
+      toast.error("Bulk pay failed.");
+    }
+  };
+
+  const handleFilterTransactions = async (status: string) => {
+    setTxnStatusFilter(status);
+    setFinanceTransactionsLoading(true);
+    try {
+      const data = await fetchAdminFinanceTransactions(status || undefined);
+      setFinanceTransactions(data);
+    } catch {
+      toast.error("Could not filter transactions.");
+    } finally {
+      setFinanceTransactionsLoading(false);
+    }
+  };
+
   const StatusIcon = ({ status }: { status: ActionStatus }) => {
     if (status === "loading") return <RefreshCw className="w-4 h-4 animate-spin" />;
     if (status === "success") return <CheckCircle className="w-4 h-4 text-brand-green" />;
@@ -502,6 +581,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         <div className="flex gap-1 bg-brand-card border border-brand-border rounded-lg p-1 mb-8 overflow-x-auto">
           {([
             { id: "overview", label: "Overview" },
+            { id: "finance", label: "💰 Finance" },
             { id: "bundles", label: "🔥 Bundles" },
             { id: "partners", label: `Partners${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
             { id: "users", label: "Users" },
@@ -683,6 +763,272 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
               </div>
             </div>
           </>
+        )}
+
+        {/* FINANCE TAB */}
+        {tab === "finance" && (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            {financeSummaryLoading ? (
+              <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 text-brand-red animate-spin" /></div>
+            ) : financeSummary ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: "Total Revenue", value: `$${financeSummary.total_revenue?.toFixed(2)}`, icon: DollarSign, color: "text-brand-green", bg: "bg-green-950/20", border: "border-green-900/30" },
+                  { label: "Today's Revenue", value: `$${financeSummary.today_revenue?.toFixed(2)}`, icon: ArrowUpRight, color: "text-brand-yellow", bg: "bg-yellow-950/20", border: "border-yellow-900/30" },
+                  { label: "Net Revenue", value: `$${financeSummary.net_revenue?.toFixed(2)}`, icon: TrendingUp, color: "text-blue-400", bg: "bg-blue-950/20", border: "border-blue-900/30" },
+                  { label: "Pending Payments", value: `$${financeSummary.pending_revenue?.toFixed(2)}`, icon: Clock, color: "text-brand-red", bg: "bg-red-950/20", border: "border-red-900/30" },
+                  { label: "Package Revenue", value: `$${financeSummary.package_revenue?.toFixed(2)}`, icon: Package, color: "text-white", bg: "bg-brand-dark", border: "border-brand-border" },
+                  { label: "Bundle Revenue", value: `$${financeSummary.bundle_revenue?.toFixed(2)}`, icon: Layers, color: "text-white", bg: "bg-brand-dark", border: "border-brand-border" },
+                  { label: "Partner Commissions", value: `$${financeSummary.total_commissions?.toFixed(2)}`, icon: Users, color: "text-brand-muted", bg: "bg-brand-dark", border: "border-brand-border" },
+                  { label: "Pending Commissions", value: `$${financeSummary.pending_commissions?.toFixed(2)}`, icon: Banknote, color: "text-brand-yellow", bg: "bg-yellow-950/20", border: "border-yellow-900/30" },
+                ].map(({ label, value, icon: Icon, color, bg, border }) => (
+                  <div key={label} className={`rounded-xl border p-4 ${bg} ${border}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icon className={`w-4 h-4 ${color}`} />
+                      <span className="text-brand-muted text-xs font-medium">{label}</span>
+                    </div>
+                    <p className={`text-xl font-black ${color}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {/* Paid-out commissions + pending */}
+            {financeSummary && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="bg-green-950/20 border border-green-900/30 rounded-xl p-4 flex items-center gap-3">
+                  <CheckCircle className="w-8 h-8 text-brand-green shrink-0" />
+                  <div>
+                    <p className="text-brand-muted text-xs">Paid Commissions</p>
+                    <p className="text-white font-black text-xl">${financeSummary.paid_commissions?.toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="bg-brand-card border border-brand-border rounded-xl p-4 flex items-center gap-3">
+                  <CircleDollarSign className="w-8 h-8 text-brand-muted shrink-0" />
+                  <div>
+                    <p className="text-brand-muted text-xs">Total Transactions</p>
+                    <p className="text-white font-black text-xl">{financeSummary.total_transactions}</p>
+                  </div>
+                </div>
+                <div className="bg-yellow-950/20 border border-yellow-900/30 rounded-xl p-4 flex items-center gap-3">
+                  <AlertCircle className="w-8 h-8 text-brand-yellow shrink-0" />
+                  <div>
+                    <p className="text-brand-muted text-xs">Pending Transactions</p>
+                    <p className="text-white font-black text-xl">{financeSummary.pending_transactions}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Transactions Table */}
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-brand-green" />
+                  <h2 className="text-white font-bold text-lg">All Transactions</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Filter className="w-3.5 h-3.5 text-brand-muted" />
+                  {(["", "success", "pending", "failed"] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => handleFilterTransactions(s)}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+                        txnStatusFilter === s
+                          ? "bg-brand-red border-red-700 text-white"
+                          : "bg-brand-dark border-brand-border text-brand-muted hover:text-white"
+                      }`}
+                    >
+                      {s === "" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => handleFilterTransactions(txnStatusFilter)}
+                    className="text-brand-muted hover:text-white"
+                    title="Refresh"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {financeTransactionsLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-brand-red animate-spin" /></div>
+              ) : financeTransactions.length === 0 ? (
+                <p className="text-brand-muted text-sm text-center py-8">No transactions found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-brand-border text-brand-muted text-xs uppercase">
+                        <th className="text-left py-2 pr-4 font-bold">User</th>
+                        <th className="text-left py-2 pr-4 font-bold">Product</th>
+                        <th className="text-left py-2 pr-4 font-bold">Type</th>
+                        <th className="text-left py-2 pr-4 font-bold">Amount</th>
+                        <th className="text-left py-2 pr-4 font-bold">Status</th>
+                        <th className="text-left py-2 pr-4 font-bold">Reference</th>
+                        <th className="text-left py-2 font-bold">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-border/40">
+                      {financeTransactions.map((t: any) => (
+                        <tr key={`${t.type}-${t.id}`} className="hover:bg-brand-dark/30 transition-colors">
+                          <td className="py-2.5 pr-4 text-white text-xs max-w-[140px] truncate">{t.user_email}</td>
+                          <td className="py-2.5 pr-4 text-brand-muted text-xs max-w-[140px] truncate">{t.product}</td>
+                          <td className="py-2.5 pr-4">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${t.type === "package" ? "bg-blue-950 text-blue-400 border-blue-900" : "bg-yellow-950 text-brand-yellow border-yellow-900"}`}>
+                              {t.type}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pr-4 text-brand-green text-xs font-bold">${t.amount?.toFixed(2)}</td>
+                          <td className="py-2.5 pr-4">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${
+                              t.status === "success" ? "bg-green-950 text-brand-green border-green-900"
+                              : t.status === "pending" ? "bg-yellow-950 text-brand-yellow border-yellow-900"
+                              : "bg-red-950 text-brand-red border-red-900"
+                            }`}>
+                              {t.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pr-4 text-brand-muted text-[10px] font-mono">{t.reference}</td>
+                          <td className="py-2.5 text-brand-muted text-xs whitespace-nowrap">
+                            {t.created_at ? new Date(t.created_at).toLocaleDateString("en-GB") : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Partner Earnings Table */}
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Banknote className="w-5 h-5 text-brand-yellow" />
+                  <h2 className="text-white font-bold text-lg">Partner Commissions</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedEarningIds.length > 0 && (
+                    <button
+                      onClick={handleBulkPay}
+                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 bg-brand-green hover:bg-green-600 text-black rounded transition-colors"
+                    >
+                      <CheckCircle className="w-3 h-3" />
+                      Pay Selected ({selectedEarningIds.length})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setFinanceEarningsLoading(true);
+                      fetchAdminFinanceEarnings().then(setFinanceEarnings).catch(() => null).finally(() => setFinanceEarningsLoading(false));
+                    }}
+                    className="text-brand-muted hover:text-white"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {financeEarningsLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-brand-red animate-spin" /></div>
+              ) : financeEarnings.length === 0 ? (
+                <p className="text-brand-muted text-sm text-center py-8">No partner earnings yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-brand-border text-brand-muted text-xs uppercase">
+                        <th className="text-left py-2 pr-3 font-bold w-5">
+                          <input
+                            type="checkbox"
+                            className="accent-brand-red"
+                            checked={selectedEarningIds.length === financeEarnings.filter((e: any) => e.status === "pending").length && financeEarnings.filter((e: any) => e.status === "pending").length > 0}
+                            onChange={(ev) => {
+                              if (ev.target.checked) {
+                                setSelectedEarningIds(financeEarnings.filter((e: any) => e.status === "pending").map((e: any) => e.id));
+                              } else {
+                                setSelectedEarningIds([]);
+                              }
+                            }}
+                          />
+                        </th>
+                        <th className="text-left py-2 pr-4 font-bold">Partner</th>
+                        <th className="text-left py-2 pr-4 font-bold">Referred User</th>
+                        <th className="text-left py-2 pr-4 font-bold">Commission</th>
+                        <th className="text-left py-2 pr-4 font-bold">Rate</th>
+                        <th className="text-left py-2 pr-4 font-bold">Payout</th>
+                        <th className="text-left py-2 pr-4 font-bold">Status</th>
+                        <th className="text-left py-2 pr-4 font-bold">Date</th>
+                        <th className="text-left py-2 font-bold">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-border/40">
+                      {financeEarnings.map((e: any) => (
+                        <tr key={e.id} className="hover:bg-brand-dark/30 transition-colors">
+                          <td className="py-2.5 pr-3">
+                            {e.status === "pending" && (
+                              <input
+                                type="checkbox"
+                                className="accent-brand-red"
+                                checked={selectedEarningIds.includes(e.id)}
+                                onChange={(ev) => {
+                                  if (ev.target.checked) {
+                                    setSelectedEarningIds((prev) => [...prev, e.id]);
+                                  } else {
+                                    setSelectedEarningIds((prev) => prev.filter((id) => id !== e.id));
+                                  }
+                                }}
+                              />
+                            )}
+                          </td>
+                          <td className="py-2.5 pr-4 text-white text-xs max-w-[130px] truncate">{e.partner_email}</td>
+                          <td className="py-2.5 pr-4 text-brand-muted text-xs max-w-[130px] truncate">{e.referred_user_email}</td>
+                          <td className="py-2.5 pr-4 text-brand-green text-xs font-black">${e.amount?.toFixed(2)}</td>
+                          <td className="py-2.5 pr-4 text-brand-muted text-xs">{(e.commission_rate * 100).toFixed(0)}%</td>
+                          <td className="py-2.5 pr-4 text-xs">
+                            {e.payout_method === "usdt" ? (
+                              <span className="text-brand-green font-bold">USDT TRC-20</span>
+                            ) : e.payout_method === "bank" ? (
+                              <span className="text-blue-400 font-bold">{e.bank_name || "Bank"}</span>
+                            ) : (
+                              <span className="text-brand-muted">—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${e.status === "paid" ? "bg-green-950 text-brand-green border-green-900" : "bg-yellow-950 text-brand-yellow border-yellow-900"}`}>
+                              {e.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pr-4 text-brand-muted text-xs whitespace-nowrap">
+                            {e.created_at ? new Date(e.created_at).toLocaleDateString("en-GB") : "—"}
+                          </td>
+                          <td className="py-2.5">
+                            {e.status === "pending" ? (
+                              <button
+                                onClick={() => handleMarkEarningPaid(e.id)}
+                                disabled={payingEarningId === e.id}
+                                className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 bg-brand-green hover:bg-green-600 disabled:opacity-60 text-black rounded transition-colors"
+                              >
+                                {payingEarningId === e.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                                Pay
+                              </button>
+                            ) : (
+                              <span className="text-brand-muted text-[10px]">
+                                {e.paid_at ? new Date(e.paid_at).toLocaleDateString("en-GB") : "Paid"}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* BUNDLES TAB */}

@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 from datetime import date, timedelta, datetime, timezone
 from typing import List, Optional
 from app.core.database import get_db
-from app.models.models import User, Fixture, Prediction, Bundle, PartnerApplication, Notification, Transaction, BundlePurchase, UserPackage, Package
+from app.models.models import User, Fixture, Prediction, Bundle, PartnerApplication, Notification, Transaction, BundlePurchase, UserPackage, Package, ReferralEarning, PartnerPayoutSettings
 from app.services.fixtures_service import (
     update_all_fixtures,
     fetch_upcoming,
@@ -335,8 +335,8 @@ async def list_partner_applications(db: Session = Depends(get_db)):
 
 
 @router.post("/partners/{app_id}/approve", dependencies=[Depends(verify_admin)])
-async def approve_partner(app_id: str, db: Session = Depends(get_db)):
-    """Approve a partner application and link the corresponding user account."""
+async def approve_partner(app_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Approve a partner application, link user account, and send approval email."""
     app = db.query(PartnerApplication).filter(PartnerApplication.id == app_id).first()
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
@@ -348,7 +348,21 @@ async def approve_partner(app_id: str, db: Session = Depends(get_db)):
         if user:
             app.user_id = user.id
     db.commit()
+    # Send approval email in background
+    partner_email = app.email
+    partner_name = app.name
+    background_tasks.add_task(_send_partner_approval_bg, partner_email, partner_name)
     return {"success": True, "id": app_id, "status": "approved", "user_linked": app.user_id is not None}
+
+
+def _send_partner_approval_bg(email: str, name: str) -> None:
+    """Background task wrapper for partner approval email."""
+    try:
+        from app.core.email import send_partner_approval_email
+        send_partner_approval_email(email, name)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("Failed to send partner approval email: %s", exc)
 
 
 @router.post("/partners/{app_id}/reject", dependencies=[Depends(verify_admin)])
@@ -604,3 +618,168 @@ async def toggle_notification(notif_id: int, db: Session = Depends(get_db)):
     notif.is_active = not notif.is_active
     db.commit()
     return {"success": True, "id": notif_id, "is_active": notif.is_active}
+
+
+# ---------------------------------------------------------------------------
+# Finance — full revenue, transactions, partner earnings & payouts
+# ---------------------------------------------------------------------------
+
+@router.get("/finance/summary", dependencies=[Depends(verify_admin)])
+async def finance_summary(db: Session = Depends(get_db)):
+    """Complete financial summary for the admin finance tab."""
+    today = date.today()
+
+    # Package revenue (successful transactions)
+    pkg_txns = db.query(Transaction).filter(Transaction.status == "success").all()
+    total_pkg_revenue = sum(t.amount for t in pkg_txns)
+    today_pkg_revenue = sum(t.amount for t in pkg_txns if t.verified_at and t.verified_at.date() == today)
+
+    # Bundle revenue (successful bundle purchases)
+    bundle_txns = db.query(BundlePurchase).filter(BundlePurchase.status == "success").all()
+    total_bundle_revenue = sum(b.amount for b in bundle_txns)
+    today_bundle_revenue = sum(b.amount for b in bundle_txns if b.verified_at and b.verified_at.date() == today)
+
+    # Pending revenue
+    pending_pkg = db.query(Transaction).filter(Transaction.status == "pending").all()
+    pending_bundle = db.query(BundlePurchase).filter(BundlePurchase.status == "pending").all()
+    pending_revenue = sum(t.amount for t in pending_pkg) + sum(b.amount for b in pending_bundle)
+
+    # Partner commissions
+    all_earnings = db.query(ReferralEarning).all()
+    total_commissions = sum(e.amount for e in all_earnings)
+    pending_commissions = sum(e.amount for e in all_earnings if e.status == "pending")
+    paid_commissions = sum(e.amount for e in all_earnings if e.status == "paid")
+
+    net_revenue = (total_pkg_revenue + total_bundle_revenue) - paid_commissions
+
+    return {
+        "total_revenue": round(total_pkg_revenue + total_bundle_revenue, 2),
+        "package_revenue": round(total_pkg_revenue, 2),
+        "bundle_revenue": round(total_bundle_revenue, 2),
+        "today_revenue": round(today_pkg_revenue + today_bundle_revenue, 2),
+        "pending_revenue": round(pending_revenue, 2),
+        "total_commissions": round(total_commissions, 2),
+        "pending_commissions": round(pending_commissions, 2),
+        "paid_commissions": round(paid_commissions, 2),
+        "net_revenue": round(net_revenue, 2),
+        "total_transactions": len(pkg_txns) + len(bundle_txns),
+        "pending_transactions": len(pending_pkg) + len(pending_bundle),
+    }
+
+
+@router.get("/finance/transactions", dependencies=[Depends(verify_admin)])
+async def finance_transactions(
+    status: Optional[str] = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+):
+    """All transactions (packages + bundles) with user email, filtered by status."""
+    pkg_q = db.query(Transaction, User).join(User, Transaction.user_id == User.id)
+    if status:
+        pkg_q = pkg_q.filter(Transaction.status == status)
+    pkg_rows = pkg_q.order_by(Transaction.created_at.desc()).limit(limit).all()
+
+    bundle_q = db.query(BundlePurchase, User, Bundle).join(
+        User, BundlePurchase.user_id == User.id
+    ).join(Bundle, BundlePurchase.bundle_id == Bundle.id)
+    if status:
+        bundle_q = bundle_q.filter(BundlePurchase.status == status)
+    bundle_rows = bundle_q.order_by(BundlePurchase.created_at.desc()).limit(limit).all()
+
+    results = []
+    for txn, user in pkg_rows:
+        pkg = db.query(Package).filter(Package.id == txn.package_id).first() if txn.package_id else None
+        results.append({
+            "id": txn.id,
+            "type": "package",
+            "user_email": user.email,
+            "user_id": user.id,
+            "product": pkg.name if pkg else f"Package #{txn.package_id}",
+            "amount": txn.amount,
+            "status": txn.status,
+            "reference": txn.reference,
+            "created_at": txn.created_at.isoformat() if txn.created_at else None,
+            "verified_at": txn.verified_at.isoformat() if txn.verified_at else None,
+        })
+    for bp, user, bundle in bundle_rows:
+        results.append({
+            "id": bp.id,
+            "type": "bundle",
+            "user_email": user.email,
+            "user_id": user.id,
+            "product": bundle.name,
+            "amount": bp.amount,
+            "status": bp.status,
+            "reference": bp.reference,
+            "created_at": bp.created_at.isoformat() if bp.created_at else None,
+            "verified_at": bp.verified_at.isoformat() if bp.verified_at else None,
+        })
+    results.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    return results[:limit]
+
+
+@router.get("/finance/earnings", dependencies=[Depends(verify_admin)])
+async def finance_earnings(db: Session = Depends(get_db)):
+    """All partner referral earnings with partner info and payout settings."""
+    earnings = (
+        db.query(ReferralEarning, User)
+        .join(User, ReferralEarning.user_id == User.id)
+        .order_by(ReferralEarning.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    result = []
+    for earning, partner in earnings:
+        referred = db.query(User).filter(User.id == earning.referred_user_id).first()
+        payout = db.query(PartnerPayoutSettings).filter(PartnerPayoutSettings.user_id == partner.id).first()
+        result.append({
+            "id": earning.id,
+            "partner_email": partner.email,
+            "partner_id": partner.id,
+            "referred_user_email": referred.email if referred else "—",
+            "amount": earning.amount,
+            "subscription_amount": earning.subscription_amount,
+            "commission_rate": earning.commission_rate,
+            "status": earning.status,
+            "payout_method": payout.method if payout else None,
+            "usdt_address": payout.usdt_address if payout else None,
+            "bank_name": payout.bank_name if payout else None,
+            "created_at": earning.created_at.isoformat() if earning.created_at else None,
+            "paid_at": earning.paid_at.isoformat() if earning.paid_at else None,
+        })
+    return result
+
+
+@router.post("/finance/earnings/{earning_id}/pay", dependencies=[Depends(verify_admin)])
+async def mark_earning_paid(earning_id: int, db: Session = Depends(get_db)):
+    """Mark a partner earning as paid."""
+    earning = db.query(ReferralEarning).filter(ReferralEarning.id == earning_id).first()
+    if not earning:
+        raise HTTPException(status_code=404, detail="Earning not found")
+    if earning.status == "paid":
+        return {"success": True, "message": "Already paid"}
+    earning.status = "paid"
+    earning.paid_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"success": True, "id": earning_id, "status": "paid"}
+
+
+@router.post("/finance/earnings/bulk-pay", dependencies=[Depends(verify_admin)])
+async def bulk_mark_earnings_paid(
+    body: dict,
+    db: Session = Depends(get_db),
+):
+    """Mark multiple earnings as paid at once. Body: {"earning_ids": [1, 2, 3]}"""
+    ids = body.get("earning_ids", [])
+    if not ids:
+        raise HTTPException(status_code=400, detail="No earning IDs provided")
+    now = datetime.now(timezone.utc)
+    updated = 0
+    for eid in ids:
+        earning = db.query(ReferralEarning).filter(ReferralEarning.id == eid).first()
+        if earning and earning.status != "paid":
+            earning.status = "paid"
+            earning.paid_at = now
+            updated += 1
+    db.commit()
+    return {"success": True, "updated": updated}

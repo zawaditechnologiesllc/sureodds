@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.models import User, PartnerApplication
+from app.models.models import User, PartnerApplication, Notification
 from app.core.config import settings
 from pydantic import BaseModel
 import secrets
@@ -128,3 +128,41 @@ async def get_me(current_user: User = Depends(get_current_user)):
         predictionScore=current_user.prediction_score or 0,
         accuracy=current_user.accuracy_pct or 0,
     )
+
+
+@router.get("/notifications")
+async def get_my_notifications(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return active notifications targeted at this user based on their role."""
+    is_partner = (
+        db.query(PartnerApplication)
+        .filter(
+            PartnerApplication.user_id == current_user.id,
+            PartnerApplication.status == "approved",
+        )
+        .first()
+        is not None
+    )
+    role = "partners" if is_partner else "users"
+    notifs = (
+        db.query(Notification)
+        .filter(
+            Notification.is_active == True,
+            Notification.target.in_(["all", role]),
+        )
+        .order_by(Notification.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    return [
+        {
+            "id": n.id,
+            "title": n.title,
+            "message": n.message,
+            "target": n.target,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+        }
+        for n in notifs
+    ]
