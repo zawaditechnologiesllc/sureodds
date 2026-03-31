@@ -12,6 +12,10 @@ import {
   Lock,
   ArrowRight,
   Star,
+  Crown,
+  Clock,
+  CalendarDays,
+  CalendarCheck,
 } from "lucide-react";
 
 const BUNDLES = [
@@ -307,6 +311,122 @@ export default function PricingPage() {
             Already have an account?{" "}
             <Link href="/auth/login?redirect=/packages" className="text-white hover:text-brand-green underline underline-offset-2">
               Log in to buy credits
+            </Link>
+          </p>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 mb-10">
+          <div className="flex-1 border-t border-brand-border" />
+          <span className="text-brand-muted text-xs font-bold uppercase tracking-widest">or</span>
+          <div className="flex-1 border-t border-brand-border" />
+        </div>
+
+        {/* ── Section 3: VIP Access ─────────────────────────────────── */}
+        <div className="mb-16">
+          <div className="flex items-center gap-3 mb-2">
+            <Crown className="w-5 h-5 text-yellow-400" />
+            <h2 className="text-white font-black text-2xl">👑 VIP Access</h2>
+          </div>
+          <p className="text-brand-muted text-sm mb-8 ml-8 max-w-xl">
+            Get unlimited access to all of today&apos;s premium VIP tips for a fixed period. Pay once and enjoy every pick — no credits needed.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              {
+                name: "Daily Tips",
+                price: "KSh 200",
+                duration: "1 day access",
+                icon: Clock,
+                gradient: "from-green-600 to-emerald-700",
+                features: ["Today's premium selections", "Full probability breakdown", "Ideal for short-term access"],
+                highlight: false,
+              },
+              {
+                name: "Weekly Access",
+                price: "KSh 625",
+                duration: "7 days access",
+                icon: CalendarDays,
+                gradient: "from-yellow-500 to-amber-600",
+                features: ["Higher volume opportunities", "Full probability breakdown", "Best value — save 30%"],
+                highlight: true,
+                badge: "Best Value",
+              },
+              {
+                name: "Monthly Access",
+                price: "KSh 1,500",
+                duration: "30 days access",
+                icon: CalendarCheck,
+                gradient: "from-purple-600 to-violet-700",
+                features: ["Full access to daily VIP tips full month", "Best for serious bettors", "Consistent long-term plan"],
+                highlight: false,
+                badge: "Most Popular",
+              },
+            ].map((plan) => {
+              const Icon = plan.icon;
+              return (
+                <div
+                  key={plan.name}
+                  className={`relative rounded-2xl border p-6 flex flex-col ${
+                    plan.highlight
+                      ? "border-yellow-500/50 bg-gradient-to-b from-yellow-950/20 to-brand-card"
+                      : "border-brand-border bg-brand-card"
+                  }`}
+                >
+                  {plan.badge && plan.highlight && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span className="text-[10px] font-black px-3 py-1 rounded-full border bg-yellow-950/40 text-yellow-400 border-yellow-500/30">
+                        {plan.badge}
+                      </span>
+                    </div>
+                  )}
+                  {plan.badge && !plan.highlight && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span className="text-[10px] font-black px-3 py-1 rounded-full border bg-purple-950/40 text-purple-400 border-purple-500/30">
+                        {plan.badge}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${plan.gradient} flex items-center justify-center shrink-0`}>
+                      <Icon className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-white font-black text-base leading-none">{plan.name}</h3>
+                      <p className="text-brand-muted text-xs mt-0.5">{plan.duration}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-baseline justify-between mb-4">
+                    <span className="text-yellow-400 font-black text-2xl">{plan.price}</span>
+                  </div>
+
+                  <div className="space-y-2 mb-6 flex-1">
+                    {plan.features.map((f) => (
+                      <div key={f} className="flex items-start gap-2">
+                        <CheckCircle className="w-3.5 h-3.5 text-yellow-500 shrink-0 mt-0.5" />
+                        <span className="text-white text-xs">{f}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Link
+                    href="/auth/login?redirect=/packages"
+                    className="w-full py-3 rounded-xl text-sm text-center font-black transition-all block bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-black shadow-md"
+                  >
+                    Pay — {plan.price}
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="text-center text-brand-muted text-xs mt-5">
+            VIP access is activated instantly after payment. Already have an account?{" "}
+            <Link href="/auth/login?redirect=/packages" className="text-white hover:text-yellow-400 underline underline-offset-2">
+              Log in to get VIP access
             </Link>
           </p>
         </div>

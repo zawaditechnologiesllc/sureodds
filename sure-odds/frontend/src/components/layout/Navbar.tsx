@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Menu, X, LogIn, Zap, LayoutDashboard, ChevronDown, CreditCard, Users, Bell, CheckCircle, AlertCircle } from "lucide-react";
+import { Menu, X, LogIn, Zap, LayoutDashboard, ChevronDown, CreditCard, Users, Bell, CheckCircle, AlertCircle, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/lib/supabase";
@@ -81,6 +81,7 @@ export default function Navbar() {
     { href: "/predictions", label: "Fixtures" },
     { href: "/results", label: "Results" },
     { href: "/bundles", label: "🔥 Bundles" },
+    { href: "/packages", label: "👑 VIP Access" },
     { href: "/pricing", label: "Pricing" },
   ];
 
@@ -88,6 +89,7 @@ export default function Navbar() {
     { href: "/predictions", label: "Fixtures" },
     { href: "/results", label: "Results" },
     { href: "/bundles", label: "🔥 Bundles" },
+    { href: "/packages", label: "👑 VIP Access" },
     { href: "/pricing", label: "Pricing" },
     { href: "/partner", label: "Earn 30% Commission" },
   ];
@@ -233,6 +235,14 @@ export default function Navbar() {
                       >
                         <Zap className="w-4 h-4" />
                         Today&apos;s Picks
+                      </Link>
+                      <Link
+                        href="/packages"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-yellow-400 hover:bg-brand-card hover:text-yellow-300 transition-colors border-t border-brand-border/50"
+                      >
+                        <Crown className="w-4 h-4" />
+                        VIP Access
                       </Link>
                       <Link
                         href="/packages"

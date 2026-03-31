@@ -28,6 +28,7 @@ import {
   CreditCard,
   CalendarCheck,
   CalendarDays,
+  Crown,
   Trash2,
   ToggleLeft,
   ToggleRight,
@@ -77,7 +78,7 @@ import {
   fetchAdminVipAccess,
 } from "@/lib/api";
 
-type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance";
+type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance" | "vip";
 type ActionStatus = "idle" | "loading" | "success" | "error";
 type PartnerStatus = "pending" | "approved" | "rejected";
 
@@ -383,8 +384,6 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
       setFinanceSummaryLoading(true);
       setFinanceTransactionsLoading(true);
       setFinanceEarningsLoading(true);
-      setVipPackagesLoading(true);
-      setVipAccessLoading(true);
       fetchAdminFinanceSummary()
         .then(setFinanceSummary)
         .catch(() => toast.error("Could not load finance summary."))
@@ -397,6 +396,10 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         .then(setFinanceEarnings)
         .catch(() => toast.error("Could not load partner earnings."))
         .finally(() => setFinanceEarningsLoading(false));
+    }
+    if (tab === "vip") {
+      setVipPackagesLoading(true);
+      setVipAccessLoading(true);
       fetchAdminVipPackages()
         .then(setVipPackages)
         .catch(() => null)
@@ -602,6 +605,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         <div className="flex gap-1 bg-brand-card border border-brand-border rounded-lg p-1 mb-8 overflow-x-auto">
           {([
             { id: "overview", label: "Overview" },
+            { id: "vip", label: "👑 VIP Access" },
             { id: "finance", label: "💰 Finance" },
             { id: "bundles", label: "🔥 Bundles" },
             { id: "partners", label: `Partners${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
@@ -1050,12 +1054,29 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
               )}
             </div>
 
+          </div>
+        )}
+
+        {/* VIP ACCESS TAB */}
+        {tab === "vip" && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-amber-600 flex items-center justify-center">
+                <Crown className="w-5 h-5 text-black" />
+              </div>
+              <div>
+                <h2 className="text-white font-black text-xl">VIP Access Management</h2>
+                <p className="text-brand-muted text-sm">Manage VIP packages, pricing, and active subscriptions.</p>
+              </div>
+            </div>
+
             {/* VIP Package Pricing Management */}
             <div className="bg-brand-card border border-brand-border rounded-xl p-5">
               <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
                 <div className="flex items-center gap-2">
-                  <Crown className="w-5 h-5 text-brand-yellow" />
-                  <h2 className="text-white font-bold text-lg">VIP Access Pricing</h2>
+                  <Crown className="w-5 h-5 text-yellow-400" />
+                  <h2 className="text-white font-bold text-lg">VIP Package Pricing</h2>
                 </div>
                 <button
                   onClick={() => {
@@ -1160,12 +1181,29 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                 <div className="flex items-center gap-2">
                   <CalendarCheck className="w-5 h-5 text-brand-green" />
                   <h2 className="text-white font-bold text-lg">VIP Access Log</h2>
+                  {vipAccess.length > 0 && (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-yellow-950/40 text-yellow-400 border border-yellow-500/30">
+                      {vipAccess.filter((r: any) => r.is_active).length} active
+                    </span>
+                  )}
                 </div>
+                <button
+                  onClick={() => {
+                    setVipAccessLoading(true);
+                    fetchAdminVipAccess().then(setVipAccess).catch(() => null).finally(() => setVipAccessLoading(false));
+                  }}
+                  className="text-brand-muted hover:text-white"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
               </div>
               {vipAccessLoading ? (
                 <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 text-brand-red animate-spin" /></div>
               ) : vipAccess.length === 0 ? (
-                <p className="text-brand-muted text-sm text-center py-6">No VIP purchases yet.</p>
+                <div className="text-center py-10">
+                  <Crown className="w-10 h-10 text-brand-muted mx-auto mb-3 opacity-30" />
+                  <p className="text-brand-muted text-sm">No VIP purchases yet.</p>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -1173,6 +1211,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                       <tr className="border-b border-brand-border text-brand-muted text-xs uppercase">
                         <th className="text-left py-2 pr-4 font-bold">User</th>
                         <th className="text-left py-2 pr-4 font-bold">Package</th>
+                        <th className="text-left py-2 pr-4 font-bold">Activated</th>
                         <th className="text-left py-2 pr-4 font-bold">Expires</th>
                         <th className="text-left py-2 pr-4 font-bold">Status</th>
                         <th className="text-left py-2 font-bold">Reference</th>
@@ -1183,6 +1222,9 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                         <tr key={r.id} className="hover:bg-brand-dark/30 transition-colors">
                           <td className="py-2.5 pr-4 text-white text-xs max-w-[150px] truncate">{r.user_email}</td>
                           <td className="py-2.5 pr-4 text-brand-muted text-xs">{r.package_name}</td>
+                          <td className="py-2.5 pr-4 text-brand-muted text-xs whitespace-nowrap">
+                            {r.created_at ? new Date(r.created_at).toLocaleDateString("en-GB") : "—"}
+                          </td>
                           <td className="py-2.5 pr-4 text-brand-muted text-xs whitespace-nowrap">
                             {r.expires_at ? new Date(r.expires_at).toLocaleDateString("en-GB") : "—"}
                           </td>
