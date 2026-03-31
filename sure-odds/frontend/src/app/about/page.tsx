@@ -152,7 +152,7 @@ export default function AboutPage() {
               Built by Analysts. Powered by Data.
             </h2>
             <p className="text-brand-muted text-sm leading-relaxed mb-4">
-              Sure Odds was founded in Nairobi, Kenya in 2023 by a team of football enthusiasts and data scientists
+              Sure Odds was founded in 2023 by a team of football enthusiasts and data scientists
               who were frustrated by prediction services that relied on gut feeling and hype rather than mathematics.
             </p>
             <p className="text-brand-muted text-sm leading-relaxed mb-4">
@@ -160,7 +160,7 @@ export default function AboutPage() {
               historical fixtures to validate our model before a single prediction went public.
             </p>
             <p className="text-brand-muted text-sm leading-relaxed">
-              Today, Sure Odds serves football fans across East Africa and beyond, giving everyone access to the
+              Today, Sure Odds sells odds to customers across East Africa and globally, giving everyone access to the
               same quality of statistical analysis previously reserved for professional betting syndicates.
             </p>
           </div>
@@ -171,10 +171,9 @@ export default function AboutPage() {
                 <MapPin className="w-5 h-5 text-brand-red" />
               </div>
               <div>
-                <p className="text-white font-bold text-sm mb-1">Based in Nairobi, Kenya</p>
+                <p className="text-white font-bold text-sm mb-1">Based in Bucharest, Romania</p>
                 <p className="text-brand-muted text-xs leading-relaxed">
-                  Operating from Nairobi with a remote team spanning Kenya, Uganda, and Tanzania. We understand
-                  the East African football market — and we build for it.
+                  Calea Floreasca 169A, Sector 1, 014459 Bucharest, Romania. Serving customers across East Africa and globally.
                 </p>
               </div>
             </div>
@@ -334,7 +333,7 @@ export default function AboutPage() {
               {
                 icon: Zap,
                 label: "Value Packs",
-                href: "/pricing",
+                href: "/packages",
                 color: "text-brand-green",
                 bg: "bg-brand-green/10 border-brand-green/20",
                 desc: "Credit packs to unlock individual predictions. Credits never expire.",
