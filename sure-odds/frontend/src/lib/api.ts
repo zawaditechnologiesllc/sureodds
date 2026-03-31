@@ -419,3 +419,32 @@ export const bulkMarkEarningsPaid = async (earningIds: number[]) => {
   const res = await api.post("/admin/finance/earnings/bulk-pay", { earning_ids: earningIds });
   return res.data;
 };
+
+// ─── VIP Packages ─────────────────────────────────────────────────────────────
+
+export const fetchVipPackages = async () => {
+  const res = await api.get("/packages/vip");
+  return res.data;
+};
+
+export const fetchVipStatus = async () => {
+  const res = await api.get("/vip-status");
+  return res.data;
+};
+
+// ─── Admin — VIP ──────────────────────────────────────────────────────────────
+
+export const fetchAdminVipPackages = async () => {
+  const res = await api.get("/admin/vip-packages");
+  return res.data;
+};
+
+export const updateAdminVipPackage = async (id: number, body: Record<string, unknown>) => {
+  const res = await api.patch(`/admin/vip-packages/${id}`, body);
+  return res.data;
+};
+
+export const fetchAdminVipAccess = async () => {
+  const res = await api.get("/admin/vip-access");
+  return res.data;
+};

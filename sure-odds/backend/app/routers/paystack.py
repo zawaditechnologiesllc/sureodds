@@ -18,7 +18,7 @@ from typing import Optional
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.models import User, UserPackage, Package, Transaction, ReferralEarning
+from app.models.models import User, UserPackage, Package, Transaction, ReferralEarning, UserVipAccess
 from app.routers.users import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -62,8 +62,11 @@ async def initialize_payment(
         raise HTTPException(status_code=404, detail="Package not found")
 
     reference = f"SO-{secrets.token_hex(8).upper()}"
-    # USD → KES → Paystack smallest unit (1 KES = 100 kobo)
-    amount_kobo = int(float(package.price) * settings.USD_TO_KES_RATE * 100)
+    # VIP packages are priced directly in KES; credits packages are USD → KES
+    if package.currency == "KES":
+        amount_kobo = int(float(package.price) * 100)
+    else:
+        amount_kobo = int(float(package.price) * settings.USD_TO_KES_RATE * 100)
 
     payload = {
         "email": body.email,
@@ -74,6 +77,8 @@ async def initialize_payment(
             "package_id": package.id,
             "package_name": package.name,
             "picks_count": package.picks_count,
+            "package_type": getattr(package, "package_type", "credits"),
+            "duration_days": getattr(package, "duration_days", None),
         },
     }
 
@@ -163,6 +168,8 @@ async def verify_payment(
     meta = tx_data.get("metadata", {})
     package_id = meta.get("package_id")
     picks_count = meta.get("picks_count", 0)
+    package_type = meta.get("package_type", "credits")
+    duration_days = meta.get("duration_days")
     email = tx_data.get("customer", {}).get("email", "")
 
     # Find user
@@ -171,14 +178,15 @@ async def verify_payment(
         raise HTTPException(status_code=404, detail="User account not found for this payment")
 
     # Mark transaction success
+    amount_paid = tx_data.get("amount", 0) / 100
     if txn:
         txn.status = "success"
         txn.verified_at = datetime.utcnow()
     else:
         txn = Transaction(
             user_id=user.id,
-            amount=tx_data.get("amount", 0) / 100,
-            type="package",
+            amount=amount_paid,
+            type="vip" if package_type == "vip" else "package",
             status="success",
             reference=reference,
             package_id=package_id,
@@ -186,16 +194,41 @@ async def verify_payment(
         )
         db.add(txn)
 
-    # Add picks credits to user
-    user_pkg = db.query(UserPackage).filter(UserPackage.user_id == user.id).first()
-    if user_pkg:
-        user_pkg.remaining_picks += picks_count
-    else:
-        user_pkg = UserPackage(
-            user_id=user.id,
-            remaining_picks=picks_count,
+    vip_expires_at = None
+    user_pkg = None
+
+    if package_type == "vip" and duration_days:
+        # Grant VIP time-based access
+        from datetime import timedelta
+        now = datetime.utcnow()
+        # If user already has active VIP, extend it; otherwise start fresh
+        existing = (
+            db.query(UserVipAccess)
+            .filter(UserVipAccess.user_id == user.id, UserVipAccess.expires_at > now)
+            .order_by(UserVipAccess.expires_at.desc())
+            .first()
         )
-        db.add(user_pkg)
+        if existing:
+            vip_expires_at = existing.expires_at + timedelta(days=duration_days)
+            existing.expires_at = vip_expires_at
+        else:
+            vip_expires_at = now + timedelta(days=duration_days)
+            vip_entry = UserVipAccess(
+                user_id=user.id,
+                package_id=package_id,
+                expires_at=vip_expires_at,
+                reference=reference,
+            )
+            db.add(vip_entry)
+        logger.info(f"VIP access granted to {user.id} until {vip_expires_at}")
+    else:
+        # Add picks credits to user
+        user_pkg = db.query(UserPackage).filter(UserPackage.user_id == user.id).first()
+        if user_pkg:
+            user_pkg.remaining_picks += picks_count
+        else:
+            user_pkg = UserPackage(user_id=user.id, remaining_picks=picks_count)
+            db.add(user_pkg)
 
     # Referral commission — 30% to the partner who referred this user
     if user.referred_by:
@@ -213,10 +246,18 @@ async def verify_payment(
 
     db.commit()
 
+    if package_type == "vip":
+        return {
+            "status": "success",
+            "package_type": "vip",
+            "vip_expires_at": vip_expires_at.isoformat() if vip_expires_at else None,
+            "duration_days": duration_days,
+            "package_id": package_id,
+        }
     return {
         "status": "success",
         "picks_added": picks_count,
-        "picks_remaining": user_pkg.remaining_picks,
+        "picks_remaining": user_pkg.remaining_picks if user_pkg else 0,
         "package_id": package_id,
     }
 
@@ -280,7 +321,10 @@ async def initialize_mobile_money(
         raise HTTPException(status_code=400, detail="Invalid phone number. Use format 07XXXXXXXX or 254XXXXXXXXX")
 
     reference = f"SO-MM-{secrets.token_hex(8).upper()}"
-    amount_kobo = int(float(package.price) * settings.USD_TO_KES_RATE * 100)
+    if package.currency == "KES":
+        amount_kobo = int(float(package.price) * 100)
+    else:
+        amount_kobo = int(float(package.price) * settings.USD_TO_KES_RATE * 100)
 
     payload = {
         "email": body.email,
@@ -386,6 +430,8 @@ async def mobile_money_status(
             raise HTTPException(status_code=404, detail="Package not found")
 
         picks_count = package.picks_count
+        pkg_type = getattr(package, "package_type", "credits")
+        duration_days = getattr(package, "duration_days", None)
         email = data.get("data", {}).get("customer", {}).get("email", "")
         user = db.query(User).filter(User.email == email).first()
 
@@ -403,7 +449,7 @@ async def mobile_money_status(
             txn = Transaction(
                 user_id=user.id,
                 amount=float(package.price),
-                type="mobile_money_package",
+                type="vip" if pkg_type == "vip" else "mobile_money_package",
                 status="success",
                 reference=reference,
                 package_id=package_id,
@@ -411,13 +457,32 @@ async def mobile_money_status(
             )
             db.add(txn)
 
-        # Add credits
-        user_pkg = db.query(UserPackage).filter(UserPackage.user_id == user.id).first()
-        if user_pkg:
-            user_pkg.remaining_picks += picks_count
+        vip_expires_at = None
+        user_pkg = None
+
+        if pkg_type == "vip" and duration_days:
+            from datetime import timedelta
+            now = datetime.utcnow()
+            existing = (
+                db.query(UserVipAccess)
+                .filter(UserVipAccess.user_id == user.id, UserVipAccess.expires_at > now)
+                .order_by(UserVipAccess.expires_at.desc())
+                .first()
+            )
+            if existing:
+                vip_expires_at = existing.expires_at + timedelta(days=duration_days)
+                existing.expires_at = vip_expires_at
+            else:
+                vip_expires_at = now + timedelta(days=duration_days)
+                db.add(UserVipAccess(user_id=user.id, package_id=package_id, expires_at=vip_expires_at, reference=reference))
         else:
-            user_pkg = UserPackage(user_id=user.id, remaining_picks=picks_count)
-            db.add(user_pkg)
+            # Add credits
+            user_pkg = db.query(UserPackage).filter(UserPackage.user_id == user.id).first()
+            if user_pkg:
+                user_pkg.remaining_picks += picks_count
+            else:
+                user_pkg = UserPackage(user_id=user.id, remaining_picks=picks_count)
+                db.add(user_pkg)
 
         # Referral commission
         if user.referred_by:
@@ -435,10 +500,17 @@ async def mobile_money_status(
 
         db.commit()
 
+        if pkg_type == "vip":
+            return {
+                "status": "success",
+                "package_type": "vip",
+                "vip_expires_at": vip_expires_at.isoformat() if vip_expires_at else None,
+                "duration_days": duration_days,
+            }
         return {
             "status": "success",
             "picks_added": picks_count,
-            "picks_remaining": user_pkg.remaining_picks,
+            "picks_remaining": user_pkg.remaining_picks if user_pkg else 0,
         }
 
     if charge_status in ("failed", "abandoned", "reversed"):

@@ -2,14 +2,15 @@
 Pick packages — available credit bundles users can purchase.
 """
 import logging
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 
 from app.core.database import get_db
-from app.models.models import Package, UserPackage, Fixture, Prediction, League
+from app.models.models import Package, UserPackage, UserVipAccess, Fixture, Prediction, League
 from app.routers.users import get_current_user, User
 from sqlalchemy import cast, Date
 from datetime import date
@@ -25,6 +26,10 @@ class PackageOut(BaseModel):
     price: float
     picks_count: int
     currency: str
+    package_type: str = "credits"
+    duration_days: Optional[int] = None
+    description: Optional[str] = None
+    features: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -41,9 +46,53 @@ class UnlockRequest(BaseModel):
 
 @router.get("/packages", response_model=List[PackageOut])
 async def list_packages(db: Session = Depends(get_db)):
-    """Return all available pick packages."""
-    packages = db.query(Package).filter(Package.is_active == True).order_by(Package.price).all()
+    """Return all available pick (credits) packages only."""
+    packages = (
+        db.query(Package)
+        .filter(Package.is_active == True, Package.package_type == "credits")
+        .order_by(Package.price)
+        .all()
+    )
     return packages
+
+
+@router.get("/packages/vip", response_model=List[PackageOut])
+async def list_vip_packages(db: Session = Depends(get_db)):
+    """Return all available VIP access packages."""
+    packages = (
+        db.query(Package)
+        .filter(Package.is_active == True, Package.package_type == "vip")
+        .order_by(Package.price)
+        .all()
+    )
+    return packages
+
+
+@router.get("/vip-status")
+async def get_vip_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the authenticated user's active VIP access (if any)."""
+    access = (
+        db.query(UserVipAccess)
+        .filter(
+            UserVipAccess.user_id == current_user.id,
+            UserVipAccess.expires_at > datetime.utcnow(),
+        )
+        .order_by(UserVipAccess.expires_at.desc())
+        .first()
+    )
+    if not access:
+        return {"is_active": False, "expires_at": None, "package_name": None}
+
+    pkg = db.query(Package).filter(Package.id == access.package_id).first()
+    return {
+        "is_active": True,
+        "expires_at": access.expires_at.isoformat(),
+        "package_name": pkg.name if pkg else "VIP Access",
+        "duration_days": pkg.duration_days if pkg else None,
+    }
 
 
 @router.get("/user-credits", response_model=CreditsOut)

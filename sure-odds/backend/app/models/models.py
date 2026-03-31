@@ -93,11 +93,31 @@ class Package(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
-    price = Column(Float, nullable=False)         # Amount in USD
-    picks_count = Column(Integer, nullable=False)
+    price = Column(Float, nullable=False)         # Amount in USD (or KES for VIP)
+    picks_count = Column(Integer, nullable=False, default=0)
     currency = Column(String, default="USD")
+    package_type = Column(String, default="credits")  # "credits" | "vip"
+    duration_days = Column(Integer, nullable=True)     # For VIP: 1, 7, 30
+    description = Column(Text, nullable=True)
+    features = Column(Text, nullable=True)             # JSON array of feature strings
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserVipAccess(Base):
+    """Tracks active VIP access for each user."""
+    __tablename__ = "user_vip_access"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    package_id = Column(Integer, ForeignKey("packages.id"), nullable=True)
+    starts_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    reference = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+    package = relationship("Package")
 
 
 class UserPackage(Base):

@@ -4,7 +4,7 @@ from sqlalchemy import func, cast, Date
 from datetime import date, timedelta, datetime, timezone
 from typing import List, Optional
 from app.core.database import get_db
-from app.models.models import User, Fixture, Prediction, Bundle, PartnerApplication, Notification, Transaction, BundlePurchase, UserPackage, Package, ReferralEarning, PartnerPayoutSettings
+from app.models.models import User, Fixture, Prediction, Bundle, PartnerApplication, Notification, Transaction, BundlePurchase, UserPackage, Package, ReferralEarning, PartnerPayoutSettings, UserVipAccess
 from app.services.fixtures_service import (
     update_all_fixtures,
     fetch_upcoming,
@@ -783,3 +783,81 @@ async def bulk_mark_earnings_paid(
             updated += 1
     db.commit()
     return {"success": True, "updated": updated}
+
+
+# ---------------------------------------------------------------------------
+# VIP Access management
+# ---------------------------------------------------------------------------
+
+@router.get("/vip-packages", dependencies=[Depends(verify_admin)])
+async def list_all_vip_packages(db: Session = Depends(get_db)):
+    """Return all VIP packages (active + inactive) for admin management."""
+    import json
+    packages = db.query(Package).filter(Package.package_type == "vip").order_by(Package.price).all()
+    result = []
+    for p in packages:
+        result.append({
+            "id": p.id,
+            "name": p.name,
+            "price": p.price,
+            "currency": p.currency,
+            "duration_days": p.duration_days,
+            "description": p.description,
+            "features": json.loads(p.features) if p.features else [],
+            "is_active": p.is_active,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        })
+    return result
+
+
+@router.patch("/vip-packages/{package_id}", dependencies=[Depends(verify_admin)])
+async def update_vip_package(
+    package_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+):
+    """Update a VIP package's price, name, or active status."""
+    import json
+    pkg = db.query(Package).filter(Package.id == package_id, Package.package_type == "vip").first()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="VIP package not found")
+    if "name" in body:
+        pkg.name = body["name"]
+    if "price" in body:
+        pkg.price = float(body["price"])
+    if "description" in body:
+        pkg.description = body["description"]
+    if "features" in body:
+        pkg.features = json.dumps(body["features"]) if isinstance(body["features"], list) else body["features"]
+    if "is_active" in body:
+        pkg.is_active = bool(body["is_active"])
+    db.commit()
+    return {"success": True, "id": pkg.id, "name": pkg.name, "price": pkg.price, "is_active": pkg.is_active}
+
+
+@router.get("/vip-access", dependencies=[Depends(verify_admin)])
+async def list_vip_access(db: Session = Depends(get_db)):
+    """Return all VIP access records (active and expired) for admin oversight."""
+    from sqlalchemy import desc
+    records = (
+        db.query(UserVipAccess)
+        .order_by(desc(UserVipAccess.created_at))
+        .limit(200)
+        .all()
+    )
+    result = []
+    for r in records:
+        user = db.query(User).filter(User.id == r.user_id).first()
+        pkg = db.query(Package).filter(Package.id == r.package_id).first()
+        now = datetime.utcnow()
+        result.append({
+            "id": r.id,
+            "user_email": user.email if user else r.user_id,
+            "package_name": pkg.name if pkg else "Unknown",
+            "duration_days": pkg.duration_days if pkg else None,
+            "starts_at": r.starts_at.isoformat() if r.starts_at else None,
+            "expires_at": r.expires_at.isoformat() if r.expires_at else None,
+            "is_active": r.expires_at > now if r.expires_at else False,
+            "reference": r.reference,
+        })
+    return result

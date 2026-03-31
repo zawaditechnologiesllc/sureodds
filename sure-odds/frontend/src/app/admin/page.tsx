@@ -72,6 +72,9 @@ import {
   fetchAdminFinanceEarnings,
   markEarningPaid,
   bulkMarkEarningsPaid,
+  fetchAdminVipPackages,
+  updateAdminVipPackage,
+  fetchAdminVipAccess,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance";
@@ -320,6 +323,14 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [payingEarningId, setPayingEarningId] = useState<number | null>(null);
   const [selectedEarningIds, setSelectedEarningIds] = useState<number[]>([]);
 
+  // VIP
+  const [vipPackages, setVipPackages] = useState<any[]>([]);
+  const [vipPackagesLoading, setVipPackagesLoading] = useState(false);
+  const [vipAccess, setVipAccess] = useState<any[]>([]);
+  const [vipAccessLoading, setVipAccessLoading] = useState(false);
+  const [editingVipId, setEditingVipId] = useState<number | null>(null);
+  const [vipEditPrice, setVipEditPrice] = useState<string>("");
+
   useEffect(() => {
     fetchAdminStats()
       .then((data) => setStats(data))
@@ -372,6 +383,8 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
       setFinanceSummaryLoading(true);
       setFinanceTransactionsLoading(true);
       setFinanceEarningsLoading(true);
+      setVipPackagesLoading(true);
+      setVipAccessLoading(true);
       fetchAdminFinanceSummary()
         .then(setFinanceSummary)
         .catch(() => toast.error("Could not load finance summary."))
@@ -384,6 +397,14 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         .then(setFinanceEarnings)
         .catch(() => toast.error("Could not load partner earnings."))
         .finally(() => setFinanceEarningsLoading(false));
+      fetchAdminVipPackages()
+        .then(setVipPackages)
+        .catch(() => null)
+        .finally(() => setVipPackagesLoading(false));
+      fetchAdminVipAccess()
+        .then(setVipAccess)
+        .catch(() => null)
+        .finally(() => setVipAccessLoading(false));
     }
   }, [tab]);
 
@@ -1021,6 +1042,156 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                               </span>
                             )}
                           </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* VIP Package Pricing Management */}
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-brand-yellow" />
+                  <h2 className="text-white font-bold text-lg">VIP Access Pricing</h2>
+                </div>
+                <button
+                  onClick={() => {
+                    setVipPackagesLoading(true);
+                    fetchAdminVipPackages().then(setVipPackages).catch(() => null).finally(() => setVipPackagesLoading(false));
+                  }}
+                  className="text-brand-muted hover:text-white"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {vipPackagesLoading ? (
+                <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 text-brand-red animate-spin" /></div>
+              ) : vipPackages.length === 0 ? (
+                <p className="text-brand-muted text-sm text-center py-6">No VIP packages found. Restart the backend to seed them.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {vipPackages.map((pkg: any) => (
+                    <div key={pkg.id} className={`rounded-xl border p-4 ${pkg.is_active ? "border-yellow-700/40 bg-yellow-950/10" : "border-brand-border bg-brand-dark opacity-60"}`}>
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="text-white font-bold text-sm">{pkg.name}</p>
+                          <p className="text-brand-muted text-xs mt-0.5">
+                            {pkg.duration_days === 1 ? "1 Day" : pkg.duration_days === 7 ? "7 Days" : "30 Days"} · {pkg.currency}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${pkg.is_active ? "bg-green-950 text-brand-green border-green-900" : "bg-gray-900 text-brand-muted border-gray-800"}`}>
+                          {pkg.is_active ? "Active" : "Off"}
+                        </span>
+                      </div>
+
+                      {editingVipId === pkg.id ? (
+                        <div className="flex items-center gap-2 mb-3">
+                          <input
+                            type="number"
+                            value={vipEditPrice}
+                            onChange={(e) => setVipEditPrice(e.target.value)}
+                            className="flex-1 bg-brand-dark border border-brand-border rounded px-2 py-1.5 text-white text-sm"
+                            placeholder="Price in KES"
+                          />
+                          <button
+                            onClick={async () => {
+                              try {
+                                await updateAdminVipPackage(pkg.id, { price: parseFloat(vipEditPrice) });
+                                setVipPackages((prev) => prev.map((p) => p.id === pkg.id ? { ...p, price: parseFloat(vipEditPrice) } : p));
+                                toast.success("Price updated.");
+                              } catch { toast.error("Update failed."); }
+                              setEditingVipId(null);
+                            }}
+                            className="px-3 py-1.5 bg-brand-green hover:bg-green-600 text-black text-xs font-bold rounded transition-colors"
+                          >
+                            Save
+                          </button>
+                          <button onClick={() => setEditingVipId(null)} className="text-brand-muted hover:text-white">
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-yellow-400 font-black text-2xl">KSh {pkg.price?.toLocaleString()}</p>
+                          <button
+                            onClick={() => { setEditingVipId(pkg.id); setVipEditPrice(String(pkg.price)); }}
+                            className="text-brand-muted hover:text-white text-xs flex items-center gap-1 border border-brand-border rounded px-2 py-1 transition-colors hover:border-gray-500"
+                          >
+                            Edit Price
+                          </button>
+                        </div>
+                      )}
+
+                      {pkg.features?.length > 0 && (
+                        <ul className="space-y-1 mb-3">
+                          {pkg.features.map((f: string) => (
+                            <li key={f} className="flex items-center gap-1.5 text-xs text-brand-muted">
+                              <CheckCircle className="w-3 h-3 text-brand-green shrink-0" /> {f}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            await updateAdminVipPackage(pkg.id, { is_active: !pkg.is_active });
+                            setVipPackages((prev) => prev.map((p) => p.id === pkg.id ? { ...p, is_active: !pkg.is_active } : p));
+                            toast.success(`Package ${pkg.is_active ? "deactivated" : "activated"}.`);
+                          } catch { toast.error("Toggle failed."); }
+                        }}
+                        className={`w-full py-1.5 rounded text-xs font-bold transition-colors ${pkg.is_active ? "bg-red-950 hover:bg-red-900 text-brand-red border border-red-900" : "bg-green-950 hover:bg-green-900 text-brand-green border border-green-900"}`}
+                      >
+                        {pkg.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* VIP Access Log */}
+            <div className="bg-brand-card border border-brand-border rounded-xl p-5">
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <CalendarCheck className="w-5 h-5 text-brand-green" />
+                  <h2 className="text-white font-bold text-lg">VIP Access Log</h2>
+                </div>
+              </div>
+              {vipAccessLoading ? (
+                <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 text-brand-red animate-spin" /></div>
+              ) : vipAccess.length === 0 ? (
+                <p className="text-brand-muted text-sm text-center py-6">No VIP purchases yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-brand-border text-brand-muted text-xs uppercase">
+                        <th className="text-left py-2 pr-4 font-bold">User</th>
+                        <th className="text-left py-2 pr-4 font-bold">Package</th>
+                        <th className="text-left py-2 pr-4 font-bold">Expires</th>
+                        <th className="text-left py-2 pr-4 font-bold">Status</th>
+                        <th className="text-left py-2 font-bold">Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-border/40">
+                      {vipAccess.map((r: any) => (
+                        <tr key={r.id} className="hover:bg-brand-dark/30 transition-colors">
+                          <td className="py-2.5 pr-4 text-white text-xs max-w-[150px] truncate">{r.user_email}</td>
+                          <td className="py-2.5 pr-4 text-brand-muted text-xs">{r.package_name}</td>
+                          <td className="py-2.5 pr-4 text-brand-muted text-xs whitespace-nowrap">
+                            {r.expires_at ? new Date(r.expires_at).toLocaleDateString("en-GB") : "—"}
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${r.is_active ? "bg-green-950 text-brand-green border-green-900" : "bg-gray-900 text-brand-muted border-gray-800"}`}>
+                              {r.is_active ? "Active" : "Expired"}
+                            </span>
+                          </td>
+                          <td className="py-2.5 text-brand-muted text-[10px] font-mono max-w-[120px] truncate">{r.reference || "—"}</td>
                         </tr>
                       ))}
                     </tbody>

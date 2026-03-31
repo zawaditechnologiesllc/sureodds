@@ -19,7 +19,7 @@ from app.routers import (
     partner_dashboard as partner_dashboard_router,
 )
 from app.routers import bundles as bundles_router
-from app.models.models import Package
+from app.models.models import Package, UserVipAccess
 from app.services.fixtures_service import (
     fetch_window,
     get_current_season,
@@ -119,21 +119,70 @@ async def run_poll():
 # ---------------------------------------------------------------------------
 
 def seed_packages(db):
-    """Ensure the 3 pick packages exist in the database."""
-    defaults = [
-        {"id": 1, "name": "Starter Pack — 5 Picks",  "price": 2.99, "picks_count": 5},
-        {"id": 2, "name": "Value Pack — 10 Picks",   "price": 4.99, "picks_count": 10},
-        {"id": 3, "name": "Pro Pack — 20 Picks",     "price": 8.99, "picks_count": 20},
+    """Ensure pick + VIP packages exist in the database."""
+    import json
+    credits_defaults = [
+        {"id": 1, "name": "Starter Pack — 5 Picks",  "price": 2.99, "picks_count": 5,  "currency": "USD", "package_type": "credits"},
+        {"id": 2, "name": "Value Pack — 10 Picks",   "price": 4.99, "picks_count": 10, "currency": "USD", "package_type": "credits"},
+        {"id": 3, "name": "Pro Pack — 20 Picks",     "price": 8.99, "picks_count": 20, "currency": "USD", "package_type": "credits"},
     ]
-    for pkg_data in defaults:
+    vip_defaults = [
+        {
+            "id": 4,
+            "name": "Daily VIP Tips",
+            "price": 200,
+            "picks_count": 0,
+            "currency": "KES",
+            "package_type": "vip",
+            "duration_days": 1,
+            "description": "Full access to today's premium VIP tips",
+            "features": json.dumps(["Today's premium selections", "Full probability breakdown", "Ideal for short-term access"]),
+        },
+        {
+            "id": 5,
+            "name": "Weekly VIP Access",
+            "price": 625,
+            "picks_count": 0,
+            "currency": "KES",
+            "package_type": "vip",
+            "duration_days": 7,
+            "description": "7 days of daily VIP tips",
+            "features": json.dumps(["Higher volume opportunities", "Full probability breakdown", "Best value — save 30%"]),
+        },
+        {
+            "id": 6,
+            "name": "Monthly VIP Access",
+            "price": 1500,
+            "picks_count": 0,
+            "currency": "KES",
+            "package_type": "vip",
+            "duration_days": 30,
+            "description": "Full access to daily VIP tips for a full month",
+            "features": json.dumps(["Full access to daily VIP tips full month", "Best for serious bettors", "Consistent long-term plan"]),
+        },
+    ]
+    for pkg_data in credits_defaults:
         existing = db.query(Package).filter(Package.id == pkg_data["id"]).first()
         if existing:
-            existing.name        = pkg_data["name"]
-            existing.price       = pkg_data["price"]
-            existing.picks_count = pkg_data["picks_count"]
-            existing.currency    = "USD"
+            existing.name         = pkg_data["name"]
+            existing.price        = pkg_data["price"]
+            existing.picks_count  = pkg_data["picks_count"]
+            existing.currency     = pkg_data["currency"]
+            existing.package_type = "credits"
         else:
-            db.add(Package(**pkg_data, currency="USD"))
+            db.add(Package(**pkg_data))
+    for pkg_data in vip_defaults:
+        existing = db.query(Package).filter(Package.id == pkg_data["id"]).first()
+        if existing:
+            existing.name          = pkg_data["name"]
+            existing.price         = pkg_data["price"]
+            existing.currency      = pkg_data["currency"]
+            existing.package_type  = "vip"
+            existing.duration_days = pkg_data["duration_days"]
+            existing.description   = pkg_data["description"]
+            existing.features      = pkg_data["features"]
+        else:
+            db.add(Package(**pkg_data))
     db.commit()
 
 
