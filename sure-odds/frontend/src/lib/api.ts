@@ -244,6 +244,28 @@ export const checkMpesaStatus = async (invoiceId: string, packageId: number) => 
   return res.data;
 };
 
+// ─── Paystack Mobile Money (M-Pesa / Airtel via Paystack) ────────────────────
+
+export const initializeMobileMoneyPaystack = async (
+  packageId: number,
+  email: string,
+  phone: string,
+  provider: string
+) => {
+  const res = await api.post("/paystack/mobile-money/initialize", {
+    package_id: packageId,
+    email,
+    phone,
+    provider,
+  });
+  return res.data;
+};
+
+export const checkMobileMoneyStatusPaystack = async (reference: string, packageId: number) => {
+  const res = await api.get(`/paystack/mobile-money/status?reference=${reference}&package_id=${packageId}`);
+  return res.data;
+};
+
 // ─── Partners ────────────────────────────────────────────────────────────────
 
 export const submitPartnerApplication = async (form: {

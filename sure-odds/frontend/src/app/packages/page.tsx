@@ -10,9 +10,10 @@ import {
   CreditCard, ArrowRight, Lock, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fetchPackages, initializePayment, verifyPayment, fetchUserCredits } from "@/lib/api";
+import { fetchPackages, verifyPayment, fetchUserCredits } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
 import toast from "react-hot-toast";
+import PaymentMethodModal from "@/components/payment/PaymentMethodModal";
 
 interface Package {
   id: number;
@@ -39,9 +40,9 @@ function PackagesContent() {
   const [selected, setSelected] = useState<number | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
   const [pkgsLoading, setPkgsLoading] = useState(true);
-  const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [showPayModal, setShowPayModal] = useState(false);
 
   // Load packages eagerly — they're public
   useEffect(() => {
@@ -106,26 +107,22 @@ function PackagesContent() {
     if (ref) handleVerify(ref);
   }, [searchParams, isAuthenticated, handleVerify]);
 
-  const handleBuy = async () => {
+  const handleBuy = () => {
     if (!selected || !user?.email) {
       setError("Could not determine your email. Please log out and back in.");
       return;
     }
-    setPaying(true);
     setError(null);
-    try {
-      // Callback goes back here so we can verify
-      const callbackUrl = `${window.location.origin}/packages`;
-      const data = await initializePayment(selected, user.email, callbackUrl);
-      window.location.href = data.authorization_url;
-    } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : null;
-      setError(msg || "Could not start payment. Please try again.");
-      setPaying(false);
-    }
+    setShowPayModal(true);
+  };
+
+  const handlePaymentSuccess = (picksAdded: number) => {
+    setShowPayModal(false);
+    toast.success(
+      `✅ ${picksAdded} credit${picksAdded !== 1 ? "s" : ""} added! Go pick your matches.`,
+      { duration: 5000 }
+    );
+    router.push("/predictions?credits=added");
   };
 
   const selectedPkg = packages.find((p) => p.id === selected);
@@ -318,24 +315,15 @@ function PackagesContent() {
             {/* Pay Button */}
             <button
               onClick={handleBuy}
-              disabled={paying || !selected}
+              disabled={!selected}
               className="w-full py-4 rounded-xl bg-brand-red hover:bg-red-700 disabled:opacity-60 text-white font-black text-base transition-colors flex items-center justify-center gap-2"
             >
-              {paying ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Redirecting to Paystack...
-                </>
-              ) : (
-                <>
-                  Pay {selectedPkg ? `$${selectedPkg.price.toFixed(2)}` : ""} — Get Instant Access
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
+              Pay {selectedPkg ? `$${selectedPkg.price.toFixed(2)}` : ""} — Get Instant Access
+              <ArrowRight className="w-5 h-5" />
             </button>
 
             <p className="text-center text-brand-muted text-xs mt-3">
-              🔒 Secured by{" "}
+              🔒 Card &amp; Mobile Money · Secured by{" "}
               <a
                 href="https://paystack.com"
                 target="_blank"
@@ -344,7 +332,7 @@ function PackagesContent() {
               >
                 Paystack
               </a>{" "}
-              · 256-bit SSL · Credits added instantly after payment
+              · Credits added instantly after payment
             </p>
 
             {/* How it works */}
@@ -356,15 +344,15 @@ function PackagesContent() {
                 {[
                   {
                     step: "1",
-                    text: "You're sent to Paystack's secure checkout page",
+                    text: "Choose Card or Mobile Money (M-Pesa / Airtel Money)",
                   },
                   {
                     step: "2",
-                    text: "Complete payment — Paystack accepts local cards and bank payments in your currency",
+                    text: "Card: Complete checkout on Paystack's secure page. Mobile Money: Approve the STK push on your phone.",
                   },
                   {
                     step: "3",
-                    text: "You're redirected back here automatically — credits are verified and added instantly",
+                    text: "Credits are verified and added to your account instantly",
                   },
                   {
                     step: "4",
@@ -387,6 +375,17 @@ function PackagesContent() {
       <Footer />
       <MobileNav />
       <div className="h-16 md:h-0" />
+
+      {/* Payment method modal */}
+      {showPayModal && selectedPkg && user?.email && (
+        <PaymentMethodModal
+          pkg={selectedPkg}
+          email={user.email}
+          callbackUrl={typeof window !== "undefined" ? `${window.location.origin}/packages` : "/packages"}
+          onClose={() => setShowPayModal(false)}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
     </div>
   );
 }
