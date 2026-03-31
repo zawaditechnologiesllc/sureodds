@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5000,https://sureodds.pro,https://www.sureodds.pro"
 
     @property
+    def cors_origins_list(self) -> List[str]:
+        origins = [origin.strip().rstrip("/") for origin in self.CORS_ORIGINS.split(",")]
+        replit_domain = os.environ.get("REPLIT_DEV_DOMAIN", "")
+        if replit_domain:
+            origins.append(f"https://{replit_domain}")
+        return origins
+
+    @property
     def active_api_key(self) -> str:
         """Return whichever API key is configured (Football-Data.org preferred)."""
         return self.FOOTBALL_DATA_API_KEY or self.API_FOOTBALL_KEY
@@ -92,10 +100,6 @@ class Settings(BaseSettings):
         if not raw:
             return self.database_url
         return self._clean_db_url(raw)
-
-    @property
-    def cors_origins_list(self) -> List[str]:
-        return [origin.strip().rstrip("/") for origin in self.CORS_ORIGINS.split(",")]
 
     def validate_production(self):
         errors = []
