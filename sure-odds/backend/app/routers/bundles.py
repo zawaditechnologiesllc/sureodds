@@ -8,7 +8,7 @@ import json
 import secrets
 import logging
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -36,6 +36,9 @@ class BundleOut(BaseModel):
     total_odds: float
     tier: str
     price: float
+    current_price: float
+    played_count: int
+    remaining_count: int
     currency: str
     pick_count: int
     is_active: bool
@@ -73,14 +76,59 @@ def _has_purchased(db: Session, bundle_id: str, user_id: str) -> bool:
     ).first() is not None
 
 
+def _calc_pricing(original_price: float, picks_raw: list) -> tuple[int, int, float]:
+    """
+    Return (played_count, remaining_count, current_price).
+
+    A pick is considered 'played' once its kickoff time is in the past (UTC).
+    The current price is reduced proportionally:
+        current_price = original_price * remaining / total
+    If all games have been played the current_price is 0.
+    If no games have been played the current_price equals original_price.
+    """
+    now_utc = datetime.now(timezone.utc)
+    played = 0
+
+    for pick in picks_raw:
+        raw = pick.get("kickoff") or pick.get("kickoff_utc") or ""
+        if not raw:
+            continue
+        try:
+            # Handle both "2025-01-01T15:00:00" and "2025-01-01T15:00:00+00:00"
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if dt < now_utc:
+                played += 1
+        except Exception:
+            pass
+
+    total = len(picks_raw)
+    remaining = max(total - played, 0)
+
+    if total == 0 or played == 0:
+        current_price = original_price
+    elif remaining == 0:
+        current_price = 0.0
+    else:
+        current_price = round(original_price * remaining / total, 2)
+
+    return played, remaining, current_price
+
+
 def _bundle_to_out(bundle: Bundle, purchased: bool) -> dict:
     picks_raw = json.loads(bundle.picks) if bundle.picks else []
+    played_count, remaining_count, current_price = _calc_pricing(bundle.price, picks_raw)
+
     return {
         "id": bundle.id,
         "name": bundle.name,
         "total_odds": bundle.total_odds,
         "tier": bundle.tier,
         "price": bundle.price,
+        "current_price": current_price,
+        "played_count": played_count,
+        "remaining_count": remaining_count,
         "currency": bundle.currency,
         "pick_count": len(picks_raw),
         "is_active": bundle.is_active,
@@ -100,10 +148,13 @@ async def list_bundles(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(optional_current_user),
 ):
-    """List all active bundles. Picks are hidden until purchased."""
+    """
+    List all bundles (active and inactive).
+    Inactive bundles are visible but cannot be purchased.
+    Picks are hidden until purchased.
+    """
     bundles = (
         db.query(Bundle)
-        .filter(Bundle.is_active == True)
         .order_by(Bundle.total_odds)
         .all()
     )
@@ -199,6 +250,7 @@ async def purchase_bundle(
     """
     Initialize a Paystack payment for a bundle.
     Returns the Paystack authorization_url to redirect the user to.
+    Uses current_price (reduced if some games have already kicked off).
     """
     bundle = db.query(Bundle).filter(
         Bundle.id == bundle_id, Bundle.is_active == True
@@ -209,9 +261,15 @@ async def purchase_bundle(
     if _has_purchased(db, bundle_id, current_user.id):
         raise HTTPException(status_code=400, detail="You have already purchased this bundle")
 
+    picks_raw = json.loads(bundle.picks) if bundle.picks else []
+    _played, remaining, current_price = _calc_pricing(bundle.price, picks_raw)
+
+    if remaining == 0:
+        raise HTTPException(status_code=400, detail="All games in this bundle have already kicked off.")
+
     reference = f"SB-{secrets.token_hex(8).upper()}"
-    # price is stored in USD; convert to KES then to Paystack's smallest unit
-    amount_kobo = int(float(bundle.price) * settings.USD_TO_KES_RATE * 100)
+    # Use current_price (reduced for played games); convert USD → KES → Paystack kobo
+    amount_kobo = int(float(current_price) * settings.USD_TO_KES_RATE * 100)
 
     payload = {
         "email": body.email,
@@ -223,6 +281,8 @@ async def purchase_bundle(
             "bundle_name": bundle.name,
             "tier": bundle.tier,
             "type": "bundle",
+            "original_price": bundle.price,
+            "current_price": current_price,
         },
     }
     if body.callback_url:
@@ -250,7 +310,7 @@ async def purchase_bundle(
         bundle_id=bundle.id,
         user_id=current_user.id,
         reference=reference,
-        amount=bundle.price,
+        amount=current_price,
         status="pending",
     )
     db.add(purchase)
@@ -263,6 +323,7 @@ async def purchase_bundle(
             "id": bundle.id,
             "name": bundle.name,
             "price": bundle.price,
+            "current_price": current_price,
             "tier": bundle.tier,
         },
     }

@@ -20,6 +20,9 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  TrendingDown,
+  ShoppingCart,
+  Ban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchBundles, purchaseBundle, verifyBundlePayment } from "@/lib/api";
@@ -45,6 +48,9 @@ interface Bundle {
   total_odds: number;
   tier: string;
   price: number;
+  current_price: number;
+  played_count: number;
+  remaining_count: number;
   currency: string;
   pick_count: number;
   is_active: boolean;
@@ -108,6 +114,82 @@ function formatKickoff(iso: string) {
   }
 }
 
+function PricingDisplay({ bundle }: { bundle: Bundle }) {
+  const priceReduced = bundle.played_count > 0 && bundle.remaining_count > 0;
+  const allPlayed = bundle.remaining_count === 0 && bundle.pick_count > 0;
+  const meta = TIER_META[bundle.tier] ?? TIER_META.medium;
+
+  if (allPlayed) {
+    return (
+      <div className="text-right">
+        <div className="text-brand-muted text-lg font-black line-through">
+          KSh {Math.round(bundle.price * 130).toLocaleString()}
+        </div>
+        <div className="text-brand-muted text-xs">All games played</div>
+      </div>
+    );
+  }
+
+  if (priceReduced) {
+    return (
+      <div className="text-right">
+        <div className="text-brand-muted text-sm font-bold line-through">
+          KSh {Math.round(bundle.price * 130).toLocaleString()}
+        </div>
+        <div className={cn("text-xl font-black", meta.color)}>
+          KSh {Math.round(bundle.current_price * 130).toLocaleString()}
+        </div>
+        <div className="text-[10px] text-brand-muted">{bundle.remaining_count} games left</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-right">
+      <div className={cn("text-xl font-black", meta.color)}>
+        KSh {Math.round(bundle.price * 130).toLocaleString()}
+      </div>
+      <div className="text-brand-muted text-[10px]">{bundle.pick_count} picks</div>
+    </div>
+  );
+}
+
+function AvailabilityBadge({ bundle }: { bundle: Bundle }) {
+  if (bundle.purchased) return null;
+
+  const allPlayed = bundle.remaining_count === 0 && bundle.pick_count > 0;
+
+  if (allPlayed) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded border bg-brand-card text-brand-muted border-brand-border uppercase">
+        <Clock className="w-3 h-3" /> Closed
+      </span>
+    );
+  }
+
+  if (!bundle.is_active) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded border bg-yellow-950 text-yellow-400 border-yellow-900 uppercase">
+        <Ban className="w-3 h-3" /> Not Available
+      </span>
+    );
+  }
+
+  if (bundle.played_count > 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded border bg-blue-950 text-blue-400 border-blue-900 uppercase">
+        <TrendingDown className="w-3 h-3" /> Price Reduced
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded border bg-green-950 text-brand-green border-green-900 uppercase">
+      <ShoppingCart className="w-3 h-3" /> Available
+    </span>
+  );
+}
+
 function BundleCard({ bundle, onPurchase, purchasing }: {
   bundle: Bundle;
   onPurchase: (id: string) => void;
@@ -119,36 +201,65 @@ function BundleCard({ bundle, onPurchase, purchasing }: {
 
   const expiresAt = bundle.expires_at ? new Date(bundle.expires_at) : null;
   const isExpired = expiresAt ? expiresAt < new Date() : false;
+  const allPlayed = bundle.remaining_count === 0 && bundle.pick_count > 0;
+  const priceReduced = bundle.played_count > 0 && bundle.remaining_count > 0;
+  const canPurchase = bundle.is_active && !isExpired && !allPlayed && !bundle.purchased;
 
   return (
     <div className={cn(
       "rounded-2xl border p-5 transition-all",
       meta.bg, meta.border,
-      isExpired && "opacity-50"
+      !bundle.is_active && !bundle.purchased && "opacity-75"
     )}>
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", meta.bg, "border", meta.border)}>
             <Icon className={cn("w-5 h-5", meta.color)} />
           </div>
           <div>
-            <span className={cn("text-[10px] font-black px-2 py-0.5 rounded border uppercase", meta.badge)}>
-              {bundle.tier}
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={cn("text-[10px] font-black px-2 py-0.5 rounded border uppercase", meta.badge)}>
+                {bundle.tier}
+              </span>
+              <AvailabilityBadge bundle={bundle} />
+            </div>
             <h3 className="text-white font-black text-base mt-1">{bundle.name}</h3>
           </div>
         </div>
-        <div className="text-right">
-          <div className={cn("text-2xl font-black", meta.color)}>
-            {bundle.total_odds}x
-          </div>
-          <div className="text-brand-muted text-xs">{bundle.pick_count} picks</div>
+        <PricingDisplay bundle={bundle} />
+      </div>
+
+      {/* Odds + pick summary */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-1.5 bg-brand-dark border border-brand-border rounded-lg px-3 py-1.5">
+          <span className={cn("text-lg font-black", meta.color)}>{bundle.total_odds}x</span>
+          <span className="text-brand-muted text-xs">total odds</span>
         </div>
+        <div className="flex items-center gap-1.5 bg-brand-dark border border-brand-border rounded-lg px-3 py-1.5">
+          <span className="text-white text-sm font-bold">{bundle.pick_count}</span>
+          <span className="text-brand-muted text-xs">picks</span>
+        </div>
+        {bundle.played_count > 0 && (
+          <div className="flex items-center gap-1.5 bg-brand-dark border border-brand-border rounded-lg px-3 py-1.5">
+            <span className="text-brand-muted text-sm font-bold">{bundle.played_count}</span>
+            <span className="text-brand-muted text-xs">played</span>
+          </div>
+        )}
       </div>
 
       {/* Description */}
       <p className="text-brand-muted text-xs mb-4">{meta.desc}</p>
+
+      {/* Price reduced notice */}
+      {priceReduced && (
+        <div className="flex items-start gap-2 bg-blue-950/40 border border-blue-900/40 rounded-lg p-3 mb-4">
+          <TrendingDown className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+          <p className="text-blue-300 text-xs leading-relaxed">
+            <strong>{bundle.played_count} game{bundle.played_count !== 1 ? "s" : ""} already kicked off</strong> — price reduced to reflect the <strong>{bundle.remaining_count} remaining picks</strong>.
+          </p>
+        </div>
+      )}
 
       {/* Expiry */}
       {expiresAt && (
@@ -177,30 +288,40 @@ function BundleCard({ bundle, onPurchase, purchasing }: {
 
           {expanded && (
             <div className="space-y-2">
-              {bundle.picks.map((pick, i) => (
-                <div
-                  key={pick.fixture_id}
-                  className="bg-brand-dark border border-brand-border rounded-lg px-3 py-2.5"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-brand-muted text-[10px]">{pick.league}</span>
-                    <span className="text-brand-green text-[10px] font-bold">{pick.odds}x</span>
+              {bundle.picks.map((pick) => {
+                const kicked = new Date(pick.kickoff) < new Date();
+                return (
+                  <div
+                    key={pick.fixture_id}
+                    className={cn(
+                      "border rounded-lg px-3 py-2.5",
+                      kicked ? "bg-brand-dark/60 border-brand-border/50 opacity-70" : "bg-brand-dark border-brand-border"
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-brand-muted text-[10px]">{pick.league}</span>
+                      <div className="flex items-center gap-2">
+                        {kicked && <span className="text-[9px] text-brand-muted border border-brand-border rounded px-1">played</span>}
+                        <span className="text-brand-green text-[10px] font-bold">{pick.odds}x</span>
+                      </div>
+                    </div>
+                    <p className="text-white text-sm font-bold">
+                      {pick.home_team} <span className="text-brand-muted font-normal">vs</span> {pick.away_team}
+                    </p>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-brand-yellow text-xs font-bold">
+                        → {MARKET_LABELS[pick.market] ?? pick.market_label}
+                      </span>
+                      <span className="text-brand-muted text-[10px]">{pick.probability}% confidence</span>
+                    </div>
+                    <div className="text-brand-muted text-[10px] mt-0.5">{formatKickoff(pick.kickoff)}</div>
                   </div>
-                  <p className="text-white text-sm font-bold">
-                    {pick.home_team} <span className="text-brand-muted font-normal">vs</span> {pick.away_team}
-                  </p>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-brand-yellow text-xs font-bold">
-                      → {MARKET_LABELS[pick.market] ?? pick.market_label}
-                    </span>
-                    <span className="text-brand-muted text-[10px]">{pick.probability}% confidence</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
-      ) : (
+      ) : !bundle.purchased && (
         <div className="bg-brand-dark border border-brand-border rounded-lg p-3 mb-4">
           <div className="flex items-center gap-2 mb-2">
             <Lock className="w-3.5 h-3.5 text-brand-muted" />
@@ -225,9 +346,14 @@ function BundleCard({ bundle, onPurchase, purchasing }: {
           <CheckCircle className="w-4 h-4" />
           Purchased — Picks Revealed
         </div>
-      ) : isExpired ? (
+      ) : isExpired || allPlayed ? (
         <div className="flex items-center justify-center gap-2 bg-brand-card border border-brand-border rounded-xl py-3 text-brand-muted text-sm">
-          Bundle expired
+          {allPlayed ? "All games have kicked off" : "Bundle expired"}
+        </div>
+      ) : !bundle.is_active ? (
+        <div className="flex items-center justify-center gap-2 bg-yellow-950/30 border border-yellow-900/40 rounded-xl py-3 text-yellow-400 text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          Not available for purchase yet
         </div>
       ) : (
         <button
@@ -243,7 +369,10 @@ function BundleCard({ bundle, onPurchase, purchasing }: {
           ) : (
             <>
               <Lock className="w-4 h-4" />
-              Unlock for ${bundle.price.toFixed(2)}
+              Unlock for KSh {Math.round(bundle.current_price * 130).toLocaleString()}
+              {priceReduced && (
+                <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold">REDUCED</span>
+              )}
               <ArrowRight className="w-4 h-4" />
             </>
           )}
@@ -338,6 +467,8 @@ function BundlesContent() {
     (a, b) => tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier)
   );
 
+  const availableCount = bundles.filter((b) => b.is_active && !b.purchased).length;
+
   return (
     <div className="min-h-screen bg-brand-dark">
       <Navbar />
@@ -358,6 +489,12 @@ function BundlesContent() {
             Our AI assembles probability-weighted combos from high-confidence predictions.
             Pick a tier, pay once, get all the picks — no subscription needed.
           </p>
+          {!loading && availableCount > 0 && (
+            <div className="mt-4 inline-flex items-center gap-2 bg-green-950/40 border border-green-900/40 rounded-full px-4 py-1.5">
+              <CheckCircle className="w-3.5 h-3.5 text-brand-green" />
+              <span className="text-brand-green text-xs font-bold">{availableCount} bundle{availableCount !== 1 ? "s" : ""} available for purchase</span>
+            </div>
+          )}
         </div>
 
         {/* Tier legend */}
@@ -413,7 +550,7 @@ function BundlesContent() {
             {[
               { n: "01", title: "We analyze", desc: "Our AI scans today's fixtures for high-confidence picks across all markets." },
               { n: "02", title: "We bundle", desc: "Picks are assembled into probability-weighted combos targeting specific odds tiers." },
-              { n: "03", title: "You buy", desc: "Pay once per bundle. No subscription. No recurring charges." },
+              { n: "03", title: "You buy", desc: "Pay once per bundle. No subscription. Price drops as games kick off — you only pay for what's left." },
               { n: "04", title: "Picks revealed", desc: "Instantly see all match picks, markets, and individual odds after payment." },
             ].map(({ n, title, desc }) => (
               <div key={n}>
