@@ -511,18 +511,34 @@ function BundlesContent() {
           )}
         </div>
 
-        {/* Tier legend */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-10">
+        {/* Tier pricing */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
           {tierOrder.map((tier) => {
             const m = TIER_META[tier];
             const Icon = m.icon;
             return (
-              <div key={tier} className={cn("rounded-xl border p-3 text-center", m.bg, m.border)}>
-                <Icon className={cn("w-5 h-5 mx-auto mb-1", m.color)} />
-                <p className={cn("text-xs font-black uppercase", m.color)}>{tier}</p>
-                <p className="text-brand-muted text-[10px] mt-0.5">
-                  {tier === "safe" ? "5–10x" : tier === "medium" ? "20–50x" : tier === "high" ? "100–300x" : "500–1000x"}
-                </p>
+              <div key={tier} className={cn("rounded-2xl border p-4 flex flex-col gap-2", m.bg, m.border)}>
+                <div className="flex items-center gap-2">
+                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", m.bg, "border", m.border)}>
+                    <Icon className={cn("w-4 h-4", m.color)} />
+                  </div>
+                  <span className={cn("text-sm font-black uppercase tracking-wide", m.color)}>
+                    {tier === "safe" ? "Safe" : tier === "medium" ? "Medium" : tier === "high" ? "High" : "Mega"}
+                  </span>
+                </div>
+                <div>
+                  <p className={cn("text-2xl font-black leading-none", m.color)}>
+                    ${m.usdPrice}
+                  </p>
+                  <p className="text-brand-muted text-[10px] mt-0.5">
+                    ≈ KSh {(m.usdPrice * 130).toLocaleString()}
+                  </p>
+                </div>
+                <div className="border-t border-white/5 pt-2">
+                  <p className="text-brand-muted text-[10px]">Target odds</p>
+                  <p className={cn("text-xs font-black", m.color)}>{m.oddsRange}</p>
+                </div>
+                <p className="text-brand-muted text-[10px] leading-relaxed">{m.desc}</p>
               </div>
             );
           })}
