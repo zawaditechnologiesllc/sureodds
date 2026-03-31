@@ -81,7 +81,7 @@ export default function Navbar() {
     { href: "/predictions", label: "Fixtures" },
     { href: "/results", label: "Results" },
     { href: "/bundles", label: "🔥 Bundles" },
-    { href: "/packages", label: "👑 VIP Access" },
+    { href: "/vip", label: "👑 VIP Access" },
     { href: "/pricing", label: "Pricing" },
   ];
 
@@ -89,7 +89,7 @@ export default function Navbar() {
     { href: "/predictions", label: "Fixtures" },
     { href: "/results", label: "Results" },
     { href: "/bundles", label: "🔥 Bundles" },
-    { href: "/packages", label: "👑 VIP Access" },
+    { href: "/vip", label: "👑 VIP Access" },
     { href: "/pricing", label: "Pricing" },
     { href: "/partner", label: "Earn 30% Commission" },
   ];
@@ -237,7 +237,7 @@ export default function Navbar() {
                         Today&apos;s Picks
                       </Link>
                       <Link
-                        href="/packages"
+                        href="/vip"
                         onClick={() => setUserMenuOpen(false)}
                         className="flex items-center gap-2 px-4 py-2.5 text-sm text-yellow-400 hover:bg-brand-card hover:text-yellow-300 transition-colors border-t border-brand-border/50"
                       >

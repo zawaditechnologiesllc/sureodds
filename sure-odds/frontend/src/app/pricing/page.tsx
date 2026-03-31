@@ -413,7 +413,7 @@ export default function PricingPage() {
                   </div>
 
                   <Link
-                    href="/auth/login?redirect=/packages"
+                    href="/vip"
                     className="w-full py-3 rounded-xl text-sm text-center font-black transition-all block bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-black shadow-md"
                   >
                     Pay — {plan.price}
@@ -424,9 +424,9 @@ export default function PricingPage() {
           </div>
 
           <p className="text-center text-brand-muted text-xs mt-5">
-            VIP access is activated instantly after payment. Already have an account?{" "}
-            <Link href="/auth/login?redirect=/packages" className="text-white hover:text-yellow-400 underline underline-offset-2">
-              Log in to get VIP access
+            VIP access is activated instantly after payment.{" "}
+            <Link href="/vip" className="text-white hover:text-yellow-400 underline underline-offset-2">
+              Go to VIP Access page →
             </Link>
           </p>
         </div>

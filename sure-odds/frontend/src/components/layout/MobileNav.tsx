@@ -15,14 +15,14 @@ export default function MobileNav() {
         { href: "/predictions", label: "Fixtures", icon: BarChart2 },
         { href: "/results", label: "Results", icon: CheckCircle },
         { href: "/bundles", label: "Bundles", icon: Flame },
-        { href: "/packages", label: "VIP", icon: Crown },
+        { href: "/vip", label: "VIP", icon: Crown },
         { href: "/dashboard", label: "Account", icon: LayoutDashboard },
       ]
     : [
         { href: "/predictions", label: "Fixtures", icon: BarChart2 },
         { href: "/results", label: "Results", icon: CheckCircle },
         { href: "/bundles", label: "Bundles", icon: Flame },
-        { href: "/packages", label: "VIP", icon: Crown },
+        { href: "/vip", label: "VIP", icon: Crown },
         { href: "/auth/login", label: "Account", icon: User },
       ];
 
@@ -31,7 +31,7 @@ export default function MobileNav() {
       <div className="flex">
         {tabs.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
-          const isVip = href === "/packages";
+          const isVip = href === "/vip";
           return (
             <Link
               key={href}
