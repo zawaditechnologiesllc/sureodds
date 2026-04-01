@@ -304,16 +304,7 @@ function PackagesContent() {
             </button>
 
             <p className="text-center text-brand-muted text-xs mt-3">
-              🔒 Card &amp; Mobile Money · Secured by{" "}
-              <a
-                href="https://paystack.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-bold text-[#00C3F7] hover:underline"
-              >
-                Paystack
-              </a>{" "}
-              · Credits added instantly after payment
+              🔒 Card &amp; Mobile Money · 256-bit SSL · Credits added instantly after payment
             </p>
 
             {/* How it works */}
@@ -324,7 +315,7 @@ function PackagesContent() {
               <div className="space-y-3">
                 {[
                   { step: "1", text: "Choose Card or Mobile Money (M-Pesa / Airtel Money)" },
-                  { step: "2", text: "Card: Complete checkout on Paystack's secure page. Mobile Money: Approve the STK push on your phone." },
+                  { step: "2", text: "Card: Complete checkout on the secure payment page. Mobile Money: Approve the STK push on your phone." },
                   { step: "3", text: "Credits are verified and added to your account instantly" },
                   { step: "4", text: "You land on the predictions page with your new credits ready to use" },
                 ].map(({ step, text }) => (

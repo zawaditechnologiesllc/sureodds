@@ -419,8 +419,21 @@ export default function PaymentMethodModal({
                 </div>
               </button>
 
-              <p className="text-center text-brand-muted text-xs pt-1">
-                🔒 256-bit SSL · Powered by Paystack &amp; IntaSend
+              {/* Trust badges */}
+              <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
+                {[
+                  { icon: "🔒", label: "SSL Encrypted" },
+                  { icon: "✓", label: "Instant Access" },
+                  { icon: "🛡️", label: "Secure Checkout" },
+                ].map(({ icon, label }) => (
+                  <div key={label} className="flex items-center gap-1 text-brand-muted text-[10px]">
+                    <span>{icon}</span>
+                    <span>{label}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-center text-brand-muted text-[10px] pt-1">
+                Powered by <span className="font-bold text-brand-red">SuperSport</span>
               </p>
             </div>
           )}

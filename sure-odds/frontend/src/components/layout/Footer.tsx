@@ -133,16 +133,10 @@ export default function Footer() {
                 <span className="w-2 h-2 rounded-full bg-brand-green inline-block" />
                 All systems operational
               </div>
-              <a
-                href="https://paystack.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-brand-muted text-xs hover:text-white transition-colors"
-                aria-label="Payments powered by Paystack"
-              >
+              <span className="flex items-center gap-1.5 text-brand-muted text-xs">
                 <span>Powered by</span>
-                <span className="font-bold text-[#00C3F7]">Paystack</span>
-              </a>
+                <span className="font-bold text-brand-red">SuperSport</span>
+              </span>
             </div>
           </div>
         </div>
