@@ -228,19 +228,61 @@ export const deactivateBundle = async (bundleId: string) => {
   return res.data;
 };
 
-// ─── IntaSend (M-Pesa) ───────────────────────────────────────────────────────
+// ─── IntaSend (M-Pesa / Mobile Money — KE, TZ, UG) ──────────────────────────
 
-export const initializeMpesa = async (packageId: number, phone: string, email: string) => {
+export const initializeMpesa = async (
+  packageId: number,
+  phone: string,
+  email: string,
+  country = "KE",
+  channel?: string,
+) => {
   const res = await api.post("/intasend/mpesa/initialize", {
     package_id: packageId,
     phone_number: phone,
     email,
+    country,
+    ...(channel ? { channel } : {}),
   });
   return res.data;
 };
 
-export const checkMpesaStatus = async (invoiceId: string, packageId: number) => {
-  const res = await api.get(`/intasend/mpesa/status?invoice_id=${invoiceId}&package_id=${packageId}`);
+export const checkMpesaStatus = async (
+  invoiceId: string,
+  packageId: number,
+  country = "KE",
+) => {
+  const res = await api.get(
+    `/intasend/mpesa/status?invoice_id=${invoiceId}&package_id=${packageId}&country=${country}`
+  );
+  return res.data;
+};
+
+export const initializeMpesaBundle = async (
+  bundleId: string,
+  phone: string,
+  email: string,
+  country = "KE",
+  channel?: string,
+) => {
+  const res = await api.post("/intasend/mpesa/bundle/initialize", {
+    bundle_id: bundleId,
+    phone_number: phone,
+    email,
+    country,
+    ...(channel ? { channel } : {}),
+  });
+  return res.data;
+};
+
+export const checkMpesaBundleStatus = async (
+  invoiceId: string,
+  bundleId: string,
+  country = "KE",
+) => {
+  const res = await api.get(
+    `/intasend/mpesa/bundle/status?invoice_id=${invoiceId}&bundle_id=${bundleId}&country=${country}`
+  );
   return res.data;
 };
 

@@ -27,9 +27,10 @@ class Settings(BaseSettings):
     INTASEND_API_KEY: str = ""
     INTASEND_SECRET_KEY: str = ""
 
-    # Currency conversion — prices are stored in USD, Paystack and IntaSend charge in KES.
-    # Override USD_TO_KES_RATE in your environment variables to update the rate.
-    USD_TO_KES_RATE: float = 130.0
+    # Currency conversion — prices stored in USD; set overrides in environment variables.
+    USD_TO_KES_RATE: float = 130.0   # Kenya Shilling
+    USD_TO_TZS_RATE: float = 2600.0  # Tanzania Shilling
+    USD_TO_UGX_RATE: float = 3700.0  # Uganda Shilling
 
     @property
     def paystack_secret_key(self) -> str:

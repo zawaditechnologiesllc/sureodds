@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  X, CreditCard, Phone, Loader2, CheckCircle, AlertCircle, ArrowLeft, Lock,
+  X, CreditCard, Phone, Loader2, CheckCircle, AlertCircle, ArrowLeft, Lock, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   initializePayment,
-  initializeMobileMoneyPaystack,
-  checkMobileMoneyStatusPaystack,
+  initializeMpesa,
+  checkMpesaStatus,
 } from "@/lib/api";
 
 interface Package {
@@ -26,11 +26,8 @@ interface PaymentMethodModalProps {
   onClose: () => void;
   onSuccess: (picksAdded: number) => void;
   callbackUrl?: string;
-  /** Override the price display (e.g. "KSh 200" for VIP). Auto-detected when omitted. */
   priceLabel?: string;
-  /** Override the sub-detail line (e.g. "7 days access"). Auto-detected when omitted. */
   detailLabel?: string;
-  /** Success message shown after payment. Defaults to credits copy. */
   successMessage?: string;
 }
 
@@ -41,30 +38,135 @@ type Screen =
   | "success"
   | "failed";
 
-const MOBILE_PROVIDERS = [
-  {
-    id: "mpesa",
-    label: "M-Pesa",
-    description: "Safaricom M-Pesa (Kenya)",
-    color: "text-green-400",
-    bg: "bg-green-950/40",
-    border: "border-green-800",
-    activeBorder: "border-green-500",
-    icon: "M",
-    iconBg: "bg-green-600",
+// ---------------------------------------------------------------------------
+// Country + provider config
+// ---------------------------------------------------------------------------
+
+interface Provider {
+  id: string;
+  label: string;
+  desc: string;
+  color: string;
+  bg: string;
+  border: string;
+  activeBorder: string;
+  icon: string;
+  iconBg: string;
+}
+
+interface CountryEntry {
+  name: string;
+  flag: string;
+  placeholder: string;
+  currency: string;
+  providers: Provider[];
+}
+
+const COUNTRIES: Record<string, CountryEntry> = {
+  KE: {
+    name: "Kenya",
+    flag: "🇰🇪",
+    placeholder: "07XX XXX XXX",
+    currency: "KES",
+    providers: [
+      {
+        id: "mpesa",
+        label: "M-Pesa",
+        desc: "Safaricom M-Pesa",
+        color: "text-green-400",
+        bg: "bg-green-950/40",
+        border: "border-green-800",
+        activeBorder: "border-green-500",
+        icon: "M",
+        iconBg: "bg-green-600",
+      },
+      {
+        id: "airtel",
+        label: "Airtel Money",
+        desc: "Airtel Kenya",
+        color: "text-red-400",
+        bg: "bg-red-950/40",
+        border: "border-red-900",
+        activeBorder: "border-red-500",
+        icon: "A",
+        iconBg: "bg-red-600",
+      },
+    ],
   },
-  {
-    id: "airtel",
-    label: "Airtel Money",
-    description: "Airtel Money (Kenya)",
-    color: "text-red-400",
-    bg: "bg-red-950/40",
-    border: "border-red-900",
-    activeBorder: "border-red-500",
-    icon: "A",
-    iconBg: "bg-red-600",
+  TZ: {
+    name: "Tanzania",
+    flag: "🇹🇿",
+    placeholder: "07XX XXX XXX",
+    currency: "TZS",
+    providers: [
+      {
+        id: "M-PESA",
+        label: "M-Pesa TZ",
+        desc: "Vodacom M-Pesa",
+        color: "text-green-400",
+        bg: "bg-green-950/40",
+        border: "border-green-800",
+        activeBorder: "border-green-500",
+        icon: "M",
+        iconBg: "bg-green-600",
+      },
+      {
+        id: "AIRTEL-MONEY",
+        label: "Airtel Money",
+        desc: "Airtel Tanzania",
+        color: "text-red-400",
+        bg: "bg-red-950/40",
+        border: "border-red-900",
+        activeBorder: "border-red-500",
+        icon: "A",
+        iconBg: "bg-red-600",
+      },
+      {
+        id: "TIGO-PESA",
+        label: "Tigo Pesa",
+        desc: "Tigo Tanzania",
+        color: "text-blue-400",
+        bg: "bg-blue-950/40",
+        border: "border-blue-900",
+        activeBorder: "border-blue-500",
+        icon: "T",
+        iconBg: "bg-blue-600",
+      },
+    ],
   },
-];
+  UG: {
+    name: "Uganda",
+    flag: "🇺🇬",
+    placeholder: "07XX XXX XXX",
+    currency: "UGX",
+    providers: [
+      {
+        id: "MTN",
+        label: "MTN MoMo",
+        desc: "MTN Uganda",
+        color: "text-yellow-400",
+        bg: "bg-yellow-950/40",
+        border: "border-yellow-900",
+        activeBorder: "border-yellow-500",
+        icon: "M",
+        iconBg: "bg-yellow-600",
+      },
+      {
+        id: "AIRTEL",
+        label: "Airtel Money",
+        desc: "Airtel Uganda",
+        color: "text-red-400",
+        bg: "bg-red-950/40",
+        border: "border-red-900",
+        activeBorder: "border-red-500",
+        icon: "A",
+        iconBg: "bg-red-600",
+      },
+    ],
+  },
+};
+
+const COUNTRY_KEYS = Object.keys(COUNTRIES) as Array<keyof typeof COUNTRIES>;
 
 const POLL_INTERVAL = 4000;
 const POLL_MAX = 45;
@@ -78,12 +180,12 @@ function formatPriceLabel(pkg: Package, override?: string): string {
 
 function formatDetailLabel(pkg: Package, override?: string): string {
   if (override) return override;
-  if (pkg.picks_count > 0) return `${pkg.picks_count} premium picks · Charged in KES`;
+  if (pkg.picks_count > 0) return `${pkg.picks_count} premium picks · Charged in local currency`;
   if (pkg.duration_days) {
     const d = pkg.duration_days;
     return `${d === 1 ? "1 day" : d === 7 ? "7 days" : `${d} days`} VIP access`;
   }
-  return "Charged in KES";
+  return "Charged in local currency";
 }
 
 export default function PaymentMethodModal({
@@ -97,14 +199,19 @@ export default function PaymentMethodModal({
   successMessage,
 }: PaymentMethodModalProps) {
   const [screen, setScreen] = useState<Screen>("method-select");
-  const [provider, setProvider] = useState("mpesa");
+  const [country, setCountry] = useState("KE");
+  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
+  const [provider, setProvider] = useState(COUNTRIES.KE.providers[0].id);
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [reference, setReference] = useState<string | null>(null);
+  const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [pollCount, setPollCount] = useState(0);
   const [picksAdded, setPicksAdded] = useState(0);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+
+  const countryData = COUNTRIES[country] ?? COUNTRIES.KE;
+  const selectedProvider = countryData.providers.find((p) => p.id === provider) ?? countryData.providers[0];
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -114,7 +221,7 @@ export default function PaymentMethodModal({
   }, []);
 
   const poll = useCallback(
-    async (ref: string, count: number) => {
+    async (iid: string, count: number) => {
       if (count >= POLL_MAX) {
         stopPolling();
         setScreen("failed");
@@ -122,35 +229,46 @@ export default function PaymentMethodModal({
         return;
       }
       try {
-        const data = await checkMobileMoneyStatusPaystack(ref, pkg.id);
-        if (data.status === "success") {
+        const data = await checkMpesaStatus(iid, pkg.id, country);
+        const status = (data.status || "").toUpperCase();
+        if (status === "COMPLETE") {
           stopPolling();
-          setPicksAdded(data.picks_added ?? 0);
+          const picks = data.picks_added ?? 0;
+          setPicksAdded(picks);
           setScreen("success");
-          setTimeout(() => onSuccess(data.picks_added ?? 0), 1400);
-        } else if (data.status === "failed") {
+          setTimeout(() => onSuccess(picks), 1400);
+        } else if (status === "FAILED") {
           stopPolling();
           setScreen("failed");
           setError(data.message || "Payment failed or was cancelled.");
         }
       } catch {
-        // ignore transient errors; keep polling
+        // ignore transient errors — keep polling
       }
     },
-    [pkg.id, stopPolling, onSuccess]
+    [pkg.id, country, stopPolling, onSuccess]
   );
 
   useEffect(() => {
-    if (screen === "mobile-polling" && reference) {
+    if (screen === "mobile-polling" && invoiceId) {
       let count = 0;
       pollRef.current = setInterval(() => {
         count += 1;
         setPollCount(count);
-        poll(reference, count);
+        poll(invoiceId, count);
       }, POLL_INTERVAL);
     }
     return stopPolling;
-  }, [screen, reference, poll, stopPolling]);
+  }, [screen, invoiceId, poll, stopPolling]);
+
+  // Reset provider when country changes
+  const handleCountryChange = (code: string) => {
+    setCountry(code);
+    setProvider(COUNTRIES[code].providers[0].id);
+    setShowCountryDropdown(false);
+    setPhone("");
+    setError(null);
+  };
 
   const handleCardPay = async () => {
     setLoading(true);
@@ -178,8 +296,9 @@ export default function PaymentMethodModal({
     setError(null);
     setLoading(true);
     try {
-      const data = await initializeMobileMoneyPaystack(pkg.id, email, cleaned, provider);
-      setReference(data.reference);
+      const channelOverride = country === "KE" ? undefined : provider;
+      const data = await initializeMpesa(pkg.id, cleaned, email, country, channelOverride);
+      setInvoiceId(data.invoice_id);
       setScreen("mobile-polling");
     } catch (err: unknown) {
       const msg =
@@ -201,7 +320,17 @@ export default function PaymentMethodModal({
       : "Your purchase was successful.");
 
   const secondsLeft = Math.max(0, (POLL_MAX - pollCount) * (POLL_INTERVAL / 1000));
-  const selectedProvider = MOBILE_PROVIDERS.find((p) => p.id === provider)!;
+
+  const headerTitle =
+    screen === "mobile-form"
+      ? `Pay with ${selectedProvider.label}`
+      : screen === "mobile-polling"
+      ? "Awaiting Payment"
+      : screen === "success"
+      ? "Payment Confirmed"
+      : screen === "failed"
+      ? "Payment Failed"
+      : "Choose Payment Method";
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
@@ -218,23 +347,10 @@ export default function PaymentMethodModal({
               </button>
             )}
             <Lock className="w-4 h-4 text-brand-red" />
-            <span className="text-white font-black text-base">
-              {screen === "mobile-form"
-                ? `Pay with ${selectedProvider.label}`
-                : screen === "mobile-polling"
-                ? "Awaiting Payment"
-                : screen === "success"
-                ? "Payment Confirmed"
-                : screen === "failed"
-                ? "Payment Failed"
-                : "Choose Payment Method"}
-            </span>
+            <span className="text-white font-black text-base">{headerTitle}</span>
           </div>
           {screen !== "mobile-polling" && (
-            <button
-              onClick={onClose}
-              className="text-brand-muted hover:text-white transition-colors p-1"
-            >
+            <button onClick={onClose} className="text-brand-muted hover:text-white transition-colors p-1">
               <X className="w-5 h-5" />
             </button>
           )}
@@ -260,7 +376,6 @@ export default function PaymentMethodModal({
           {/* ── Method Selection ── */}
           {screen === "method-select" && (
             <div className="space-y-3">
-              {/* Card via Paystack */}
               <button
                 onClick={handleCardPay}
                 disabled={loading}
@@ -274,9 +389,7 @@ export default function PaymentMethodModal({
                     <p className="text-white font-bold text-sm group-hover:text-[#00C3F7] transition-colors">
                       Pay with Card
                     </p>
-                    <p className="text-brand-muted text-xs">
-                      Visa, Mastercard · Secured by Paystack
-                    </p>
+                    <p className="text-brand-muted text-xs">Visa, Mastercard · Secured by Paystack</p>
                   </div>
                   {loading ? (
                     <Loader2 className="w-4 h-4 text-brand-muted animate-spin" />
@@ -286,7 +399,6 @@ export default function PaymentMethodModal({
                 </div>
               </button>
 
-              {/* Mobile Money */}
               <button
                 onClick={() => setScreen("mobile-form")}
                 className="w-full text-left border border-brand-border hover:border-green-600/60 bg-brand-dark rounded-xl p-4 transition-all group"
@@ -300,7 +412,7 @@ export default function PaymentMethodModal({
                       Pay with Mobile Money
                     </p>
                     <p className="text-brand-muted text-xs">
-                      M-Pesa, Airtel Money · Instant STK push
+                      M-Pesa, Airtel, MTN · Kenya, Tanzania, Uganda
                     </p>
                   </div>
                   <span className="text-brand-muted text-xs">→</span>
@@ -308,7 +420,7 @@ export default function PaymentMethodModal({
               </button>
 
               <p className="text-center text-brand-muted text-xs pt-1">
-                🔒 256-bit SSL · Powered by Paystack
+                🔒 256-bit SSL · Powered by Paystack &amp; IntaSend
               </p>
             </div>
           )}
@@ -316,35 +428,58 @@ export default function PaymentMethodModal({
           {/* ── Mobile Money Form ── */}
           {screen === "mobile-form" && (
             <>
+              {/* Country selector */}
+              <div className="mb-4 relative">
+                <p className="text-brand-muted text-xs font-bold uppercase mb-2">Your Country</p>
+                <button
+                  onClick={() => setShowCountryDropdown((v) => !v)}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-brand-dark border border-brand-border rounded-xl text-white text-sm hover:border-gray-500 transition-colors"
+                >
+                  <span className="text-xl">{COUNTRIES[country].flag}</span>
+                  <span className="flex-1 text-left font-bold">{COUNTRIES[country].name}</span>
+                  <ChevronDown className={cn("w-4 h-4 text-brand-muted transition-transform", showCountryDropdown && "rotate-180")} />
+                </button>
+                {showCountryDropdown && (
+                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-brand-card border border-brand-border rounded-xl overflow-hidden shadow-xl">
+                    {COUNTRY_KEYS.map((code) => (
+                      <button
+                        key={code}
+                        onClick={() => handleCountryChange(code)}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/5",
+                          country === code ? "text-white font-bold" : "text-brand-muted"
+                        )}
+                      >
+                        <span className="text-xl">{COUNTRIES[code].flag}</span>
+                        <span>{COUNTRIES[code].name}</span>
+                        <span className="ml-auto text-xs text-brand-muted">{COUNTRIES[code].currency}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Provider selection */}
               <div className="mb-4">
                 <p className="text-brand-muted text-xs font-bold uppercase mb-2">Select Provider</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {MOBILE_PROVIDERS.map((p) => (
+                <div className={cn("grid gap-2", countryData.providers.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
+                  {countryData.providers.map((p) => (
                     <button
                       key={p.id}
                       onClick={() => setProvider(p.id)}
                       className={cn(
-                        "flex items-center gap-2 p-3 rounded-xl border transition-all text-left",
+                        "flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all",
                         provider === p.id
                           ? `${p.bg} ${p.activeBorder} border`
                           : "bg-brand-dark border-brand-border hover:border-gray-500"
                       )}
                     >
-                      <div
-                        className={cn(
-                          "w-7 h-7 rounded-full flex items-center justify-center shrink-0",
-                          p.iconBg
-                        )}
-                      >
+                      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", p.iconBg)}>
                         <span className="text-white text-xs font-black">{p.icon}</span>
                       </div>
-                      <div>
-                        <p className={cn("text-xs font-bold", provider === p.id ? "text-white" : "text-brand-muted")}>
-                          {p.label}
-                        </p>
-                        <p className="text-brand-muted text-[10px] leading-tight">{p.description.split("(")[1]?.replace(")", "") || ""}</p>
-                      </div>
+                      <p className={cn("text-xs font-bold text-center leading-tight", provider === p.id ? "text-white" : "text-brand-muted")}>
+                        {p.label}
+                      </p>
                     </button>
                   ))}
                 </div>
@@ -352,9 +487,7 @@ export default function PaymentMethodModal({
 
               {/* Phone input */}
               <div className="mb-4">
-                <label className="text-white text-sm font-bold block mb-1.5">
-                  Phone Number
-                </label>
+                <label className="text-white text-sm font-bold block mb-1.5">Phone Number</label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted" />
                   <input
@@ -362,10 +495,13 @@ export default function PaymentMethodModal({
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleMobileSubmit()}
-                    placeholder="07XX XXX XXX"
+                    placeholder={countryData.placeholder}
                     className="w-full pl-10 pr-4 py-3 bg-brand-dark border border-brand-border rounded-xl text-white text-sm placeholder:text-brand-muted focus:outline-none focus:border-green-600 transition-colors"
                   />
                 </div>
+                <p className="text-brand-muted text-[10px] mt-1">
+                  Enter your {countryData.name} number in local format
+                </p>
               </div>
 
               <button
@@ -391,7 +527,7 @@ export default function PaymentMethodModal({
             </>
           )}
 
-          {/* ── Mobile Polling ── */}
+          {/* ── Polling ── */}
           {screen === "mobile-polling" && (
             <div className="text-center py-4">
               <div className="relative w-16 h-16 mx-auto mb-4">
@@ -405,12 +541,11 @@ export default function PaymentMethodModal({
               </p>
               <div className="bg-brand-dark border border-brand-border rounded-lg px-4 py-2 inline-block">
                 <p className="text-brand-muted text-xs">
-                  Waiting{" "}
-                  <span className="text-white font-bold">{Math.ceil(secondsLeft)}s</span>
+                  Waiting <span className="text-white font-bold">{Math.ceil(secondsLeft)}s</span>
                 </p>
               </div>
               <p className="text-brand-muted text-xs mt-4">
-                Do not close this window. Your purchase will be activated automatically.
+                Do not close this window. Your purchase will activate automatically.
               </p>
             </div>
           )}
@@ -437,7 +572,7 @@ export default function PaymentMethodModal({
                     setScreen("method-select");
                     setError(null);
                     setPollCount(0);
-                    setReference(null);
+                    setInvoiceId(null);
                   }}
                   className="flex-1 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white font-bold text-sm transition-colors"
                 >
