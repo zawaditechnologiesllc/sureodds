@@ -65,3 +65,8 @@ timeoutMs = 20000
 [nix]
 channel = "stable-25_05"
 packages = ["libxcrypt"]
+
+[userenv]
+
+[userenv.shared]
+NEXT_PUBLIC_API_URL = "https://sureodds.onrender.com"

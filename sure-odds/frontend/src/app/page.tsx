@@ -20,7 +20,10 @@ import Navbar from "@/components/layout/Navbar";
 import MobileNav from "@/components/layout/MobileNav";
 import Footer from "@/components/layout/Footer";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+if (!API_URL) {
+  console.warn("[Sure Odds] NEXT_PUBLIC_API_URL is not set — server-side picks will be empty.");
+}
 
 const FEATURES = [
   {
@@ -188,7 +191,7 @@ function formatPickDate(dateStr: string): string {
 }
 
 async function getFeaturedPicks(): Promise<{ picks: any[]; dateLabel: string }> {
-  // Try today first, then scan up to 7 days ahead to handle international breaks
+  if (!API_URL) return { picks: [], dateLabel: "Featured Picks" };
   for (let offset = 0; offset <= 7; offset++) {
     try {
       const dateStr = offsetDate(offset);
@@ -209,7 +212,7 @@ async function getFeaturedPicks(): Promise<{ picks: any[]; dateLabel: string }> 
 }
 
 async function getRecentResults() {
-  // Try yesterday first, then scan up to 7 days back
+  if (!API_URL) return null;
   for (let offset = 1; offset <= 7; offset++) {
     try {
       const dateStr = offsetDate(-offset);
@@ -227,6 +230,7 @@ async function getRecentResults() {
 }
 
 async function getTodaysBundles() {
+  if (!API_URL) return [];
   try {
     const res = await fetch(`${API_URL}/bundles`, { next: { revalidate: 120 } });
     if (!res.ok) return [];

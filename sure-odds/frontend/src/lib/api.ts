@@ -1,7 +1,7 @@
 import axios from "axios";
 
-// In production (Vercel), NEXT_PUBLIC_API_URL points to the Render backend.
-// In development (Replit), we use /api-proxy which Next.js rewrites to localhost:8000.
+// NEXT_PUBLIC_API_URL must be set to the Render backend URL in all environments.
+// Falls back to /api-proxy only as a last resort (Next.js rewrite).
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api-proxy";
 
 export const api = axios.create({
