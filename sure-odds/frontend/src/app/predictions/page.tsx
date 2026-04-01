@@ -10,6 +10,7 @@ import MatchCard from "@/components/matches/MatchCard";
 import PredictionSlip from "@/components/matches/PredictionSlip";
 import type { Prediction, PredictionSlipItem } from "@/types";
 import { fetchPredictions, fetchUserCredits, unlockPick } from "@/lib/api";
+import { useAuth } from "@/lib/useAuth";
 import { Loader2, AlertCircle, CalendarX, Lock, Zap, CreditCard, RefreshCw, Flame, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -33,6 +34,7 @@ function PredictionsContent() {
   const [credits, setCredits] = useState<number | null>(null);
   const [unlocking, setUnlocking] = useState<number | null>(null);
 
+  const { user } = useAuth();
   const lockedCount = predictions.filter((p) => p.locked).length;
   const unlockedCount = predictions.filter((p) => !p.locked).length;
 
@@ -219,13 +221,15 @@ function PredictionsContent() {
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               </button>
-              <Link
-                href="/packages"
-                className="hidden sm:flex items-center gap-1.5 bg-brand-red hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-              >
-                <CreditCard className="w-3.5 h-3.5" />
-                Add Credits
-              </Link>
+              {user && (
+                <Link
+                  href="/packages"
+                  className="hidden sm:flex items-center gap-1.5 bg-brand-red hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  Add Credits
+                </Link>
+              )}
             </div>
           </div>
 
