@@ -69,4 +69,3 @@ packages = ["libxcrypt"]
 [userenv]
 
 [userenv.shared]
-NEXT_PUBLIC_API_URL = "https://sureodds.onrender.com"
