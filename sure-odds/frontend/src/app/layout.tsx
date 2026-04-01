@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "@/lib/AuthContext";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "Sure Odds — Sports Prediction Platform",
@@ -40,6 +41,10 @@ export default function RootLayout({
               border: "1px solid #222222",
             },
           }}
+        />
+        <Script
+          src="//code.tidio.co/rxrbrrnoj62puqgl7ilju5vmdnewvfes.js"
+          strategy="lazyOnload"
         />
       </body>
     </html>
