@@ -502,6 +502,6 @@ export const fetchAdminVipAccess = async () => {
 };
 
 export const testAdminEmail = async (to: string) => {
-  const res = await api.post("/admin/test-email", { to }, { timeout: 30000 });
+  const res = await api.post("/admin/test-email", { to }, { timeout: 90000 });
   return res.data;
 };

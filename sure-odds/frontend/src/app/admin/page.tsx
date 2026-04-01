@@ -833,7 +833,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                   <div>
                     <p className="text-brand-yellow font-bold text-sm mb-1">SMTP not configured</p>
                     <p className="text-yellow-400 text-xs leading-relaxed">
-                      {testEmailResult.reason || "Add the following secrets in Replit's Secrets panel:"}
+                      {testEmailResult.reason || "Add these environment variables in your Render dashboard → sure-odds backend → Environment:"}
                     </p>
                     <div className="mt-2 space-y-1 font-mono text-[11px] text-yellow-200">
                       <p>SMTP_HOST = smtp.zoho.com</p>
@@ -842,6 +842,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                       <p>SMTP_PASS = &lt;your Zoho app password&gt;</p>
                       <p>SMTP_FROM = Sure Odds &lt;info@sureodds.pro&gt;</p>
                     </div>
+                    <p className="text-yellow-400 text-[11px] mt-2">After adding, redeploy the backend on Render for the variables to take effect.</p>
                   </div>
                 </div>
               )}
@@ -874,7 +875,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                       if (res.sent) toast.success("Test email sent! Check your inbox.");
                       else toast.error("SMTP not configured — see instructions below.");
                     } catch {
-                      toast.error("Could not reach email endpoint.");
+                      toast.error("Backend unreachable — if using Render free tier, it may be cold-starting. Wait 30s and try again.");
                     } finally {
                       setTestEmailLoading(false);
                     }
