@@ -3,9 +3,10 @@ Sofascore scraper — replaces Football-Data.org.
 
 Architecture:
   - No API key required; scrapes Sofascore's public internal API.
-  - Scheduler polls every 2 hours for fixtures (7-day window).
-  - Separate live-match updater runs every 2 minutes during match hours.
+  - Scheduler polls every 6 hours for fixtures (7-day window).
+  - Separate live-match updater runs every 5 minutes during match hours.
   - All endpoints serve data from the DB — zero per-request scrapes.
+  - Startup skips scraping if DB data is < 6 hours old (preserves ScraperAPI credits).
 
 Sofascore endpoints used:
   Scheduled by date : https://api.sofascore.com/api/v1/sport/football/scheduled-events/{YYYY-MM-DD}
@@ -184,7 +185,7 @@ async def get_api_status() -> dict:
         "daily_limit": MAX_DAILY_REQUESTS,
         "remaining": MAX_DAILY_REQUESTS,
         "season": get_current_season(),
-        "poll_interval_hours": 2,
+        "poll_interval_hours": 6,
     }
 
 

@@ -15,6 +15,12 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
+    # Recycle connections every 5 minutes to prevent Supabase's pooler from
+    # silently dropping idle connections (their default idle timeout is ~5 min).
+    pool_recycle=300,
+    # If a connection cannot be acquired within 10 s, fail fast instead of
+    # hanging indefinitely — makes errors visible on the frontend immediately.
+    pool_timeout=10,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

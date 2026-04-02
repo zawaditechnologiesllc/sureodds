@@ -1,13 +1,13 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqlalchemy import cast, Date
+from sqlalchemy import cast, Date, func
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
@@ -34,6 +34,35 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler(timezone="UTC")
+
+# How long since the last fixture was inserted before we consider data stale.
+# If data is fresher than this, the startup scrape is skipped entirely.
+_SCRAPE_FRESHNESS_HOURS = 6
+
+
+# ---------------------------------------------------------------------------
+# Freshness check — avoid burning ScraperAPI credits on every cold start
+# ---------------------------------------------------------------------------
+
+def _hours_since_last_scrape(db) -> float | None:
+    """
+    Return how many hours ago the most recent fixture was created/updated.
+    Returns None if the fixtures table is empty (fresh deploy).
+    """
+    result = db.execute(
+        __import__("sqlalchemy").text(
+            "SELECT MAX(created_at) FROM fixtures"
+        )
+    ).scalar()
+
+    if result is None:
+        return None  # No data at all — needs full scrape
+
+    if result.tzinfo is None:
+        result = result.replace(tzinfo=timezone.utc)
+
+    delta = datetime.now(tz=timezone.utc) - result
+    return delta.total_seconds() / 3600
 
 
 # ---------------------------------------------------------------------------
@@ -78,19 +107,21 @@ async def _generate_predictions_for_window(db, days_ahead: int = 7) -> int:
 
 
 # ---------------------------------------------------------------------------
-# 6-hour poll — one API call, DB update, predictions, result reconciliation
+# 6-hour poll — DB update, predictions, result reconciliation
 # ---------------------------------------------------------------------------
 
 async def run_poll():
     """
-    Runs every 2 hours — scrapes Sofascore for a 7-day window,
+    Runs every 6 hours — scrapes Sofascore for a 7-day rolling window,
     generates predictions for new fixtures, and reconciles results.
+    Uses ScraperAPI credits only during this scheduled window, not on
+    every cold start.
     """
     db = SessionLocal()
     try:
-        logger.info("Poll: starting Sofascore fixture refresh...")
+        logger.info("Poll: starting Sofascore fixture refresh (6-hour schedule)...")
 
-        result = await fetch_window(db, days_back=2, days_ahead=5)
+        result = await fetch_window(db, days_back=2, days_ahead=7)
         logger.info(f"Poll: fetch result — {result}")
 
         created = await _generate_predictions_for_window(db, days_ahead=7)
@@ -108,7 +139,8 @@ async def run_poll():
 
 
 async def run_live_update():
-    """Runs every 2 minutes — updates scores for currently live matches."""
+    """Runs every 5 minutes — updates scores for currently live matches.
+    Uses direct Sofascore requests (no ScraperAPI proxy), so no credits consumed."""
     db = SessionLocal()
     try:
         result = await fetch_live(db)
@@ -122,8 +154,6 @@ async def run_live_update():
 
 # ---------------------------------------------------------------------------
 # Schema guard — add missing columns / tables directly via SQL
-# Runs before seed_packages so the ORM never queries a column that doesn't exist.
-# PostgreSQL's IF NOT EXISTS / ADD COLUMN IF NOT EXISTS make every statement idempotent.
 # ---------------------------------------------------------------------------
 
 def ensure_schema(db):
@@ -327,36 +357,59 @@ def seed_packages(db):
 
 
 # ---------------------------------------------------------------------------
-# Startup pipeline — wide initial fetch on first deploy
+# Startup pipeline — smart: skips full scrape when DB has fresh data
 # ---------------------------------------------------------------------------
 
 async def run_startup_pipeline():
     """
-    On startup:
-      1. Wide fetch: 30 days back + 14 days ahead — 1 API call.
-         30 days back gives the prediction engine H2H/form history.
-         14 days ahead captures fixtures past any international break.
-      2. Generate predictions for all fetched upcoming fixtures.
-      3. Reconcile any already-finished results (7-day window).
+    Smart startup:
+      - If DB has fixtures created within the last 6 hours → skip scraping
+        entirely. Data is fresh; the 6-hour scheduler will handle updates.
+      - If DB has some data but it's older than 6 hours → do a light refresh
+        (3 days back + 7 ahead = 10 API calls instead of 44).
+      - If DB is empty (first deploy) → do the full wide fetch (30d back +
+        14d ahead) so the prediction engine has enough H2H history.
+
+    This prevents ScraperAPI credits from being burned on every Render cold
+    start and ensures the API is responsive immediately (data already in DB).
     """
     db = SessionLocal()
     try:
         season = get_current_season()
         logger.info(f"Sure Odds starting — detected season: {season}")
 
-        logger.info("Startup: scraping Sofascore (30d back + 14d ahead)...")
-        result = await fetch_window(db, days_back=30, days_ahead=14)
-        logger.info(f"Startup: fetch complete — {result}")
+        hours_old = _hours_since_last_scrape(db)
 
-        # Generate predictions for all upcoming fixtures now in DB
-        logger.info("Startup: generating predictions (14-day window)...")
+        if hours_old is not None and hours_old < _SCRAPE_FRESHNESS_HOURS:
+            # Data is fresh — skip scraping, just ensure predictions exist
+            logger.info(
+                f"Startup: DB data is {hours_old:.1f}h old (< {_SCRAPE_FRESHNESS_HOURS}h threshold). "
+                "Skipping scrape — using existing DB data."
+            )
+            created = await _generate_predictions_for_window(db, days_ahead=7)
+            if created:
+                logger.info(f"Startup: {created} predictions generated for unpredicted fixtures.")
+            return
+
+        if hours_old is not None:
+            # Data exists but is stale — light refresh (saves ~75% of API credits)
+            logger.info(
+                f"Startup: DB data is {hours_old:.1f}h old. "
+                "Running light refresh (3d back + 7d ahead)..."
+            )
+            result = await fetch_window(db, days_back=3, days_ahead=7)
+            logger.info(f"Startup: light refresh complete — {result}")
+        else:
+            # No data at all — first deploy, do the full wide fetch
+            logger.info("Startup: DB is empty. Running full scrape (30d back + 14d ahead)...")
+            result = await fetch_window(db, days_back=30, days_ahead=14)
+            logger.info(f"Startup: full scrape complete — {result}")
+
         created = await _generate_predictions_for_window(db, days_ahead=14)
         logger.info(f"Startup: {created} predictions created.")
 
-        # Reconcile any already-finished matches (7-day window)
-        logger.info("Startup: reconciling results (7d back)...")
         reconciled = await update_results(db, days_back=7)
-        logger.info(f"Startup: {reconciled}")
+        logger.info(f"Startup: result reconciliation — {reconciled}")
 
     except Exception as e:
         logger.error(f"Startup pipeline error: {e}", exc_info=True)
@@ -384,18 +437,18 @@ async def lifespan(app: FastAPI):
 
     # Run the startup pipeline as a background task so the HTTP server starts
     # immediately and passes Render / deployment health checks.
-    # The scraper (44+ HTTP requests to Sofascore) takes several minutes —
-    # if it were awaited here, Render would time out and mark the deploy as failed.
     asyncio.create_task(run_startup_pipeline())
     logger.info("Startup pipeline launched in background — server accepting requests now.")
 
-    # Fixture refresh every 8 hours — uses ScraperAPI credits, keep interval wide
-    scheduler.add_job(run_poll, "interval", hours=8, id="poll_8h", replace_existing=True)
-    # Live score update every 5 minutes — direct request (no proxy credits used)
+    # Fixture refresh every 6 hours — controlled cadence to preserve ScraperAPI credits.
+    # Data served to the frontend always comes from the DB, never scraped per-request.
+    scheduler.add_job(run_poll, "interval", hours=6, id="poll_6h", replace_existing=True)
+
+    # Live score update every 5 minutes — direct Sofascore request, no proxy credits used.
     scheduler.add_job(run_live_update, "interval", minutes=5, id="live_5m", replace_existing=True)
 
     scheduler.start()
-    logger.info("Scheduler started — Sofascore fixtures every 8 h, live scores every 5 min.")
+    logger.info("Scheduler started — fixture poll every 6h, live scores every 5 min.")
 
     yield
 
@@ -410,7 +463,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sure Odds API",
     description="Sports prediction SaaS backend",
-    version="4.1.0",
+    version="4.2.0",
     lifespan=lifespan,
 )
 
@@ -457,13 +510,24 @@ async def public_stats():
 
 @app.get("/health")
 async def health():
+    db = SessionLocal()
+    try:
+        hours_old = _hours_since_last_scrape(db)
+        data_freshness = f"{hours_old:.1f}h ago" if hours_old is not None else "no data"
+    except Exception:
+        data_freshness = "unknown"
+    finally:
+        db.close()
+
     status = await get_api_status()
     return {
         "status": "ok",
         "service": "sure-odds-api",
-        "version": "4.1.0",
+        "version": "4.2.0",
         "season": get_current_season(),
-        "data_source": "sofascore.com",
+        "data_source": "sofascore.com (db-cached)",
+        "data_freshness": data_freshness,
+        "poll_interval_hours": 6,
         "api": status,
     }
 
