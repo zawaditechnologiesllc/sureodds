@@ -128,14 +128,10 @@ def _normalize_phone(phone: str, country: str) -> str:
     phone = phone.strip().replace(" ", "").replace("-", "")
     if phone.startswith("+"):
         phone = phone[1:]
-    # Strip leading zeros and local prefixes, then prepend country code
-    local_prefixes = {"254": ["07", "01"], "255": ["07", "06", "0"], "256": ["07", "0"]}
-    for pfx in local_prefixes.get(prefix, []):
-        if phone.startswith(pfx):
-            phone = prefix + phone[len(pfx):]
-            break
-    # If it starts with a single digit (no country code yet), prepend
-    if not phone.startswith(prefix):
+    # Strip leading zero, then prepend country code
+    if phone.startswith("0"):
+        phone = prefix + phone[1:]
+    elif not phone.startswith(prefix):
         phone = prefix + phone
     if len(phone) != cfg["length"]:
         raise HTTPException(
