@@ -6,6 +6,9 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 
 class Settings(BaseSettings):
+    # SUPABASE_DATABASE_URL takes priority over the Replit-managed DATABASE_URL.
+    # Set this in Replit secrets to point to the Supabase Postgres connection string.
+    SUPABASE_DATABASE_URL: Optional[str] = None
     DATABASE_URL: Optional[str] = None
     DIRECT_DATABASE_URL: Optional[str] = None
 
