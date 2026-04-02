@@ -60,6 +60,9 @@ class Fixture(Base):
     status = Column(String, default="scheduled", index=True)
     home_score = Column(Integer, nullable=True)
     away_score = Column(Integer, nullable=True)
+    home_odds = Column(Float, nullable=True)
+    draw_odds = Column(Float, nullable=True)
+    away_odds = Column(Float, nullable=True)
     season = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

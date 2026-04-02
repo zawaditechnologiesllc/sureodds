@@ -1,0 +1,219 @@
+Build a production-ready backend system using Python (FastAPI) that powers a football prediction SaaS platform. The system must scrape live matches and fixtures from SofaScore, process and filter data, generate betting bundles (up to 1000 odds), manage user subscriptions (VIP and value packs), and integrate payments using Paystack and IntaSend. Store all data in Supabase.
+
+SYSTEM REQUIREMENTS:
+
+1. API Endpoints:
+
+* GET /live-matches → return current live matches
+* GET /fixtures → return upcoming fixtures (next 7 days)
+* GET /bundles → return all bundles (filtered by user access)
+* GET /bundles/{id} → return bundle details
+* POST /admin/generate-bundles → admin-only endpoint to generate bundles
+* GET /user/access → return user access level
+* POST /payments/paystack/webhook → handle Paystack payment events
+* POST /payments/intasend/webhook → handle IntaSend payment events
+
+2. Data Sources (Scraping):
+
+Use SofaScore endpoints:
+
+* Live matches:
+  https://api.sofascore.com/api/v1/sport/football/events/live
+
+* Fixtures by date:
+  https://api.sofascore.com/api/v1/sport/football/scheduled-events/{DATE}
+
+Loop through today + next 7 days to collect fixtures.
+
+Use requests with proper headers (User-Agent).
+
+3. Data Extraction:
+
+For each match extract:
+
+* match_id
+* league name
+* country
+* home team
+* away team
+* score (if live)
+* status
+* start_time
+
+If odds are available:
+
+* home_odds
+* draw_odds
+* away_odds
+
+4. Database (Supabase):
+
+matches:
+
+* id (primary key)
+* league
+* country
+* home_team
+* away_team
+* score
+* status
+* start_time
+* home_odds
+* draw_odds
+* away_odds
+* confidence_score
+* updated_at
+
+bundles:
+
+* id
+* name (e.g., "100 Odds", "500 Odds", "1000 Odds")
+* total_odds
+* matches (JSON list)
+* confidence_avg
+* created_at
+
+users:
+
+* id
+* email
+* access_type (free, VIP, value_pack)
+* bundle_limit
+* created_at
+
+payments:
+
+* id
+* user_id
+* provider (paystack or intasend)
+* amount
+* status
+* reference
+* created_at
+
+5. League Filtering Logic:
+
+* Maintain whitelist of selected leagues
+* Ignore irrelevant leagues
+* Allow admin to update list dynamically
+
+6. Bundle Generation Logic:
+
+* Select matches with valid odds
+* Combine matches to reach:
+  100, 200, 300, 400, 500, up to 1000 odds
+
+Rules:
+
+* No duplicate matches in a bundle
+* Avoid extremely high-risk odds
+* Use balanced odds combination
+* Calculate total odds
+* Calculate average confidence score
+
+7. Confidence Scoring (AI Layer):
+
+For each match calculate:
+
+* team form (last 5 games)
+* scoring patterns
+* league strength
+* odds consistency
+
+Output:
+
+* confidence_score (0–100)
+
+Use this score to:
+
+* filter matches
+* rank bundles
+* improve prediction quality
+
+8. User Access Control:
+
+* Free users:
+
+  * limited preview only
+
+* VIP users:
+
+  * full unlimited access to all bundles
+
+* Value pack users:
+
+  * limited bundle access
+  * decrement bundle_limit per access
+
+9. Payment Integration:
+
+Integrate:
+
+* Paystack (card, M-PESA, Airtel)
+* IntaSend (mobile money + cards)
+
+Webhook logic:
+
+* Verify payment
+* Update user access:
+
+  * upgrade to VIP OR
+  * assign value pack (bundle_limit)
+
+Store transaction in payments table.
+
+10. Admin Dashboard Logic:
+
+Admin can:
+
+* trigger bundle generation
+* manage leagues
+* view payments
+* view users
+* approve/review data before publishing
+
+11. Caching:
+
+* Cache external API data for 60–120 seconds
+* Always serve frontend from database
+
+12. Background Jobs:
+
+* Fetch live matches every 1–2 minutes
+* Fetch fixtures every 12–24 hours
+* Generate bundles every 6–12 hours
+
+13. Project Structure:
+
+* main.py (FastAPI app)
+* scraper.py (data fetching)
+* database.py (Supabase logic)
+* bundles.py (bundle generation)
+* scoring.py (confidence scoring)
+* payments.py (Paystack + IntaSend logic)
+* auth.py (user access control)
+* scheduler.py (background jobs)
+
+14. Deployment:
+
+* requirements.txt
+
+* Environment variables:
+  SUPABASE_URL
+  SUPABASE_KEY
+  PAYSTACK_SECRET_KEY
+  INTASEND_SECRET_KEY
+
+* Ensure compatibility with Render
+
+15. Goal:
+
+Create a scalable SaaS backend where:
+
+* Data is scraped and processed
+* Bundles are generated intelligently
+* Users pay via Paystack or IntaSend
+* Access is controlled dynamically
+* Frontend (Vercel) consumes structured APIs
+
+Output complete working code with clear comments and modular structure.

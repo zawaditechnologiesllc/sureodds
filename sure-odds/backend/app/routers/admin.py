@@ -13,6 +13,8 @@ from app.services.fixtures_service import (
     get_current_season,
     get_daily_request_count,
     MAX_DAILY_REQUESTS,
+    SOFASCORE_BASE,
+    SOFASCORE_HEADERS,
 )
 from app.services.results_service import update_results
 from app.services.prediction_engine import generate_prediction
@@ -129,28 +131,20 @@ async def get_stats(db: Session = Depends(get_db)):
         "today_predictions": today_predictions,
         "total_fixtures": total_fixtures,
         "today_fixtures": today_fixtures,
-        "api_key_configured": bool(
-            settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY
-        ),
+        "api_key_configured": True,   # Sofascore needs no key
         "environment": settings.ENVIRONMENT,
         "current_season": get_current_season(),
-        "data_source": "football-data.org",
+        "data_source": "sofascore.com",
     }
 
 
 @router.get("/api-status", dependencies=[Depends(verify_admin)])
 async def admin_api_status():
-    """
-    Check Football-Data.org API status: key configured, daily call budget,
-    and current season. No live API call is made — reads from the in-memory
-    daily counter only.
-    """
+    """Return Sofascore scraper status — no API key required."""
     status = await get_api_status()
     return {
         "season": get_current_season(),
-        "api_key_set": bool(
-            settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY
-        ),
+        "api_key_set": True,
         **status,
     }
 

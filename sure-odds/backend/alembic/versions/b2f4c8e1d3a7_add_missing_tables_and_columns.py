@@ -33,6 +33,15 @@ def _column_exists(table: str, column: str) -> bool:
 
 
 def upgrade() -> None:
+    # ── fixtures: add odds columns (Sofascore) ────────────────────────────────
+    if _table_exists('fixtures'):
+        if not _column_exists('fixtures', 'home_odds'):
+            op.add_column('fixtures', sa.Column('home_odds', sa.Float(), nullable=True))
+        if not _column_exists('fixtures', 'draw_odds'):
+            op.add_column('fixtures', sa.Column('draw_odds', sa.Float(), nullable=True))
+        if not _column_exists('fixtures', 'away_odds'):
+            op.add_column('fixtures', sa.Column('away_odds', sa.Float(), nullable=True))
+
     # ── packages: add missing columns ────────────────────────────────────────
     if _table_exists('packages'):
         if not _column_exists('packages', 'package_type'):

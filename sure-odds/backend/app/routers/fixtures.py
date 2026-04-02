@@ -12,13 +12,11 @@ from app.models.models import Fixture, League, Prediction
 from pydantic import BaseModel
 import httpx
 import logging
-from app.core.config import settings
 from app.services.fixtures_service import (
     get_current_season,
     get_api_status,
-    FOOTBALL_DATA_BASE,
-    COMPETITION_CODES,
-    _get_headers,
+    SOFASCORE_BASE,
+    SOFASCORE_HEADERS,
 )
 
 logger = logging.getLogger(__name__)
@@ -181,70 +179,43 @@ async def get_fixtures(
 @router.get("/test-api")
 async def test_api():
     """
-    Verify connectivity to Football-Data.org.
-    Makes a single API call and returns raw response for debugging.
+    Verify Sofascore scraper connectivity.
+    Fetches today's scheduled events and returns a sample.
     """
-    key = settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY
-    if not key:
-        return {
-            "success": False,
-            "error": "FOOTBALL_DATA_API_KEY not configured",
-            "hint": "Add FOOTBALL_DATA_API_KEY to your environment secrets.",
-        }
-
-    season = get_current_season()
-    status = await get_api_status()
+    today = date.today()
+    url = f"{SOFASCORE_BASE}/sport/football/scheduled-events/{today.isoformat()}"
 
     try:
-        today = date.today()
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
-                f"{FOOTBALL_DATA_BASE}/matches",
-                headers=_get_headers(),
-                params={
-                    "dateFrom": today.isoformat(),
-                    "dateTo": today.isoformat(),
-                    "competitions": COMPETITION_CODES,
-                },
-            )
+        async with httpx.AsyncClient(timeout=15, headers=SOFASCORE_HEADERS) as client:
+            resp = await client.get(url)
 
-        if resp.status_code == 403:
-            return {
-                "success": False,
-                "http_status": 403,
-                "error": "API key rejected (403 Forbidden). Check FOOTBALL_DATA_API_KEY.",
-                "season": season,
-            }
         if resp.status_code == 429:
-            return {
-                "success": False,
-                "http_status": 429,
-                "error": "Rate limit hit (429). Try again in a minute.",
-                "daily_requests_used": status.get("daily_used"),
-            }
+            return {"success": False, "http_status": 429, "error": "Sofascore rate-limited. Try again in a minute."}
         if resp.status_code != 200:
-            return {
-                "success": False,
-                "http_status": resp.status_code,
-                "body": resp.text[:300],
-            }
+            return {"success": False, "http_status": resp.status_code, "body": resp.text[:300]}
 
         data = resp.json()
-        matches = data.get("matches", [])
-        result_set = data.get("resultSet", {})
+        events = data.get("events", [])
 
         return {
             "success": True,
-            "season": season,
-            "data_source": "football-data.org",
-            "daily_requests_used": status.get("daily_used"),
-            "daily_limit": status.get("daily_limit"),
-            "competitions_queried": COMPETITION_CODES,
-            "result_set": result_set,
-            "matches_today": len(matches),
-            "sample": matches[:3] if matches else [],
+            "data_source": "sofascore.com",
+            "season": get_current_season(),
+            "date_checked": today.isoformat(),
+            "total_events": len(events),
+            "sample": [
+                {
+                    "id": e["id"],
+                    "home": e.get("homeTeam", {}).get("name"),
+                    "away": e.get("awayTeam", {}).get("name"),
+                    "league": e.get("tournament", {}).get("name"),
+                    "status": e.get("status", {}).get("type"),
+                    "kickoff": e.get("startTimestamp"),
+                }
+                for e in events[:5]
+            ],
         }
 
     except Exception as e:
-        logger.error(f"test-api error: {e}")
+        logger.error(f"test-api (Sofascore) error: {e}")
         return {"success": False, "error": str(e)}

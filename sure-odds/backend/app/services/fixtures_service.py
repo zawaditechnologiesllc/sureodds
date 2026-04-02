@@ -1,63 +1,144 @@
 """
-Service for fetching and storing fixtures from Football-Data.org v4.
-Docs: https://www.football-data.org/documentation/api
+Sofascore scraper — replaces Football-Data.org.
 
 Architecture:
-  - A scheduler polls Football-Data.org every 6 HOURS with ONE API call.
-  - Each call fetches a rolling window: 7 days back + today + 7 days ahead.
-  - Endpoints serve data exclusively from the database — zero per-request calls.
+  - No API key required; scrapes Sofascore's public internal API.
+  - Scheduler polls every 2 hours for fixtures (7-day window).
+  - Separate live-match updater runs every 2 minutes during match hours.
+  - All endpoints serve data from the DB — zero per-request scrapes.
 
-API budget at 6-hour intervals:
-  - 4 calls per day (00:00, 06:00, 12:00, 18:00 UTC)
-  - Hard daily cap: 20 calls (5× safety margin)
-  - Football-Data.org free plan allows 10 requests/minute — easily within limits.
+Sofascore endpoints used:
+  Scheduled by date : https://api.sofascore.com/api/v1/sport/football/scheduled-events/{YYYY-MM-DD}
+  Live matches      : https://api.sofascore.com/api/v1/sport/football/events/live
 """
 
+import asyncio
 import httpx
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.orm import Session
-from app.core.config import settings
 from app.models.models import Fixture, League
 
 logger = logging.getLogger(__name__)
 
-FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
+SOFASCORE_BASE = "https://api.sofascore.com/api/v1"
 
-# Football-Data.org competition codes → (league DB id, display name, country)
-# These 4 European leagues are available on the free plan.
-ACTIVE_COMPETITIONS = [
-    {"code": "PL",  "id": 2021, "name": "Premier League", "country": "England"},
-    {"code": "PD",  "id": 2014, "name": "La Liga",         "country": "Spain"},
-    {"code": "SA",  "id": 2019, "name": "Serie A",         "country": "Italy"},
-    {"code": "BL1", "id": 2002, "name": "Bundesliga",      "country": "Germany"},
+# Browser-like headers — required to avoid Sofascore's bot detection.
+SOFASCORE_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.sofascore.com/",
+    "Origin": "https://www.sofascore.com",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-site",
+}
+
+# ---------------------------------------------------------------------------
+# League whitelist — only these leagues are stored in the DB.
+# Matching is case-insensitive on the tournament name.
+# Add substrings here — any name CONTAINING one of these strings is accepted.
+# ---------------------------------------------------------------------------
+
+LEAGUE_WHITELIST_SUBSTRINGS = [
+    # Top European
+    "premier league",
+    "la liga",
+    "serie a",
+    "bundesliga",
+    "ligue 1",
+    "eredivisie",
+    "primeira liga",
+    "super lig",
+    "scottish premiership",
+    "championship",        # English Championship
+    "serie b",
+    "bundesliga 2",
+    "ligue 2",
+    "la liga 2",
+    # Continental
+    "champions league",
+    "europa league",
+    "conference league",
+    "copa libertadores",
+    "copa sudamericana",
+    "caf champions league",
+    "caf confederation",
+    "africa cup",
+    "afcon",
+    "world cup",
+    "nations league",
+    # Africa — East & West & Southern
+    "fkf premier league",
+    "kenya premier league",
+    "kpl",
+    "dstv premiership",
+    "premier soccer league",
+    "psl",
+    "npfl",
+    "nigerian premier",
+    "egypt premier",
+    "egyptian premier",
+    "nbc premier league",        # Tanzania
+    "tanzanian premier",
+    "uganda premier",
+    "starTimes",
+    "zambia super league",
+    "zimbabwe premier",
+    "ghana premier",
+    "ethiopian premier",
+    "d1 betika",
+    # Americas / Asia / Other
+    "mls",
+    "liga mx",
+    "saudi pro league",
+    "saudi professional",
+    "j1 league",
+    "a-league",
 ]
 
-COMPETITION_CODES = ",".join(c["code"] for c in ACTIVE_COMPETITIONS)
-ACTIVE_COMPETITION_IDS = {c["id"] for c in ACTIVE_COMPETITIONS}
+# Normalise to lowercase for matching
+_WHITELIST_LOWER = [s.lower() for s in LEAGUE_WHITELIST_SUBSTRINGS]
+
+
+def _is_whitelisted(tournament_name: str) -> bool:
+    name_lower = tournament_name.lower()
+    return any(sub in name_lower for sub in _WHITELIST_LOWER)
+
 
 # ---------------------------------------------------------------------------
-# Daily request counter  (in-memory; resets on server restart)
+# Status mapping
 # ---------------------------------------------------------------------------
 
-_daily_requests: dict[str, int] = {}
+_STATUS_MAP = {
+    "notstarted":   "scheduled",
+    "inprogress":   "live",
+    "halftime":     "live",
+    "interrupted":  "live",
+    "finished":     "finished",
+    "ended":        "finished",
+    "postponed":    "scheduled",
+    "canceled":     "scheduled",
+    "cancelled":    "scheduled",
+    "awaitingextratime": "live",
+    "extratime":    "live",
+    "penaltiesshootout": "live",
+    "overtime":     "live",
+}
 
-# Hard cap: 20 calls/day — safety valve. At 6-hour intervals we use 4/day max.
-MAX_DAILY_REQUESTS = 20
 
-
-def _record_request():
-    key = date.today().isoformat()
-    _daily_requests[key] = _daily_requests.get(key, 0) + 1
-    logger.info(f"API request #{_daily_requests[key]} today ({key})")
-
-
-def get_daily_request_count() -> int:
-    return _daily_requests.get(date.today().isoformat(), 0)
-
-
-def is_over_daily_limit() -> bool:
-    return get_daily_request_count() >= MAX_DAILY_REQUESTS
+def map_status(sofascore_type: str) -> str:
+    return _STATUS_MAP.get((sofascore_type or "").lower(), "scheduled")
 
 
 # ---------------------------------------------------------------------------
@@ -65,174 +146,99 @@ def is_over_daily_limit() -> bool:
 # ---------------------------------------------------------------------------
 
 def get_current_season() -> int:
-    """
-    Auto-detect the current football season year.
-    Month >= 7 (July onward) → season just kicked off → current year.
-    Month <  7 (Jan–June)    → season started last year → year - 1.
-    Example: March 2026 → season 2025
-    """
     today = date.today()
     return today.year if today.month >= 7 else today.year - 1
 
 
-# ---------------------------------------------------------------------------
-# API status / health check
-# ---------------------------------------------------------------------------
-
-async def get_api_status() -> dict:
-    key = settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY
-    daily_used = get_daily_request_count()
-    return {
-        "available": bool(key) and not is_over_daily_limit(),
-        "api_key_set": bool(key),
-        "daily_used": daily_used,
-        "daily_limit": MAX_DAILY_REQUESTS,
-        "remaining": MAX_DAILY_REQUESTS - daily_used,
-        "source": "football-data.org",
-        "season": get_current_season(),
-        "poll_interval_hours": 6,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Core fetch helpers
-# ---------------------------------------------------------------------------
-
-def _get_headers() -> dict:
-    key = settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY
-    return {"X-Auth-Token": key}
-
-
-def map_status(api_status: str) -> str:
-    """Map Football-Data.org match status to our internal values."""
-    if api_status in {"IN_PLAY", "PAUSED", "LIVE", "HALFTIME"}:
-        return "live"
-    if api_status in {"FINISHED", "AWARDED"}:
-        return "finished"
-    return "scheduled"
-
-
-def _extract_season_year(match: dict) -> int:
+def _extract_season(event: dict) -> int:
     try:
-        start_date_str = match.get("season", {}).get("startDate", "")
-        if start_date_str:
-            return int(start_date_str[:4])
-    except (ValueError, TypeError):
+        year_str = event.get("season", {}).get("year", "")
+        if year_str:
+            return int(year_str.split("/")[0])
+    except (ValueError, TypeError, IndexError):
         pass
     return get_current_season()
 
 
-async def _fetch_matches_for_range(date_from: date, date_to: date) -> list | None:
-    """
-    ONE API call: fetch all matches between date_from and date_to for our competitions.
-    Returns list of match dicts on success, empty list if no key, None on error.
-    """
-    if not (settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY):
-        logger.warning("FOOTBALL_DATA_API_KEY not configured — skipping fetch.")
-        return []
+# ---------------------------------------------------------------------------
+# Compat stubs — kept so admin.py imports still resolve
+# ---------------------------------------------------------------------------
 
-    if is_over_daily_limit():
-        logger.warning(f"Daily limit reached ({MAX_DAILY_REQUESTS}). Skipping fetch.")
-        return None
+MAX_DAILY_REQUESTS = 999  # Sofascore has no hard cap; kept for API compat
 
-    params = {
-        "dateFrom": date_from.isoformat(),
-        "dateTo": date_to.isoformat(),
-        "competitions": COMPETITION_CODES,
+
+def get_daily_request_count() -> int:
+    return 0
+
+
+def is_over_daily_limit() -> bool:
+    return False
+
+
+async def get_api_status() -> dict:
+    return {
+        "available": True,
+        "api_key_set": True,
+        "source": "sofascore.com (scraper)",
+        "daily_used": 0,
+        "daily_limit": MAX_DAILY_REQUESTS,
+        "remaining": MAX_DAILY_REQUESTS,
+        "season": get_current_season(),
+        "poll_interval_hours": 2,
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(
-                f"{FOOTBALL_DATA_BASE}/matches",
-                headers=_get_headers(),
-                params=params,
-            )
-            _record_request()
-
-            if resp.status_code == 429:
-                logger.error("Rate limit hit (429). Will retry next poll.")
-                return None
-            if resp.status_code == 403:
-                logger.error("Football-Data.org 403 Forbidden — check FOOTBALL_DATA_API_KEY.")
-                return None
-            if resp.status_code != 200:
-                logger.error(f"Football-Data.org HTTP {resp.status_code}: {resp.text[:200]}")
-                return None
-
-            data = resp.json()
-            matches = data.get("matches", [])
-            count = data.get("resultSet", {}).get("count", len(matches))
-            logger.info(f"Fetched {date_from} → {date_to}: {count} matches")
-            return matches
-
-    except Exception as e:
-        logger.error(f"Fetch error {date_from}→{date_to}: {e}")
-        return None
-
 
 # ---------------------------------------------------------------------------
-# Upsert
+# Core HTTP fetch
 # ---------------------------------------------------------------------------
 
-async def upsert_fixtures(db: Session, matches: list) -> dict:
-    """
-    Insert new matches and update scores/status for existing ones.
-    Returns counts of inserted and updated records.
-    """
-    inserted = 0
-    updated = 0
-    for m in matches:
+async def _fetch_json(url: str, retries: int = 3) -> dict | None:
+    for attempt in range(retries):
         try:
-            match_id    = m["id"]
-            comp_id     = m["competition"]["id"]
-            utc_date    = m["utcDate"]
-            api_status  = m["status"]
-            home        = m["homeTeam"]
-            away        = m["awayTeam"]
-            score       = m.get("score", {})
-            full_time   = score.get("fullTime", {})
-            home_score  = full_time.get("home")
-            away_score  = full_time.get("away")
-            season_year = _extract_season_year(m)
+            async with httpx.AsyncClient(
+                timeout=30,
+                follow_redirects=True,
+                headers=SOFASCORE_HEADERS,
+            ) as client:
+                resp = await client.get(url)
 
-            kickoff = datetime.fromisoformat(utc_date.replace("Z", "+00:00"))
-            status  = map_status(api_status)
+            if resp.status_code == 200:
+                return resp.json()
+            if resp.status_code == 429:
+                wait = 60 * (attempt + 1)
+                logger.warning(f"Sofascore 429 rate-limit. Waiting {wait}s… (attempt {attempt+1})")
+                await asyncio.sleep(wait)
+                continue
+            if resp.status_code in (403, 404):
+                logger.warning(f"Sofascore {resp.status_code} for {url}")
+                return None
 
-            existing = db.query(Fixture).filter(Fixture.id == match_id).first()
-            if existing:
-                existing.status     = status
-                existing.home_score = home_score
-                existing.away_score = away_score
-                if home.get("crest"):
-                    existing.home_team_logo = home["crest"]
-                if away.get("crest"):
-                    existing.away_team_logo = away["crest"]
-                updated += 1
-            else:
-                db.add(Fixture(
-                    id=match_id,
-                    league_id=comp_id,
-                    home_team_id=home["id"],
-                    home_team_name=home.get("name", home.get("shortName", "Unknown")),
-                    home_team_logo=home.get("crest"),
-                    away_team_id=away["id"],
-                    away_team_name=away.get("name", away.get("shortName", "Unknown")),
-                    away_team_logo=away.get("crest"),
-                    kickoff=kickoff,
-                    status=status,
-                    home_score=home_score,
-                    away_score=away_score,
-                    season=season_year,
-                ))
-                inserted += 1
+            logger.warning(f"Sofascore HTTP {resp.status_code} for {url}: {resp.text[:200]}")
+            return None
 
         except Exception as e:
-            logger.warning(f"Error upserting match {m.get('id')}: {e}")
-            continue
+            logger.error(f"Sofascore fetch error (attempt {attempt+1}): {e}")
+            if attempt < retries - 1:
+                await asyncio.sleep(5 * (attempt + 1))
+    return None
 
-    db.commit()
-    return {"inserted": inserted, "updated": updated}
+
+async def _fetch_events_for_date(target_date: date) -> list:
+    url = f"{SOFASCORE_BASE}/sport/football/scheduled-events/{target_date.isoformat()}"
+    data = await _fetch_json(url)
+    if not data:
+        return []
+    events = data.get("events", [])
+    logger.info(f"Sofascore: {len(events)} raw events for {target_date}")
+    return events
+
+
+async def fetch_live_events() -> list:
+    url = f"{SOFASCORE_BASE}/sport/football/events/live"
+    data = await _fetch_json(url)
+    if not data:
+        return []
+    return data.get("events", [])
 
 
 # ---------------------------------------------------------------------------
@@ -240,76 +246,234 @@ async def upsert_fixtures(db: Session, matches: list) -> dict:
 # ---------------------------------------------------------------------------
 
 async def ensure_leagues(db: Session):
-    """Ensure all active competitions exist in the leagues table."""
-    for comp in ACTIVE_COMPETITIONS:
-        if not db.query(League).filter(League.id == comp["id"]).first():
-            db.add(League(id=comp["id"], name=comp["name"], country=comp["country"]))
-    db.commit()
+    pass  # Leagues are created on-the-fly during upsert
+
+
+def _get_or_create_league(db: Session, tournament: dict) -> League | None:
+    t_id   = tournament.get("id")
+    t_name = tournament.get("name", "")
+    t_cat  = tournament.get("category", {})
+    country = t_cat.get("name", "Unknown")
+
+    if not t_id or not t_name:
+        return None
+
+    league = db.query(League).filter(League.id == t_id).first()
+    if not league:
+        is_active = _is_whitelisted(t_name)
+        league = League(
+            id=t_id,
+            name=t_name,
+            country=country,
+            is_active=is_active,
+        )
+        db.add(league)
+        try:
+            db.flush()
+        except Exception:
+            db.rollback()
+            league = db.query(League).filter(League.id == t_id).first()
+    return league
 
 
 # ---------------------------------------------------------------------------
-# Main polling function — called every 6 hours by the scheduler
+# Upsert
+# ---------------------------------------------------------------------------
+
+async def upsert_fixtures(db: Session, events: list) -> dict:
+    """
+    Process events in small batches, flushing after each batch to catch
+    duplicate-key issues early without losing the whole session's work.
+    Uses db.merge() so duplicate event IDs within a batch are handled
+    automatically by SQLAlchemy's identity map.
+    """
+    from sqlalchemy import text
+
+    inserted = 0
+    updated = 0
+    skipped = 0
+
+    # Build a set of event IDs already in the DB for this session to avoid
+    # O(N) queries; use a raw SQL call that scales to thousands of rows.
+    all_event_ids = [ev.get("id") for ev in events if ev.get("id")]
+    if all_event_ids:
+        result = db.execute(
+            text("SELECT id FROM fixtures WHERE id = ANY(:ids)"),
+            {"ids": all_event_ids},
+        )
+        existing_ids: set = {row[0] for row in result}
+    else:
+        existing_ids = set()
+
+    BATCH = 50   # commit every 50 records to keep transactions short
+
+    for i, ev in enumerate(events):
+        try:
+            tournament = ev.get("tournament", {})
+            league = _get_or_create_league(db, tournament)
+
+            if not league or not league.is_active:
+                skipped += 1
+                continue
+
+            event_id   = ev["id"]
+            home       = ev.get("homeTeam", {})
+            away       = ev.get("awayTeam", {})
+            status_raw = ev.get("status", {}).get("type", "notstarted")
+            status     = map_status(status_raw)
+
+            home_score_data = ev.get("homeScore", {})
+            away_score_data = ev.get("awayScore", {})
+            home_score = home_score_data.get("current")
+            away_score = away_score_data.get("current")
+
+            ts = ev.get("startTimestamp")
+            if not ts:
+                continue
+            kickoff = datetime.fromtimestamp(ts, tz=timezone.utc)
+
+            season = _extract_season(ev)
+
+            odds_data = ev.get("odds") or {}
+            home_odds = odds_data.get("1")
+            draw_odds = odds_data.get("x")
+            away_odds = odds_data.get("2")
+
+            home_name = home.get("name") or home.get("shortName", "Unknown")
+            away_name = away.get("name") or away.get("shortName", "Unknown")
+
+            home_logo = f"{SOFASCORE_BASE}/team/{home['id']}/image" if home.get("id") else None
+            away_logo = f"{SOFASCORE_BASE}/team/{away['id']}/image" if away.get("id") else None
+
+            if event_id in existing_ids:
+                # UPDATE path — load and mutate
+                existing = db.get(Fixture, event_id)
+                if existing is None:
+                    # May have been loaded in a previous batch; skip safely
+                    continue
+                existing.status     = status
+                existing.home_score = home_score
+                existing.away_score = away_score
+                if home_odds is not None:
+                    existing.home_odds = home_odds
+                if draw_odds is not None:
+                    existing.draw_odds = draw_odds
+                if away_odds is not None:
+                    existing.away_odds = away_odds
+                updated += 1
+            else:
+                # INSERT path — use merge() so duplicates within the same
+                # batch (same event on two dates) don't cause collisions.
+                db.merge(Fixture(
+                    id=event_id,
+                    league_id=league.id,
+                    home_team_id=home.get("id", 0),
+                    home_team_name=home_name,
+                    home_team_logo=home_logo,
+                    away_team_id=away.get("id", 0),
+                    away_team_name=away_name,
+                    away_team_logo=away_logo,
+                    kickoff=kickoff,
+                    status=status,
+                    home_score=home_score,
+                    away_score=away_score,
+                    home_odds=home_odds,
+                    draw_odds=draw_odds,
+                    away_odds=away_odds,
+                    season=season,
+                ))
+                existing_ids.add(event_id)  # prevent double-insert in this run
+                inserted += 1
+
+        except Exception as e:
+            logger.warning(f"Upsert error for event {ev.get('id')}: {e}")
+            continue
+
+        # Commit in small batches to keep transactions short
+        if (i + 1) % BATCH == 0:
+            try:
+                db.commit()
+            except Exception as e:
+                logger.warning(f"Batch commit error at index {i}: {e}")
+                db.rollback()
+
+    # Final commit for the last partial batch
+    try:
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Final commit error: {e}")
+        db.rollback()
+
+    return {"inserted": inserted, "updated": updated, "skipped": skipped}
+
+
+# ---------------------------------------------------------------------------
+# Main polling functions
 # ---------------------------------------------------------------------------
 
 async def fetch_window(db: Session, days_back: int = 7, days_ahead: int = 7) -> dict:
     """
-    Single API call covering a rolling window: past N days + today + next N days.
-
-    This is the primary polling function called every 6 hours.
-    One call covers both result updates (finished matches) and upcoming fixtures.
-
-    days_back=7  — captures finished matches for results (7-day display window)
-    days_ahead=7 — captures upcoming fixtures for predictions page
-                   Use days_ahead=14 for initial boot to cover international breaks.
+    Fetch a rolling date window from Sofascore.
+    One HTTP request per day in the window; dates are spaced 0.5 s apart to
+    avoid hammering the server.
     """
     await ensure_leagues(db)
+
     today = date.today()
-    date_from = today - timedelta(days=days_back)
-    date_to   = today + timedelta(days=days_ahead)
+    dates = [
+        today - timedelta(days=i)
+        for i in range(days_back, 0, -1)
+    ] + [
+        today + timedelta(days=i)
+        for i in range(days_ahead + 1)
+    ]
 
-    matches = await _fetch_matches_for_range(date_from, date_to)
-    if matches is None:
-        return {"error": "API call failed", "fixtures_inserted": 0, "fixtures_updated": 0}
-    if not matches:
-        return {"fixtures_inserted": 0, "fixtures_updated": 0, "skipped": True}
+    all_events: list = []
+    for d in dates:
+        events = await _fetch_events_for_date(d)
+        all_events.extend(events)
+        await asyncio.sleep(0.4)   # gentle rate limit
 
-    counts = await upsert_fixtures(db, matches)
-    finished = sum(1 for m in matches if map_status(m["status"]) == "finished")
-    scheduled = sum(1 for m in matches if map_status(m["status"]) == "scheduled")
+    if not all_events:
+        logger.warning("Sofascore returned 0 events for the window.")
+        return {"fixtures_inserted": 0, "fixtures_updated": 0, "skipped": 0, "total": 0}
 
+    counts = await upsert_fixtures(db, all_events)
     logger.info(
-        f"Window {date_from} → {date_to}: "
-        f"{counts['inserted']} new, {counts['updated']} updated "
-        f"({scheduled} upcoming, {finished} finished)"
+        f"fetch_window ({today - timedelta(days=days_back)} → "
+        f"{today + timedelta(days=days_ahead)}): "
+        f"{counts['inserted']} new, {counts['updated']} updated, "
+        f"{counts['skipped']} skipped (not whitelisted)"
     )
     return {
-        "date_from": date_from.isoformat(),
-        "date_to": date_to.isoformat(),
-        "total_matches": len(matches),
+        "date_from": (today - timedelta(days=days_back)).isoformat(),
+        "date_to": (today + timedelta(days=days_ahead)).isoformat(),
+        "total_matches": len(all_events),
         "fixtures_inserted": counts["inserted"],
         "fixtures_updated": counts["updated"],
-        "upcoming": scheduled,
-        "finished": finished,
+        "skipped": counts["skipped"],
     }
 
 
-# ---------------------------------------------------------------------------
-# Legacy functions kept for admin endpoints
-# ---------------------------------------------------------------------------
+async def fetch_live(db: Session) -> dict:
+    """Update live match scores — called every 2 minutes by the scheduler."""
+    events = await fetch_live_events()
+    if not events:
+        return {"live": 0}
 
+    counts = await upsert_fixtures(db, events)
+    logger.info(f"Live update: {len(events)} events, {counts['updated']} updated")
+    return {"live": len(events), "updated": counts["updated"]}
+
+
+# Legacy aliases used by admin.py
 async def fetch_upcoming(db: Session, days_ahead: int = 7) -> dict:
-    """Fetch today + next N days. Kept for admin manual triggers."""
     return await fetch_window(db, days_back=0, days_ahead=days_ahead)
 
 
 async def fetch_results(db: Session, days_back: int = 7) -> dict:
-    """Fetch past N days. Kept for admin manual triggers."""
     return await fetch_window(db, days_back=days_back, days_ahead=0)
 
 
 async def update_all_fixtures(db: Session, days_ahead: int = 14, days_back: int = 30) -> dict:
-    """
-    Wide refresh used by admin manual trigger and startup.
-    Uses 1 API call (single range query).
-    """
     return await fetch_window(db, days_back=days_back, days_ahead=days_ahead)

@@ -22,6 +22,7 @@ from app.routers import bundles as bundles_router
 from app.models.models import Package, UserVipAccess
 from app.services.fixtures_service import (
     fetch_window,
+    fetch_live,
     get_current_season,
     get_api_status,
 )
@@ -81,35 +82,39 @@ async def _generate_predictions_for_window(db, days_ahead: int = 7) -> int:
 
 async def run_poll():
     """
-    Runs every 6 hours (00:00, 06:00, 12:00, 18:00 UTC).
-    One Football-Data.org API call covers a rolling window of
-    7 days back + today + 7 days ahead, storing everything in the DB.
-
-    Pipeline per poll:
-      1. Fetch window (7d back → 7d ahead)   — 1 API call
-      2. Generate predictions for new fixtures — 0 API calls (DB only)
-      3. Reconcile finished match results      — 0 API calls (DB only)
+    Runs every 2 hours — scrapes Sofascore for a 7-day window,
+    generates predictions for new fixtures, and reconciles results.
     """
     db = SessionLocal()
     try:
-        logger.info("Poll: starting 6-hour fixture refresh...")
+        logger.info("Poll: starting Sofascore fixture refresh...")
 
-        # Step 1: one API call covering past 7 days + next 7 days
         result = await fetch_window(db, days_back=7, days_ahead=7)
         logger.info(f"Poll: fetch result — {result}")
 
-        # Step 2: generate predictions for any new upcoming fixtures
         created = await _generate_predictions_for_window(db, days_ahead=7)
         if created:
             logger.info(f"Poll: {created} new predictions generated.")
 
-        # Step 3: reconcile results for finished matches (DB only, 7-day window)
         reconciled = await update_results(db, days_back=7)
         if reconciled.get("updated"):
             logger.info(f"Poll: reconciled {reconciled['updated']} results.")
 
     except Exception as e:
         logger.error(f"Poll error: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+async def run_live_update():
+    """Runs every 2 minutes — updates scores for currently live matches."""
+    db = SessionLocal()
+    try:
+        result = await fetch_live(db)
+        if result.get("live", 0):
+            logger.info(f"Live update: {result}")
+    except Exception as e:
+        logger.error(f"Live update error: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -124,6 +129,11 @@ def ensure_schema(db):
     from sqlalchemy import text
 
     statements = [
+        # fixtures — odds columns from Sofascore
+        "ALTER TABLE fixtures ADD COLUMN IF NOT EXISTS home_odds FLOAT",
+        "ALTER TABLE fixtures ADD COLUMN IF NOT EXISTS draw_odds FLOAT",
+        "ALTER TABLE fixtures ADD COLUMN IF NOT EXISTS away_odds FLOAT",
+
         # packages — newer columns added after the initial migration
         "ALTER TABLE packages ADD COLUMN IF NOT EXISTS package_type   VARCHAR DEFAULT 'credits'",
         "ALTER TABLE packages ADD COLUMN IF NOT EXISTS duration_days  INTEGER",
@@ -333,16 +343,9 @@ async def run_startup_pipeline():
         season = get_current_season()
         logger.info(f"Sure Odds starting — detected season: {season}")
 
-        key_configured = bool(settings.FOOTBALL_DATA_API_KEY or settings.API_FOOTBALL_KEY)
-        if not key_configured:
-            logger.warning(
-                "FOOTBALL_DATA_API_KEY is not set — fixture fetching skipped at startup. "
-                "Set FOOTBALL_DATA_API_KEY in environment secrets to enable live data."
-            )
-        else:
-            logger.info("Startup: wide fetch (30d back + 14d ahead)...")
-            result = await fetch_window(db, days_back=30, days_ahead=14)
-            logger.info(f"Startup: fetch complete — {result}")
+        logger.info("Startup: scraping Sofascore (30d back + 14d ahead)...")
+        result = await fetch_window(db, days_back=30, days_ahead=14)
+        logger.info(f"Startup: fetch complete — {result}")
 
         # Generate predictions for all upcoming fixtures now in DB
         logger.info("Startup: generating predictions (14-day window)...")
@@ -380,17 +383,13 @@ async def lifespan(app: FastAPI):
 
     await run_startup_pipeline()
 
-    # Poll every 6 hours — one API call per run (4 calls/day max)
-    scheduler.add_job(
-        run_poll,
-        "interval",
-        hours=6,
-        id="poll_6h",
-        replace_existing=True,
-    )
+    # Fixture refresh every 2 hours
+    scheduler.add_job(run_poll, "interval", hours=2, id="poll_2h", replace_existing=True)
+    # Live score update every 2 minutes
+    scheduler.add_job(run_live_update, "interval", minutes=2, id="live_2m", replace_existing=True)
 
     scheduler.start()
-    logger.info("Scheduler started — polling Football-Data.org every 6 hours.")
+    logger.info("Scheduler started — Sofascore fixtures every 2 h, live scores every 2 min.")
 
     yield
 

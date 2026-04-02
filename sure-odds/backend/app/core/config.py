@@ -110,8 +110,6 @@ class Settings(BaseSettings):
             errors.append("SUPABASE_URL")
         if "placeholder" in self.SUPABASE_SERVICE_ROLE_KEY:
             errors.append("SUPABASE_SERVICE_ROLE_KEY")
-        if not self.FOOTBALL_DATA_API_KEY:
-            errors.append("FOOTBALL_DATA_API_KEY")
         if errors:
             raise EnvironmentError(
                 f"Missing required environment variables: {', '.join(errors)}"

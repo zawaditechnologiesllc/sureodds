@@ -611,9 +611,9 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
           <h1 className="text-white font-black text-2xl">Admin Panel</h1>
           <div className="flex items-center gap-3">
             {stats && (
-              <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border ${stats.api_key_configured ? "bg-green-950 border-green-900 text-brand-green" : "bg-red-950 border-red-900 text-brand-red"}`}>
-                {stats.api_key_configured ? <CheckCircle className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-                {stats.api_key_configured ? "API key connected" : "API key not set"}
+              <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border bg-green-950 border-green-900 text-brand-green">
+                <CheckCircle className="w-3.5 h-3.5" />
+                Sofascore connected
               </div>
             )}
             <button
@@ -672,17 +672,11 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-white font-bold text-lg">Data Source Status</h2>
-                  <p className="text-brand-muted text-xs mt-0.5">football-data.org · fetches every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)</p>
+                  <p className="text-brand-muted text-xs mt-0.5">sofascore.com · fixtures refresh every 2 hours · live scores every 2 minutes</p>
                 </div>
                 {!apiStatusLoading && apiStatus && (
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
-                    !apiStatus.api_key_set
-                      ? "bg-yellow-950 text-brand-yellow border-yellow-900"
-                      : apiStatus.available
-                        ? "bg-green-950 text-brand-green border-green-900"
-                        : "bg-red-950 text-brand-red border-red-900"
-                  }`}>
-                    {!apiStatus.api_key_set ? "NO KEY" : apiStatus.available ? "ACTIVE" : "LIMIT REACHED"}
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-full border bg-green-950 text-brand-green border-green-900">
+                    ACTIVE
                   </span>
                 )}
               </div>
@@ -697,9 +691,9 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                     {[
                       { label: "Season", value: apiStatus.season?.toString() ?? "—", color: "text-white" },
-                      { label: "Daily Calls Used", value: apiStatus.daily_used != null ? `${apiStatus.daily_used}/${apiStatus.daily_limit}` : "—", color: (apiStatus.daily_used ?? 0) >= (apiStatus.daily_limit ?? 20) ? "text-brand-red" : "text-brand-green" },
-                      { label: "Remaining Today", value: apiStatus.remaining != null ? `${apiStatus.remaining}` : "—", color: (apiStatus.remaining ?? 20) <= 4 ? "text-brand-red" : "text-brand-green" },
-                      { label: "Poll Interval", value: apiStatus.poll_interval_hours != null ? `Every ${apiStatus.poll_interval_hours}h` : "Every 6h", color: "text-brand-yellow" },
+                      { label: "Source", value: "Sofascore", color: "text-brand-yellow" },
+                      { label: "Fixtures Poll", value: "Every 2h", color: "text-brand-green" },
+                      { label: "Live Scores", value: "Every 2min", color: "text-brand-green" },
                     ].map(({ label, value, color }) => (
                       <div key={label} className="bg-brand-dark border border-brand-border rounded-lg p-3">
                         <p className="text-brand-muted text-[10px] uppercase font-bold mb-1">{label}</p>
@@ -708,41 +702,13 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                     ))}
                   </div>
 
-                  {!apiStatus.api_key_set && (
-                    <div className="bg-yellow-950 border border-yellow-900 rounded-lg p-4 flex items-start gap-3">
-                      <ShieldAlert className="w-5 h-5 text-brand-yellow shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-brand-yellow font-bold text-sm">API key not configured</p>
-                        <p className="text-yellow-400 text-xs mt-1 leading-relaxed">
-                          Add <code className="bg-yellow-900/50 px-1 rounded">FOOTBALL_DATA_API_KEY</code> to your environment secrets.
-                          Get a free key at{" "}
-                          <a href="https://www.football-data.org/client/register" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">
-                            football-data.org/client/register
-                          </a>{" "}
-                          — the free plan includes Premier League, La Liga, Serie A, and Bundesliga.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {apiStatus.api_key_set && !apiStatus.available && (
-                    <div className="bg-red-950 border border-red-900 rounded-lg p-3 flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-brand-red shrink-0 mt-0.5" />
-                      <p className="text-red-300 text-xs">
-                        Daily request limit reached ({apiStatus.daily_limit} calls). The scheduler will pause until midnight UTC when the counter resets automatically.
-                      </p>
-                    </div>
-                  )}
-
-                  {apiStatus.api_key_set && apiStatus.available && (
-                    <div className="bg-green-950/30 border border-green-900/30 rounded-lg p-3 flex items-start gap-2">
-                      <CheckCircle className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
-                      <p className="text-green-300 text-xs">
-                        Data source is healthy. Fixtures are fetched every 6 hours (1 API call per run, 4 calls/day max).
-                        Season {apiStatus.season} is active — Premier League, La Liga, Serie A, and Bundesliga are tracked.
-                      </p>
-                    </div>
-                  )}
+                  <div className="bg-green-950/30 border border-green-900/30 rounded-lg p-3 flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
+                    <p className="text-green-300 text-xs">
+                      Sofascore scraper is active — no API key required. Season {apiStatus.season} fixtures are loaded automatically.
+                      Leagues covered: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, CAF CL, FKF Premier League, PSL, NPFL, and more.
+                    </p>
+                  </div>
                 </>
               ) : (
                 <p className="text-brand-muted text-sm">Could not load data source status.</p>

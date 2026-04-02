@@ -35,7 +35,7 @@ Sure Odds is a sports prediction SaaS platform that provides AI-powered football
 - **Database**: SQLAlchemy + Alembic migrations
 - **Auth**: Supabase (server-side token validation)
 - **Scheduler**: APScheduler
-- **External API**: Football-Data.org v4 for fixture data (replaces API-Football)
+- **Data source**: Sofascore internal API (no key required) — replaces Football-Data.org
 
 ### Workspace Infrastructure (pnpm monorepo)
 - **Monorepo tool**: pnpm workspaces
@@ -78,8 +78,8 @@ Two workflows run in parallel:
 | `O_DATABASE_URL` | Alternative DB URL (overrides DATABASE_URL) | No |
 | `SUPABASE_URL` | Supabase project URL | For auth |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | For auth |
-| `FOOTBALL_DATA_API_KEY` | Football-Data.org API key (free: PL, La Liga, Serie A, Bundesliga) | For predictions |
-| `API_FOOTBALL_KEY` | Legacy — was used for API-Football; no longer needed | Deprecated |
+| `FOOTBALL_DATA_API_KEY` | Deprecated — Sofascore scraper needs no API key | No longer needed |
+| `API_FOOTBALL_KEY` | Deprecated — legacy key, no longer used | Deprecated |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL for frontend | For frontend auth |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key for frontend | For frontend auth |
 | `NEXT_PUBLIC_API_URL` | Backend API URL | For frontend→backend calls |
@@ -201,34 +201,34 @@ Users can buy pick credits to unlock locked predictions. No subscription require
 - `GET /high-confidence-picks` — today's high_confidence predictions (locked metadata)
 - `POST /unlock-pick` — consume 1 credit to unlock full prediction details
 
-## Data Pipeline Architecture (v3.0)
+## Data Pipeline Architecture (v4.0 — Sofascore)
 
-All fixture and result data flows through a strict scheduled-fetch-only pipeline:
+All fixture data is scraped from Sofascore's public internal API. No API key required.
 
 ```
-Football-Data.org API
+Sofascore Internal API (api.sofascore.com)
         │
-        │  2 API calls per run × 2 runs/day = 4 calls/day max
-        │  (well under free plan's 10 req/min limit)
+        │  1 HTTP request per date (browser-like headers)
+        │  ~0.4s delay between requests to avoid rate-limiting
         ↓
   Background Scheduler
-  ├── 08:00 UTC: fetch today + next 3 days (1 call) + past 5 days (1 call)
-  ├── 20:00 UTC: same 2 calls
-  └── 06:00 UTC: generate predictions from DB form data (0 API calls)
+  ├── Every 2 hours: fetch 7d back → today → 7d ahead (15 HTTP calls)
+  ├── Every 2 minutes: fetch live events, update scores
+  └── After fixture fetch: generate predictions from DB (0 API calls)
         │
         ↓
    PostgreSQL Database  ← single source of truth for all endpoints
         │
         ↓
-  FastAPI Endpoints  (read-only from DB, no per-request API calls)
+  FastAPI Endpoints  (read-only from DB, no per-request scraping)
 ```
 
-**Covered leagues (Football-Data.org free plan):**
-- Premier League (PL, ID 2021)
-- La Liga (PD, ID 2014)
-- Serie A (SA, ID 2019)
-- Bundesliga (BL1, ID 2002)
-- Note: Kenyan Premier League is not available on Football-Data.org
+**Covered leagues (Sofascore whitelist — name-based matching):**
+- Top European: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie, Primeira Liga, Super Lig, Championship
+- Continental: Champions League, Europa League, Conference League, Copa Libertadores, CAF Champions League
+- Africa: FKF Premier League (Kenya), DStv Premiership (South Africa), NPFL (Nigeria), Egyptian Premier League, Tanzania NBC, Uganda Super League
+- Other: MLS, Liga MX, Saudi Pro League, etc.
+- Admin can enable/disable any league from the leagues table (is_active toggle)
 
 **Prediction engine:**
 - Uses last 5 finished matches from DB per team (form score W=3/D=1/L=0)
@@ -237,8 +237,8 @@ Football-Data.org API
 - No external API calls — pure DB computation
 - Generates: home_win%, draw%, away_win%, over25%, btts%, confidence tag
 
-**Request counter:** In-memory daily counter (resets on server restart or at midnight).
-Hard limit set to 20/day — stops fetching if exceeded. Logs every call.
+**Fixture model extended with odds fields:**
+- `home_odds`, `draw_odds`, `away_odds` (Float, nullable) — populated when Sofascore provides them
 
 ## API Proxy (Dev vs Production)
 
