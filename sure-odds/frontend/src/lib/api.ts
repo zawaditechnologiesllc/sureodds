@@ -74,10 +74,11 @@ export const testApiConnection = async () => {
 
 // ─── Predictions ───────────────────────────────────────────────────────────────
 
-export const fetchPredictions = async (date?: string, leagueId?: number) => {
-  const params: Record<string, string | number> = {};
-  if (date) params.date = date;
+export const fetchPredictions = async (date?: string, leagueId?: number, live?: boolean) => {
+  const params: Record<string, string | number | boolean> = {};
+  if (date && !live) params.date = date;
   if (leagueId) params.league_id = leagueId;
+  if (live) params.live = true;
   const res = await api.get("/predictions", { params });
   return res.data;
 };

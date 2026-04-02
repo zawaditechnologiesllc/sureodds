@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, Query, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, Date
@@ -5,9 +6,11 @@ from datetime import date
 from typing import Optional, List
 from app.core.database import get_db
 from app.models.models import Fixture, Prediction, League, User, UserPackage
+from app.services.prediction_engine import generate_prediction
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
+logger = logging.getLogger(__name__)
 
 _supabase_client = None
 
@@ -93,26 +96,38 @@ class PredictionOut(BaseModel):
 async def get_predictions(
     date_filter: Optional[str] = Query(None, alias="date"),
     league_id: Optional[int] = Query(None),
+    live: bool = Query(False),
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
     """
-    Serve predictions from the database only — never call API-Football from here.
+    Serve predictions from the database.
+    - If live=true: returns all currently in-progress matches regardless of date.
+    - Otherwise: returns scheduled/live fixtures for the requested date.
+    - Predictions are generated on-the-fly for any fixture that lacks one.
     Free users see 2 unlocked picks; paid users or pick-package users see all.
     """
-    target_date = date.today() if not date_filter else date.fromisoformat(date_filter)
-
     user = resolve_user(authorization, db)
     is_premium = can_access_premium(user, db)
 
-    query = (
-        db.query(Fixture, League, Prediction)
-        .join(League, Fixture.league_id == League.id)
-        .outerjoin(Prediction, Prediction.fixture_id == Fixture.id)
-        .filter(cast(Fixture.kickoff, Date) == target_date)
-        .filter(Fixture.status.in_(["scheduled", "live"]))
-        .order_by(Fixture.kickoff)
-    )
+    if live:
+        query = (
+            db.query(Fixture, League, Prediction)
+            .join(League, Fixture.league_id == League.id)
+            .outerjoin(Prediction, Prediction.fixture_id == Fixture.id)
+            .filter(Fixture.status == "live")
+            .order_by(Fixture.kickoff)
+        )
+    else:
+        target_date = date.today() if not date_filter else date.fromisoformat(date_filter)
+        query = (
+            db.query(Fixture, League, Prediction)
+            .join(League, Fixture.league_id == League.id)
+            .outerjoin(Prediction, Prediction.fixture_id == Fixture.id)
+            .filter(cast(Fixture.kickoff, Date) == target_date)
+            .filter(Fixture.status.in_(["scheduled", "live"]))
+            .order_by(Fixture.kickoff)
+        )
 
     if league_id:
         query = query.filter(Fixture.league_id == league_id)
@@ -120,9 +135,26 @@ async def get_predictions(
     rows = query.all()
 
     output = []
+    new_preds: list[Prediction] = []
+
     for i, (fixture, league, pred) in enumerate(rows):
+        # Generate prediction on-the-fly if one doesn't exist yet
+        if pred is None:
+            try:
+                probs = await generate_prediction(
+                    fixture.home_team_id,
+                    fixture.away_team_id,
+                    fixture.league_id,
+                    fixture.season,
+                    db=db,
+                )
+                pred = Prediction(fixture_id=fixture.id, **probs)
+                db.add(pred)
+                new_preds.append(pred)
+            except Exception as e:
+                logger.warning(f"On-demand prediction failed for fixture {fixture.id}: {e}")
+
         has_pred = pred is not None
-        # First 2 picks are free; rest require premium
         locked = not is_premium and i >= 2
 
         output.append(
@@ -150,5 +182,13 @@ async def get_predictions(
                 computing=not has_pred,
             )
         )
+
+    # Persist any newly generated predictions
+    if new_preds:
+        try:
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to save on-demand predictions: {e}")
+            db.rollback()
 
     return output

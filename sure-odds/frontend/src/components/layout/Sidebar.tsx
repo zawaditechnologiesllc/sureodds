@@ -6,9 +6,9 @@ import { Calendar, Flame, Radio } from "lucide-react";
 
 interface SidebarProps {
   selectedLeague?: number | null;
-  selectedFilter?: "today" | "tomorrow";
+  selectedFilter?: "today" | "tomorrow" | "live";
   onLeagueChange?: (id: number | null) => void;
-  onFilterChange?: (filter: "today" | "tomorrow") => void;
+  onFilterChange?: (filter: "today" | "tomorrow" | "live") => void;
 }
 
 export default function Sidebar({
@@ -53,14 +53,17 @@ export default function Sidebar({
               Tomorrow
             </button>
             <button
-              disabled
-              className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm font-medium text-brand-muted cursor-not-allowed"
+              onClick={() => onFilterChange?.("live")}
+              className={cn(
+                "w-full flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors text-left",
+                selectedFilter === "live"
+                  ? "bg-brand-red text-white"
+                  : "text-gray-300 hover:bg-white/5"
+              )}
             >
               <Radio className="w-4 h-4" />
               Live
-              <span className="ml-auto text-[10px] bg-brand-border px-1.5 py-0.5 rounded text-brand-muted">
-                Soon
-              </span>
+              <span className="ml-auto w-2 h-2 rounded-full bg-brand-green animate-pulse" />
             </button>
           </div>
         </div>

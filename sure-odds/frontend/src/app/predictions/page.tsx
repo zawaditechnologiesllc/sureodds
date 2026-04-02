@@ -11,12 +11,12 @@ import PredictionSlip from "@/components/matches/PredictionSlip";
 import type { Prediction, PredictionSlipItem } from "@/types";
 import { fetchPredictions, fetchUserCredits, unlockPick } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
-import { Loader2, AlertCircle, CalendarX, Lock, Zap, CreditCard, RefreshCw, Flame, Calendar } from "lucide-react";
+import { Loader2, AlertCircle, CalendarX, Lock, Zap, CreditCard, RefreshCw, Flame, Calendar, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import Link from "next/link";
 
-function getDateStr(filter: "today" | "tomorrow"): string {
+function getDateStr(filter: "today" | "tomorrow" | "live"): string {
   const d = new Date();
   if (filter === "tomorrow") d.setDate(d.getDate() + 1);
   return d.toISOString().split("T")[0];
@@ -27,7 +27,7 @@ function PredictionsContent() {
   const searchParams = useSearchParams();
   const [slipItems, setSlipItems] = useState<PredictionSlipItem[]>([]);
   const [selectedLeague, setSelectedLeague] = useState<number | null>(null);
-  const [filter, setFilter] = useState<"today" | "tomorrow">("today");
+  const [filter, setFilter] = useState<"today" | "tomorrow" | "live">("today");
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,9 +48,10 @@ function PredictionsContent() {
     setLoading(true);
     setError(null);
     try {
-      const dateStr = getDateStr(filter);
+      const isLive = filter === "live";
+      const dateStr = isLive ? undefined : getDateStr(filter);
       const [data] = await Promise.all([
-        fetchPredictions(dateStr, selectedLeague ?? undefined),
+        fetchPredictions(dateStr, selectedLeague ?? undefined, isLive),
         fetchUserCredits().then((c) => setCredits(c.remaining_picks)).catch(() => null),
       ]);
       setPredictions(data);
@@ -152,7 +153,7 @@ function PredictionsContent() {
     setSlipItems((prev) => prev.filter((i) => i.matchId !== matchId));
   };
 
-  const label = filter === "today" ? "Today's" : "Tomorrow's";
+  const label = filter === "today" ? "Today's" : filter === "tomorrow" ? "Tomorrow's" : "Live";
 
   return (
     <div className="min-h-screen bg-brand-dark">
@@ -193,6 +194,18 @@ function PredictionsContent() {
               <Calendar className="w-4 h-4" />
               Tomorrow
             </button>
+            <button
+              onClick={() => setFilter("live")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-bold transition-colors",
+                filter === "live"
+                  ? "bg-brand-red text-white"
+                  : "bg-brand-card border border-brand-border text-brand-muted"
+              )}
+            >
+              <Radio className="w-4 h-4" />
+              Live
+            </button>
           </div>
 
           <div className="flex items-center justify-between mb-4 gap-3">
@@ -201,7 +214,9 @@ function PredictionsContent() {
               <p className="text-brand-muted text-xs mt-0.5">
                 {loading
                   ? "Loading matches..."
-                  : `${predictions.length} matches · Updated daily`}
+                  : filter === "live"
+                  ? `${predictions.length} matches in progress · Updated every 5 min`
+                  : `${predictions.length} matches · Updated every 8 hrs`}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -264,18 +279,24 @@ function PredictionsContent() {
           {!loading && !error && predictions.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <CalendarX className="w-12 h-12 text-brand-border mb-4" />
-              <p className="text-white font-bold text-lg mb-1">No matches scheduled</p>
+              <p className="text-white font-bold text-lg mb-1">
+                {filter === "live" ? "No live matches right now" : "No matches scheduled"}
+              </p>
               <p className="text-brand-muted text-sm max-w-sm">
                 {filter === "today"
                   ? "No fixtures found for today. This may be an international break. Try switching to Tomorrow."
-                  : "No fixtures found for tomorrow yet. Check back later today."}
+                  : filter === "tomorrow"
+                  ? "No fixtures found for tomorrow yet. Check back later today."
+                  : "There are no matches in progress at the moment. Check back during match hours."}
               </p>
-              <button
-                onClick={() => setFilter(filter === "today" ? "tomorrow" : "today")}
-                className="mt-4 text-sm text-brand-red hover:text-red-400 font-bold transition-colors"
-              >
-                Switch to {filter === "today" ? "Tomorrow" : "Today"}
-              </button>
+              {filter !== "live" && (
+                <button
+                  onClick={() => setFilter(filter === "today" ? "tomorrow" : "today")}
+                  className="mt-4 text-sm text-brand-red hover:text-red-400 font-bold transition-colors"
+                >
+                  Switch to {filter === "today" ? "Tomorrow" : "Today"}
+                </button>
+              )}
             </div>
           )}
 
