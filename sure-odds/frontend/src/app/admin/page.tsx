@@ -721,7 +721,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
               <p className="text-brand-muted text-xs mb-4">Full range (14-day window). Use targeted buttons below if only today or tomorrow needs refreshing.</p>
               <div className="grid md:grid-cols-3 gap-3">
                 {[
-                  { label: "Update Fixtures", desc: "Fetch latest fixtures from football-data.org (2 API calls)", status: fixturesStatus, action: () => runAction(triggerUpdateFixtures, setFixturesStatus, "Update Fixtures") },
+                  { label: "Update Fixtures", desc: "Scrape Sofascore for the next 14-day window (no API key required)", status: fixturesStatus, action: () => runAction(triggerUpdateFixtures, setFixturesStatus, "Update Fixtures") },
                   { label: "Run Predictions", desc: "Generate predictions from DB form data (no API calls)", status: predictionsStatus, action: () => runAction(triggerRunPredictions, setPredictionsStatus, "Run Predictions") },
                   { label: "Update Results", desc: "Reconcile finished match results from DB", status: resultsStatus, action: () => runAction(triggerUpdateResults, setResultsStatus, "Update Results") },
                 ].map(({ label, desc, status, action }) => (

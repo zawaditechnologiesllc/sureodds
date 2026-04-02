@@ -62,6 +62,11 @@ class Settings(BaseSettings):
         return origins
 
     @property
+    def cors_origin_regex(self) -> str:
+        """Allow all Vercel preview URLs and any subdomain of sureodds.pro."""
+        return r"https://.*\.vercel\.app|https://.*\.sureodds\.pro"
+
+    @property
     def active_api_key(self) -> str:
         """Return whichever API key is configured (Football-Data.org preferred)."""
         return self.FOOTBALL_DATA_API_KEY or self.API_FOOTBALL_KEY

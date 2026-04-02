@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
@@ -381,7 +382,12 @@ async def lifespan(app: FastAPI):
     finally:
         _db.close()
 
-    await run_startup_pipeline()
+    # Run the startup pipeline as a background task so the HTTP server starts
+    # immediately and passes Render / deployment health checks.
+    # The scraper (44+ HTTP requests to Sofascore) takes several minutes —
+    # if it were awaited here, Render would time out and mark the deploy as failed.
+    asyncio.create_task(run_startup_pipeline())
+    logger.info("Startup pipeline launched in background — server accepting requests now.")
 
     # Fixture refresh every 2 hours
     scheduler.add_job(run_poll, "interval", hours=2, id="poll_2h", replace_existing=True)
@@ -413,6 +419,7 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -456,7 +463,7 @@ async def health():
         "service": "sure-odds-api",
         "version": "4.1.0",
         "season": get_current_season(),
-        "data_source": "football-data.org",
+        "data_source": "sofascore.com",
         "api": status,
     }
 

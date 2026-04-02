@@ -1,8 +1,13 @@
 import axios from "axios";
 
-// NEXT_PUBLIC_API_URL must be set to the Render backend URL in all environments.
-// Falls back to /api-proxy only as a last resort (Next.js rewrite).
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api-proxy";
+// NEXT_PUBLIC_API_URL should be set to the Render backend URL on Vercel.
+// In development (Replit) the Next.js rewrite proxies /api-proxy/* → localhost:8000.
+// In production (Vercel) without the env var, fall back to the known Render URL.
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "development"
+    ? "/api-proxy"
+    : "https://sureodds.onrender.com");
 
 export const api = axios.create({
   baseURL: API_URL,
