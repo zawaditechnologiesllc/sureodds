@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = "https://placeholder.supabase.co"
     SUPABASE_SERVICE_ROLE_KEY: str = "placeholder-service-role-key"
 
+    # Optional scraping proxy — bypasses Sofascore IP blocks on cloud hosts.
+    # Set SCRAPERAPI_KEY in Render env vars to enable (free tier: 1k req/mo).
+    # Sign up at https://scraperapi.com  (no credit card needed for free tier).
+    SCRAPERAPI_KEY: str = ""
+
     # Football-Data.org API key (new data source)
     # Store as FOOTBALL_DATA_API_KEY in .env / environment secrets
     FOOTBALL_DATA_API_KEY: str = ""

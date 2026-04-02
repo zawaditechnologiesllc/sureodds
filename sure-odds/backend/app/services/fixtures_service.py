@@ -192,15 +192,36 @@ async def get_api_status() -> dict:
 # Core HTTP fetch
 # ---------------------------------------------------------------------------
 
+def _build_fetch_url(url: str) -> tuple[str, dict]:
+    """
+    Return (request_url, headers) — routes through ScraperAPI when
+    SCRAPERAPI_KEY is set so cloud-host IP blocks are bypassed.
+    """
+    from app.core.config import settings
+    from urllib.parse import quote
+
+    if settings.SCRAPERAPI_KEY:
+        proxy_url = (
+            f"http://api.scraperapi.com"
+            f"?api_key={settings.SCRAPERAPI_KEY}"
+            f"&url={quote(url, safe='')}"
+            f"&render=false"
+        )
+        return proxy_url, {"Accept": "application/json"}
+
+    return url, SOFASCORE_HEADERS
+
+
 async def _fetch_json(url: str, retries: int = 3) -> dict | None:
+    request_url, headers = _build_fetch_url(url)
     for attempt in range(retries):
         try:
             async with httpx.AsyncClient(
                 timeout=30,
                 follow_redirects=True,
-                headers=SOFASCORE_HEADERS,
+                headers=headers,
             ) as client:
-                resp = await client.get(url)
+                resp = await client.get(request_url)
 
             if resp.status_code == 200:
                 return resp.json()

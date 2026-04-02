@@ -17,6 +17,7 @@ from app.services.fixtures_service import (
     get_api_status,
     SOFASCORE_BASE,
     SOFASCORE_HEADERS,
+    _build_fetch_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -181,18 +182,22 @@ async def test_api():
     """
     Verify Sofascore scraper connectivity.
     Fetches today's scheduled events and returns a sample.
+    Uses ScraperAPI proxy automatically when SCRAPERAPI_KEY is set.
     """
+    from app.core.config import settings
     today = date.today()
-    url = f"{SOFASCORE_BASE}/sport/football/scheduled-events/{today.isoformat()}"
+    target_url = f"{SOFASCORE_BASE}/sport/football/scheduled-events/{today.isoformat()}"
+    request_url, headers = _build_fetch_url(target_url)
+    using_proxy = bool(settings.SCRAPERAPI_KEY)
 
     try:
-        async with httpx.AsyncClient(timeout=15, headers=SOFASCORE_HEADERS) as client:
-            resp = await client.get(url)
+        async with httpx.AsyncClient(timeout=20, headers=headers) as client:
+            resp = await client.get(request_url)
 
         if resp.status_code == 429:
-            return {"success": False, "http_status": 429, "error": "Sofascore rate-limited. Try again in a minute."}
+            return {"success": False, "http_status": 429, "error": "Rate-limited. Try again in a minute.", "proxy": using_proxy}
         if resp.status_code != 200:
-            return {"success": False, "http_status": resp.status_code, "body": resp.text[:300]}
+            return {"success": False, "http_status": resp.status_code, "body": resp.text[:300], "proxy": using_proxy}
 
         data = resp.json()
         events = data.get("events", [])
@@ -200,6 +205,7 @@ async def test_api():
         return {
             "success": True,
             "data_source": "sofascore.com",
+            "proxy": using_proxy,
             "season": get_current_season(),
             "date_checked": today.isoformat(),
             "total_events": len(events),
@@ -218,4 +224,4 @@ async def test_api():
 
     except Exception as e:
         logger.error(f"test-api (Sofascore) error: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": str(e), "proxy": using_proxy}
