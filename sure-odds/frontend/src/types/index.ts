@@ -73,8 +73,12 @@ export type League = {
 };
 
 export const LEAGUES: League[] = [
-  { id: 2021, name: "Premier League", slug: "epl", country: "England" },
-  { id: 2014, name: "La Liga", slug: "laliga", country: "Spain" },
-  { id: 2019, name: "Serie A", slug: "seriea", country: "Italy" },
-  { id: 2002, name: "Bundesliga", slug: "bundesliga", country: "Germany" },
+  { id: 1,  name: "Premier League", slug: "epl",       country: "England"     },
+  { id: 36, name: "La Liga",        slug: "laliga",    country: "Spain"       },
+  { id: 33, name: "Serie A",        slug: "seriea",    country: "Italy"       },
+  { id: 42, name: "Bundesliga",     slug: "bundesliga",country: "Germany"     },
+  { id: 4,  name: "Ligue 1",        slug: "ligue1",    country: "France"      },
+  { id: 39, name: "Eredivisie",     slug: "eredivisie",country: "Netherlands" },
+  { id: 52, name: "Primeira Liga",  slug: "primera",   country: "Portugal"    },
+  { id: 2,  name: "Championship",   slug: "efl",       country: "England"     },
 ];

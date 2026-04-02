@@ -20,10 +20,10 @@ import Navbar from "@/components/layout/Navbar";
 import MobileNav from "@/components/layout/MobileNav";
 import Footer from "@/components/layout/Footer";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-if (!API_URL) {
-  console.warn("[Sure Odds] NEXT_PUBLIC_API_URL is not set — server-side picks will be empty.");
-}
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.INTERNAL_API_URL ||
+  "http://localhost:8000";
 
 const FEATURES = [
   {
@@ -57,7 +57,7 @@ const HOW_IT_WORKS = [
   {
     num: "02",
     title: "Browse Predictions",
-    desc: "See today's upcoming matches across the Premier League, La Liga, Serie A, and Bundesliga — with confidence ratings and probability breakdowns.",
+    desc: "See today's upcoming matches across the Premier League, La Liga, Serie A, Bundesliga, Ligue 1, and many more — with confidence ratings and probability breakdowns.",
   },
   {
     num: "03",
@@ -149,7 +149,7 @@ const FAQS = [
   },
   {
     q: "What leagues do you cover?",
-    a: "We currently cover the Premier League, La Liga, Serie A, and Bundesliga — sourced from Football-Data.org. More leagues are coming soon.",
+    a: "We cover the top European leagues — Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie, and Primeira Liga — plus MLS, Saudi Pro League, and many more. Data is sourced from Sofascore.",
   },
   {
     q: "How do I join the affiliate program?",
@@ -191,7 +191,6 @@ function formatPickDate(dateStr: string): string {
 }
 
 async function getFeaturedPicks(): Promise<{ picks: any[]; dateLabel: string }> {
-  if (!API_URL) return { picks: [], dateLabel: "Featured Picks" };
   for (let offset = 0; offset <= 7; offset++) {
     try {
       const dateStr = offsetDate(offset);
@@ -212,7 +211,6 @@ async function getFeaturedPicks(): Promise<{ picks: any[]; dateLabel: string }> 
 }
 
 async function getRecentResults() {
-  if (!API_URL) return null;
   for (let offset = 1; offset <= 7; offset++) {
     try {
       const dateStr = offsetDate(-offset);
@@ -230,7 +228,6 @@ async function getRecentResults() {
 }
 
 async function getTodaysBundles() {
-  if (!API_URL) return [];
   try {
     const res = await fetch(`${API_URL}/bundles`, { next: { revalidate: 120 } });
     if (!res.ok) return [];
