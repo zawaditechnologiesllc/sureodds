@@ -52,10 +52,18 @@ def admin_login(body: AdminLoginRequest):
     """Exchange admin email+password for confirmation.
     Returns 200 so the frontend knows the credentials are valid.
     The password itself is then used as the x-admin-key on subsequent calls.
+    In development mode with no ADMIN_PASSWORD set, any password is accepted for the correct email.
     """
     email_ok = body.email.strip().lower() == settings.ADMIN_EMAIL.strip().lower()
+    if not email_ok:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # In development with no password configured, allow through on correct email
+    if settings.ENVIRONMENT == "development" and not settings.ADMIN_PASSWORD:
+        return {"ok": True}
+
     password_ok = bool(settings.ADMIN_PASSWORD) and body.password == settings.ADMIN_PASSWORD
-    if not (email_ok and password_ok):
+    if not password_ok:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return {"ok": True}
 
