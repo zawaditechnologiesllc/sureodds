@@ -56,3 +56,16 @@ body {
 .odds-btn.selected .label {
   @apply text-red-200;
 }
+
+/* Best pick highlight — AI recommendation, not yet user-selected */
+.odds-btn.best-pick {
+  @apply border-brand-green bg-green-950/40;
+}
+
+.odds-btn.best-pick .label {
+  @apply text-green-400;
+}
+
+.odds-btn.best-pick .value {
+  @apply text-brand-green;
+}
