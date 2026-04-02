@@ -25,10 +25,12 @@ import {
   Ban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fetchBundles, purchaseBundle, verifyBundlePayment } from "@/lib/api";
+import { fetchBundles, verifyBundlePayment } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
+import { useCurrency } from "@/lib/useCurrency";
 import toast from "react-hot-toast";
 import Link from "next/link";
+import PaymentMethodModal from "@/components/payment/PaymentMethodModal";
 
 interface BundlePick {
   fixture_id: number;
@@ -122,9 +124,7 @@ function formatKickoff(iso: string) {
   }
 }
 
-const USD_TO_KES = 130;
-
-function PricingDisplay({ bundle }: { bundle: Bundle }) {
+function PricingDisplay({ bundle, formatPrice }: { bundle: Bundle; formatPrice: (usd: number) => string }) {
   const priceReduced = bundle.played_count > 0 && bundle.remaining_count > 0;
   const allPlayed = bundle.remaining_count === 0 && bundle.pick_count > 0;
   const meta = TIER_META[bundle.tier] ?? TIER_META.medium;
@@ -149,7 +149,7 @@ function PricingDisplay({ bundle }: { bundle: Bundle }) {
         <div className={cn("text-xl font-black", meta.color)}>
           ${bundle.current_price.toFixed(2)}
         </div>
-        <div className="text-[10px] text-brand-muted">≈ KSh {Math.round(bundle.current_price * USD_TO_KES).toLocaleString()} · {bundle.remaining_count} left</div>
+        <div className="text-[10px] text-brand-muted">≈ {formatPrice(bundle.current_price)} · {bundle.remaining_count} left</div>
       </div>
     );
   }
@@ -159,7 +159,7 @@ function PricingDisplay({ bundle }: { bundle: Bundle }) {
       <div className={cn("text-xl font-black", meta.color)}>
         ${bundle.price.toFixed(2)}
       </div>
-      <div className="text-brand-muted text-[10px]">≈ KSh {Math.round(bundle.price * USD_TO_KES).toLocaleString()} · {bundle.pick_count} picks</div>
+      <div className="text-brand-muted text-[10px]">≈ {formatPrice(bundle.price)} · {bundle.pick_count} picks</div>
     </div>
   );
 }
@@ -200,10 +200,11 @@ function AvailabilityBadge({ bundle }: { bundle: Bundle }) {
   );
 }
 
-function BundleCard({ bundle, onPurchase, purchasing }: {
+function BundleCard({ bundle, onPurchase, purchasing, formatPrice }: {
   bundle: Bundle;
   onPurchase: (id: string) => void;
   purchasing: boolean;
+  formatPrice: (usd: number) => string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const meta = TIER_META[bundle.tier] ?? TIER_META.medium;
@@ -237,7 +238,7 @@ function BundleCard({ bundle, onPurchase, purchasing }: {
             <h3 className="text-white font-black text-base mt-1">{bundle.name}</h3>
           </div>
         </div>
-        <PricingDisplay bundle={bundle} />
+        <PricingDisplay bundle={bundle} formatPrice={formatPrice} />
       </div>
 
       {/* Odds + pick summary */}
@@ -371,8 +372,8 @@ function BundleCard({ bundle, onPurchase, purchasing }: {
         </div>
       ) : (
         <button
-          onClick={() => onPurchase(bundle.id)}
-          disabled={purchasing}
+          onClick={() => canPurchase && onPurchase(bundle.id)}
+          disabled={purchasing || !canPurchase}
           className={cn(
             "w-full flex items-center justify-center gap-2 rounded-xl py-3 text-white font-black text-sm transition-all",
             "bg-brand-red hover:bg-red-700 disabled:opacity-60"
@@ -383,7 +384,8 @@ function BundleCard({ bundle, onPurchase, purchasing }: {
           ) : (
             <>
               <Lock className="w-4 h-4" />
-              Unlock — ${bundle.current_price.toFixed(2)} <span className="text-[11px] opacity-70">(≈ KSh {Math.round(bundle.current_price * USD_TO_KES).toLocaleString()})</span>
+              Unlock — ${bundle.current_price.toFixed(2)}
+              <span className="text-[11px] opacity-70">(≈ {formatPrice(bundle.current_price)})</span>
               {priceReduced && (
                 <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold">REDUCED</span>
               )}
@@ -400,11 +402,16 @@ function BundlesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { formatPrice, symbol } = useCurrency();
 
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+
+  // Payment modal state
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [payingBundle, setPayingBundle] = useState<Bundle | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -421,7 +428,7 @@ function BundlesContent() {
     load();
   }, [load]);
 
-  // Handle return from Paystack
+  // Handle return from Paystack card payment
   useEffect(() => {
     const ref = searchParams.get("reference") || searchParams.get("trxref");
     if (ref && isAuthenticated) {
@@ -443,25 +450,30 @@ function BundlesContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, isAuthenticated]);
 
-  const handlePurchase = async (bundleId: string) => {
+  const handlePurchase = (bundleId: string) => {
     if (!isAuthenticated || !user?.email) {
       router.push("/auth/login?redirect=/bundles");
       return;
     }
-
+    const bundle = bundles.find((b) => b.id === bundleId);
+    if (!bundle) return;
     setPurchasingId(bundleId);
-    try {
-      const callbackUrl = `${window.location.origin}/bundles`;
-      const data = await purchaseBundle(bundleId, user.email, callbackUrl);
-      window.location.href = data.authorization_url;
-    } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : null;
-      toast.error(msg || "Could not start payment. Please try again.");
-      setPurchasingId(null);
-    }
+    setPayingBundle(bundle);
+    setShowPayModal(true);
+  };
+
+  const handlePaySuccess = () => {
+    setShowPayModal(false);
+    setPayingBundle(null);
+    setPurchasingId(null);
+    toast.success("Bundle unlocked! Your picks are now revealed.");
+    load();
+  };
+
+  const handlePayClose = () => {
+    setShowPayModal(false);
+    setPayingBundle(null);
+    setPurchasingId(null);
   };
 
   if (verifying) {
@@ -531,7 +543,7 @@ function BundlesContent() {
                     ${m.usdPrice}
                   </p>
                   <p className="text-brand-muted text-[10px] mt-0.5">
-                    ≈ KSh {(m.usdPrice * 130).toLocaleString()}
+                    ≈ {formatPrice(m.usdPrice)}
                   </p>
                 </div>
                 <div className="border-t border-white/5 pt-2">
@@ -567,7 +579,8 @@ function BundlesContent() {
                 key={bundle.id}
                 bundle={bundle}
                 onPurchase={handlePurchase}
-                purchasing={purchasingId === bundle.id}
+                purchasing={purchasingId === bundle.id && !showPayModal}
+                formatPrice={formatPrice}
               />
             ))}
           </div>
@@ -580,7 +593,7 @@ function BundlesContent() {
             {[
               { n: "01", title: "We analyze", desc: "Our AI scans today's fixtures for high-confidence picks across all markets." },
               { n: "02", title: "We bundle", desc: "Picks are assembled into probability-weighted combos targeting specific odds tiers." },
-              { n: "03", title: "You buy", desc: "Pay once per bundle. No subscription. Price drops as games kick off — you only pay for what's left." },
+              { n: "03", title: "You buy", desc: `Pay once per bundle. No subscription. Price drops as games kick off — you only pay for what's left. Card or mobile money (M-Pesa, Airtel, MTN).` },
               { n: "04", title: "Picks revealed", desc: "Instantly see all match picks, markets, and individual odds after payment." },
             ].map(({ n, title, desc }) => (
               <div key={n}>
@@ -588,6 +601,22 @@ function BundlesContent() {
                 <h4 className="text-white font-bold text-sm mb-1">{title}</h4>
                 <p className="text-brand-muted text-xs leading-relaxed">{desc}</p>
               </div>
+            ))}
+          </div>
+
+          {/* Payment methods badge */}
+          <div className="mt-5 pt-4 border-t border-brand-border flex flex-wrap items-center gap-3">
+            <span className="text-brand-muted text-xs">Accepted payments:</span>
+            {[
+              { label: "Visa / Mastercard", icon: "💳" },
+              { label: "M-Pesa KE", icon: "🇰🇪" },
+              { label: "M-Pesa TZ", icon: "🇹🇿" },
+              { label: "Airtel Money", icon: "📱" },
+              { label: "MTN MoMo", icon: "🇺🇬" },
+            ].map(({ label, icon }) => (
+              <span key={label} className="inline-flex items-center gap-1 bg-brand-dark border border-brand-border rounded-full px-2.5 py-1 text-[10px] text-brand-muted font-bold">
+                <span>{icon}</span> {label}
+              </span>
             ))}
           </div>
         </div>
@@ -602,6 +631,28 @@ function BundlesContent() {
       <Footer />
       <MobileNav />
       <div className="h-16 md:h-0" />
+
+      {/* Payment modal */}
+      {showPayModal && payingBundle && user?.email && (
+        <PaymentMethodModal
+          mode="bundle"
+          bundleId={payingBundle.id}
+          pkg={{
+            id: 0,
+            name: payingBundle.name,
+            price: payingBundle.current_price,
+            picks_count: payingBundle.remaining_count || payingBundle.pick_count,
+            currency: "USD",
+          }}
+          email={user.email}
+          onClose={handlePayClose}
+          onSuccess={handlePaySuccess}
+          callbackUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/bundles`}
+          priceLabel={`$${payingBundle.current_price.toFixed(2)} (≈ ${formatPrice(payingBundle.current_price)})`}
+          detailLabel={`${payingBundle.remaining_count || payingBundle.pick_count} picks · ${payingBundle.tier} tier bundle`}
+          successMessage="Bundle unlocked! Your picks are now revealed."
+        />
+      )}
     </div>
   );
 }

@@ -20,6 +20,7 @@ from app.routers import (
     partner_dashboard as partner_dashboard_router,
 )
 from app.routers import bundles as bundles_router
+from app.routers.currency import router as currency_router
 from app.models.models import Package, UserVipAccess
 from app.services.fixtures_service import (
     fetch_window,
@@ -490,6 +491,7 @@ app.include_router(bundles_router.router)
 app.include_router(partners_router.router)
 app.include_router(intasend_router.router)
 app.include_router(partner_dashboard_router.router)
+app.include_router(currency_router)
 
 
 @app.get("/stats")

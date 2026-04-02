@@ -9,6 +9,9 @@ import {
   initializePayment,
   initializeMpesa,
   checkMpesaStatus,
+  purchaseBundle,
+  initializeMpesaBundle,
+  checkMpesaBundleStatus,
 } from "@/lib/api";
 
 interface Package {
@@ -29,6 +32,10 @@ interface PaymentMethodModalProps {
   priceLabel?: string;
   detailLabel?: string;
   successMessage?: string;
+  /** Set to "bundle" when paying for a bundle; supply bundleId in that case. */
+  mode?: "package" | "bundle";
+  /** Required when mode === "bundle" */
+  bundleId?: string;
 }
 
 type Screen =
@@ -197,7 +204,11 @@ export default function PaymentMethodModal({
   priceLabel,
   detailLabel,
   successMessage,
+  mode = "package",
+  bundleId,
 }: PaymentMethodModalProps) {
+  const isBundle = mode === "bundle";
+
   const [screen, setScreen] = useState<Screen>("method-select");
   const [country, setCountry] = useState("KE");
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
@@ -229,7 +240,12 @@ export default function PaymentMethodModal({
         return;
       }
       try {
-        const data = await checkMpesaStatus(iid, pkg.id, country);
+        let data;
+        if (isBundle && bundleId) {
+          data = await checkMpesaBundleStatus(iid, bundleId, country);
+        } else {
+          data = await checkMpesaStatus(iid, pkg.id, country);
+        }
         const status = (data.status || "").toUpperCase();
         if (status === "COMPLETE") {
           stopPolling();
@@ -246,7 +262,7 @@ export default function PaymentMethodModal({
         // ignore transient errors — keep polling
       }
     },
-    [pkg.id, country, stopPolling, onSuccess]
+    [isBundle, bundleId, pkg.id, country, stopPolling, onSuccess]
   );
 
   useEffect(() => {
@@ -261,7 +277,6 @@ export default function PaymentMethodModal({
     return stopPolling;
   }, [screen, invoiceId, poll, stopPolling]);
 
-  // Reset provider when country changes
   const handleCountryChange = (code: string) => {
     setCountry(code);
     setProvider(COUNTRIES[code].providers[0].id);
@@ -274,9 +289,15 @@ export default function PaymentMethodModal({
     setLoading(true);
     setError(null);
     try {
-      const cb = callbackUrl || `${window.location.origin}/packages`;
-      const data = await initializePayment(pkg.id, email, cb);
-      window.location.href = data.authorization_url;
+      if (isBundle && bundleId) {
+        const cb = callbackUrl || `${window.location.origin}/bundles`;
+        const data = await purchaseBundle(bundleId, email, cb);
+        window.location.href = data.authorization_url;
+      } else {
+        const cb = callbackUrl || `${window.location.origin}/packages`;
+        const data = await initializePayment(pkg.id, email, cb);
+        window.location.href = data.authorization_url;
+      }
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "response" in err
@@ -297,7 +318,12 @@ export default function PaymentMethodModal({
     setLoading(true);
     try {
       const channelOverride = country === "KE" ? undefined : provider;
-      const data = await initializeMpesa(pkg.id, cleaned, email, country, channelOverride);
+      let data;
+      if (isBundle && bundleId) {
+        data = await initializeMpesaBundle(bundleId, cleaned, email, country, channelOverride);
+      } else {
+        data = await initializeMpesa(pkg.id, cleaned, email, country, channelOverride);
+      }
       setInvoiceId(data.invoice_id);
       setScreen("mobile-polling");
     } catch (err: unknown) {
@@ -357,7 +383,7 @@ export default function PaymentMethodModal({
         </div>
 
         <div className="p-5">
-          {/* Package summary */}
+          {/* Package / Bundle summary */}
           <div className="bg-brand-dark border border-brand-border rounded-lg px-4 py-3 mb-5">
             <p className="text-brand-muted text-xs mb-0.5">You are paying for</p>
             <p className="text-white font-bold text-sm">{pkg.name}</p>

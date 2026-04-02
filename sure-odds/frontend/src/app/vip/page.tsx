@@ -8,6 +8,7 @@ import Footer from "@/components/layout/Footer";
 import { Crown, CheckCircle, Loader2, ArrowRight, ShieldCheck, Zap, Clock } from "lucide-react";
 import { fetchVipPackages, fetchVipStatus, verifyPayment } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
+import { useCurrency } from "@/lib/useCurrency";
 import toast from "react-hot-toast";
 import PaymentMethodModal from "@/components/payment/PaymentMethodModal";
 
@@ -29,8 +30,6 @@ interface VipStatus {
   package_name: string | null;
   duration_days: number | null;
 }
-
-const USD_TO_KES = 130;
 
 const STATIC_PLANS = [
   {
@@ -70,6 +69,7 @@ function VipContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const { formatPrice } = useCurrency();
 
   const [plans, setPlans] = useState<typeof STATIC_PLANS>(STATIC_PLANS);
   const [selected, setSelected] = useState<number>(STATIC_PLANS[1].id);
@@ -219,7 +219,7 @@ function VipContent() {
                   <p className="text-brand-green font-black text-xl leading-tight">
                     ${plan.price.toFixed(2)}
                   </p>
-                  <p className="text-brand-muted text-[10px]">≈ KSh {Math.round(plan.price * USD_TO_KES).toLocaleString()}</p>
+                  <p className="text-brand-muted text-[10px]">≈ {formatPrice(plan.price)}</p>
                 </div>
               </div>
 
@@ -238,7 +238,7 @@ function VipContent() {
                 onClick={() => handlePay(plan.id)}
                 className="w-full py-3.5 rounded-xl font-black text-sm text-white transition-all bg-[#1a3d2b] hover:bg-[#1f4d35] border border-green-900/60 hover:border-green-700"
               >
-                Pay — ${plan.price.toFixed(2)} <span className="text-[11px] opacity-70">(≈ KSh {Math.round(plan.price * USD_TO_KES).toLocaleString()})</span>
+                Pay — ${plan.price.toFixed(2)} <span className="text-[11px] opacity-70">(≈ {formatPrice(plan.price)})</span>
               </button>
             </div>
           ))}

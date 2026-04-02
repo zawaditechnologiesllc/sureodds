@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { fetchPackages, verifyPayment, fetchUserCredits } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
+import { useCurrency } from "@/lib/useCurrency";
 import toast from "react-hot-toast";
 import PaymentMethodModal from "@/components/payment/PaymentMethodModal";
 
@@ -39,6 +40,7 @@ function PackagesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const { formatPrice } = useCurrency();
 
   const [packages, setPackages] = useState<Package[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
@@ -272,8 +274,8 @@ function PackagesContent() {
                         <p className={cn("font-black text-xl", isSelected ? "text-brand-green" : "text-brand-muted")}>
                           ${pkg.price.toFixed(2)}
                         </p>
-                        <p className="text-brand-muted text-xs">
-                          ${(pkg.price / pkg.picks_count).toFixed(3)} / pick
+                        <p className="text-brand-muted text-[10px]">
+                          ≈ {formatPrice(pkg.price)}
                         </p>
                       </div>
                     </div>
