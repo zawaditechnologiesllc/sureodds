@@ -90,7 +90,7 @@ async def run_poll():
     try:
         logger.info("Poll: starting Sofascore fixture refresh...")
 
-        result = await fetch_window(db, days_back=7, days_ahead=7)
+        result = await fetch_window(db, days_back=2, days_ahead=5)
         logger.info(f"Poll: fetch result — {result}")
 
         created = await _generate_predictions_for_window(db, days_ahead=7)
@@ -389,13 +389,13 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(run_startup_pipeline())
     logger.info("Startup pipeline launched in background — server accepting requests now.")
 
-    # Fixture refresh every 2 hours
-    scheduler.add_job(run_poll, "interval", hours=2, id="poll_2h", replace_existing=True)
-    # Live score update every 2 minutes
-    scheduler.add_job(run_live_update, "interval", minutes=2, id="live_2m", replace_existing=True)
+    # Fixture refresh every 8 hours — uses ScraperAPI credits, keep interval wide
+    scheduler.add_job(run_poll, "interval", hours=8, id="poll_8h", replace_existing=True)
+    # Live score update every 5 minutes — direct request (no proxy credits used)
+    scheduler.add_job(run_live_update, "interval", minutes=5, id="live_5m", replace_existing=True)
 
     scheduler.start()
-    logger.info("Scheduler started — Sofascore fixtures every 2 h, live scores every 2 min.")
+    logger.info("Scheduler started — Sofascore fixtures every 8 h, live scores every 5 min.")
 
     yield
 

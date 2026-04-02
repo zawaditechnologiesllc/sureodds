@@ -192,15 +192,17 @@ async def get_api_status() -> dict:
 # Core HTTP fetch
 # ---------------------------------------------------------------------------
 
-def _build_fetch_url(url: str) -> tuple[str, dict]:
+def _build_fetch_url(url: str, use_proxy: bool = True) -> tuple[str, dict]:
     """
     Return (request_url, headers) — routes through ScraperAPI when
-    SCRAPERAPI_KEY is set so cloud-host IP blocks are bypassed.
+    SCRAPERAPI_KEY is set and use_proxy=True, so cloud-host IP blocks
+    are bypassed for fixture scrapes.
+    Live score updates pass use_proxy=False to avoid burning proxy credits.
     """
     from app.core.config import settings
     from urllib.parse import quote
 
-    if settings.SCRAPERAPI_KEY:
+    if use_proxy and settings.SCRAPERAPI_KEY:
         proxy_url = (
             f"http://api.scraperapi.com"
             f"?api_key={settings.SCRAPERAPI_KEY}"
@@ -212,8 +214,8 @@ def _build_fetch_url(url: str) -> tuple[str, dict]:
     return url, SOFASCORE_HEADERS
 
 
-async def _fetch_json(url: str, retries: int = 3) -> dict | None:
-    request_url, headers = _build_fetch_url(url)
+async def _fetch_json(url: str, retries: int = 3, use_proxy: bool = True) -> dict | None:
+    request_url, headers = _build_fetch_url(url, use_proxy=use_proxy)
     for attempt in range(retries):
         try:
             async with httpx.AsyncClient(
@@ -256,7 +258,10 @@ async def _fetch_events_for_date(target_date: date) -> list:
 
 async def fetch_live_events() -> list:
     url = f"{SOFASCORE_BASE}/sport/football/events/live"
-    data = await _fetch_json(url)
+    # Live updates use direct headers (no ScraperAPI) — saves proxy credits.
+    # If Sofascore blocks the direct request, live scores simply won't update
+    # for that cycle; the main scheduled poll handles full fixture syncing.
+    data = await _fetch_json(url, use_proxy=False)
     if not data:
         return []
     return data.get("events", [])
