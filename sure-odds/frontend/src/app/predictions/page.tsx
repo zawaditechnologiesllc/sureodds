@@ -49,8 +49,9 @@ function PredictionsContent() {
     const relative = isLive ? undefined : (filter as "today" | "tomorrow");
 
     // Retry logic: Render free tier can take 60-90s to cold-start.
-    // On first timeout/network failure, show "waking up" and auto-retry.
-    for (let attempt = 0; attempt < 3; attempt++) {
+    // Retry up to 4 times on timeout, network errors, or 502/503/504 (Render cold-start responses).
+    const MAX_ATTEMPTS = 4;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         const [data] = await Promise.all([
           fetchPredictions(relative, selectedLeague ?? undefined, isLive),
@@ -61,24 +62,19 @@ function PredictionsContent() {
         setLoading(false);
         return;
       } catch (err: unknown) {
-        const isTimeout =
-          err &&
-          typeof err === "object" &&
-          "code" in err &&
-          (err as { code?: string }).code === "ECONNABORTED";
-        const isNetwork =
-          err &&
-          typeof err === "object" &&
-          "message" in err &&
-          typeof (err as { message?: string }).message === "string" &&
-          (err as { message: string }).message.toLowerCase().includes("network");
+        const errObj = err as { code?: string; message?: string; response?: { status?: number } };
+        const isTimeout = errObj?.code === "ECONNABORTED";
+        const isNetwork = errObj?.message?.toLowerCase().includes("network");
+        const httpStatus = errObj?.response?.status;
+        const isColdStart = httpStatus === 502 || httpStatus === 503 || httpStatus === 504;
 
-        if ((isTimeout || isNetwork) && attempt < 2) {
+        if ((isTimeout || isNetwork || isColdStart) && attempt < MAX_ATTEMPTS - 1) {
           setWakingUp(true);
-          await new Promise((res) => setTimeout(res, 5000));
+          // Back off with each attempt: 10s, 15s, 20s
+          await new Promise((res) => setTimeout(res, 10000 + attempt * 5000));
           continue;
         }
-        // Final attempt failed or non-timeout error
+        // Final attempt failed or non-recoverable error
         setWakingUp(false);
         setError("Could not load predictions. Please try again.");
         setLoading(false);

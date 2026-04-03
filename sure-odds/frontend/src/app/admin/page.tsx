@@ -80,6 +80,7 @@ import {
   updateAdminPackage,
   testAdminEmail,
   syncAdminUsers,
+  wakeBackend,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance" | "vip" | "packages";
@@ -300,6 +301,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [resultsStatus, setResultsStatus] = useState<ActionStatus>("idle");
   const [todayStatus, setTodayStatus] = useState<ActionStatus>("idle");
   const [tomorrowStatus, setTomorrowStatus] = useState<ActionStatus>("idle");
+  const [wakeStatus, setWakeStatus] = useState<ActionStatus>("idle");
 
   const [bundleStatuses, setBundleStatuses] = useState<Record<string, ActionStatus>>({
     safe: "idle", medium: "idle", high: "idle", mega: "idle",
@@ -702,6 +704,50 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                 )}
               </>
             )}
+
+            {/* Wake Server */}
+            <div className="mb-6 bg-brand-card border border-orange-900/50 rounded-xl p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-white font-bold text-lg flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-brand-yellow" />
+                    Wake Server
+                  </h2>
+                  <p className="text-brand-muted text-xs mt-1">
+                    Render&apos;s free tier sleeps after 15 minutes of inactivity. If users are seeing &quot;Failed to load predictions&quot;, click this to
+                    warm up the backend instantly — then run <strong className="text-white">Refresh Today</strong> below to repopulate data.
+                  </p>
+                  {wakeStatus === "success" && (
+                    <p className="text-brand-green text-xs mt-2 font-bold flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" /> Server is awake and responding. Users can load predictions now.
+                    </p>
+                  )}
+                  {wakeStatus === "error" && (
+                    <p className="text-brand-red text-xs mt-2 font-bold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> Server did not respond. Render may be deploying or down — try again in 30 seconds.
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={async () => {
+                    setWakeStatus("loading");
+                    try {
+                      await wakeBackend();
+                      setWakeStatus("success");
+                      toast.success("Backend is awake! Users can now load predictions.");
+                    } catch {
+                      setWakeStatus("error");
+                      toast.error("Server did not respond. Try again in 30 seconds.");
+                    }
+                  }}
+                  disabled={wakeStatus === "loading"}
+                  className="flex items-center gap-2 bg-brand-yellow hover:bg-yellow-400 disabled:opacity-60 text-black text-sm font-bold px-4 py-2.5 rounded-xl transition-colors shrink-0"
+                >
+                  {wakeStatus === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  {wakeStatus === "loading" ? "Waking up…" : "Wake Server"}
+                </button>
+              </div>
+            </div>
 
             {/* Data Source Status */}
             <div className="mb-6 bg-brand-card border border-brand-border rounded-xl p-5">

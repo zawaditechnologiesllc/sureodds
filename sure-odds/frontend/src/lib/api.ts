@@ -85,6 +85,11 @@ export const testApiConnection = async () => {
   return res.data;
 };
 
+export const wakeBackend = async () => {
+  const res = await api.get("/health", { timeout: 60000 });
+  return res.data;
+};
+
 // ─── Predictions ───────────────────────────────────────────────────────────────
 
 export const fetchPredictions = async (
