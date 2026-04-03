@@ -93,6 +93,59 @@ async def list_users(db: Session = Depends(get_db)):
     ]
 
 
+@router.post("/sync-users", dependencies=[Depends(verify_admin)])
+async def sync_users_from_supabase(db: Session = Depends(get_db)):
+    """Pull all Supabase Auth users and upsert any missing ones into public.users."""
+    import secrets
+    import string
+    from supabase import create_client
+
+    def _make_ref_code() -> str:
+        chars = string.ascii_uppercase + string.digits
+        return "SURE-" + "".join(secrets.choice(chars) for _ in range(8))
+
+    if not settings.SUPABASE_URL or "placeholder" in settings.SUPABASE_URL:
+        raise HTTPException(status_code=503, detail="Supabase not configured on this environment")
+
+    try:
+        admin_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+        response = admin_client.auth.admin.list_users()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Supabase API error: {exc}")
+
+    supabase_users = response if isinstance(response, list) else getattr(response, "users", [])
+
+    synced = 0
+    already_present = 0
+
+    for su in supabase_users:
+        user_id = str(su.id)
+        email = getattr(su, "email", None) or ""
+        if not email:
+            continue
+
+        existing = db.query(User).filter(User.id == user_id).first()
+        if existing:
+            already_present += 1
+            continue
+
+        ref_code = _make_ref_code()
+        while db.query(User).filter(User.referral_code == ref_code).first():
+            ref_code = _make_ref_code()
+
+        new_user = User(
+            id=user_id,
+            email=email,
+            referral_code=ref_code,
+            subscription_status="free",
+        )
+        db.add(new_user)
+        synced += 1
+
+    db.commit()
+    return {"synced": synced, "already_present": already_present, "total": len(supabase_users)}
+
+
 @router.get("/predictions", dependencies=[Depends(verify_admin)])
 async def list_predictions(db: Session = Depends(get_db)):
     preds = (

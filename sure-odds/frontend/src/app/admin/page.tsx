@@ -79,6 +79,7 @@ import {
   fetchAdminPackages,
   updateAdminPackage,
   testAdminEmail,
+  syncAdminUsers,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance" | "vip" | "packages";
@@ -288,6 +289,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [syncingUsers, setSyncingUsers] = useState(false);
   const [apiStatus, setApiStatus] = useState<Record<string, any> | null>(null);
   const [apiStatusLoading, setApiStatusLoading] = useState(true);
 
@@ -1706,9 +1708,34 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         {/* USERS TAB */}
         {tab === "users" && (
           <div className="bg-brand-card border border-brand-border rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-3">
               <h2 className="text-white font-bold text-lg">Users</h2>
-              <span className="text-brand-muted text-xs">{users.length} loaded</span>
+              <div className="flex items-center gap-2">
+                <span className="text-brand-muted text-xs">{users.length} loaded</span>
+                <button
+                  onClick={async () => {
+                    setSyncingUsers(true);
+                    try {
+                      const result = await syncAdminUsers();
+                      toast.success(`Synced ${result.synced} new user${result.synced !== 1 ? "s" : ""} from Supabase (${result.already_present} already present).`);
+                      setUsersLoading(true);
+                      fetchAdminUsers()
+                        .then(setUsers)
+                        .catch(() => toast.error("Could not reload users."))
+                        .finally(() => setUsersLoading(false));
+                    } catch {
+                      toast.error("Sync failed. Check that Supabase is configured on the backend.");
+                    } finally {
+                      setSyncingUsers(false);
+                    }
+                  }}
+                  disabled={syncingUsers}
+                  className="flex items-center gap-1.5 bg-blue-900/40 hover:bg-blue-900/60 border border-blue-800/50 text-blue-400 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {syncingUsers ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  Sync from Supabase
+                </button>
+              </div>
             </div>
             {usersLoading ? (
               <div className="flex justify-center py-8">

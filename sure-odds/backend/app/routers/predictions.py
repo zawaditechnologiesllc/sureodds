@@ -113,7 +113,7 @@ async def get_predictions(
     if live:
         query = (
             db.query(Fixture, League, Prediction)
-            .join(League, Fixture.league_id == League.id)
+            .outerjoin(League, Fixture.league_id == League.id)
             .outerjoin(Prediction, Prediction.fixture_id == Fixture.id)
             .filter(Fixture.status == "live")
             .order_by(Fixture.kickoff)
@@ -122,7 +122,7 @@ async def get_predictions(
         target_date = date.today() if not date_filter else date.fromisoformat(date_filter)
         query = (
             db.query(Fixture, League, Prediction)
-            .join(League, Fixture.league_id == League.id)
+            .outerjoin(League, Fixture.league_id == League.id)
             .outerjoin(Prediction, Prediction.fixture_id == Fixture.id)
             .filter(cast(Fixture.kickoff, Date) == target_date)
             .filter(Fixture.status.in_(["scheduled", "live"]))
@@ -164,8 +164,8 @@ async def get_predictions(
                     id=fixture.id,
                     homeTeam=TeamOut(id=fixture.home_team_id, name=fixture.home_team_name, logo=fixture.home_team_logo),
                     awayTeam=TeamOut(id=fixture.away_team_id, name=fixture.away_team_name, logo=fixture.away_team_logo),
-                    league=league.name,
-                    leagueId=league.id,
+                    league=league.name if league else "Unknown League",
+                    leagueId=league.id if league else fixture.league_id,
                     kickoff=fixture.kickoff.isoformat(),
                     status=fixture.status,
                     homeScore=fixture.home_score,

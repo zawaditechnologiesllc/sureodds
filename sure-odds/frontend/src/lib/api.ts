@@ -157,6 +157,11 @@ export const fetchAdminUsers = async () => {
   return res.data;
 };
 
+export const syncAdminUsers = async () => {
+  const res = await api.post("/admin/sync-users");
+  return res.data as { synced: number; already_present: number; total: number };
+};
+
 export const fetchAdminPredictions = async () => {
   const res = await api.get("/admin/predictions");
   return res.data;
