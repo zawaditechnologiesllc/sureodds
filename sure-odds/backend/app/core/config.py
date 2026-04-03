@@ -71,8 +71,8 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_regex(self) -> str:
-        """Allow all Vercel preview URLs and any subdomain of sureodds.pro."""
-        return r"https://.*\.vercel\.app|https://.*\.sureodds\.pro"
+        """Allow all Vercel preview URLs, any subdomain of sureodds.pro, and Replit domains."""
+        return r"https://.*\.vercel\.app|https://.*\.sureodds\.pro|https://.*\.replit\.dev|https://.*\.replit\.app"
 
     @property
     def active_api_key(self) -> str:
