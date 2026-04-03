@@ -1,0 +1,35 @@
+featured picks are working but the "46 fixtures visible to users today · 112 tomorrow" as shown on admin are not available on today and tomorrow sections on user panel
+
+Let me check the predictions endpoint and the frontend page together to trace the issue:
+
+The API returns 48 fixtures for today. Let me check the fetchPredictions function and the Sidebar to find where the filtering breaks:
+
+The API works locally. The issue must be in how the date filter interacts with the database in production. Let me check the featured picks endpoint (which works) vs the main predictions endpoint to find the difference:
+
+Let me dig deeper — test what the API returns for tomorrow, and check if the frontend's date is reaching the backend correctly:
+
+API data is fine locally. Let me check the high-confidence-picks endpoint (which works in production) and compare its date logic to the regular predictions:
+
+Featured picks use a server-side date.today() while user predictions rely on a date from the frontend. Let me also check the MatchCard component to rule out a rendering bug:
+
+The homepage fetches featured picks server-side. Let me look at how that works — this is the critical clue:
+
+Let me trace the actual kickoff timestamp format all the way from scraper to DB to API response to understand the mismatch:
+
+CORS looks fine. Let me check the TypeScript types and the actual API response shape — a type mismatch could cause the predictions to silently not render:
+
+Let me check the formatTime utility and utils.ts — a crash there would silently kill the entire predictions list:
+
+Let me check if NEXT_PUBLIC_API_URL is set in the environment, as it bypasses the dev proxy:
+
+Let me check the LEAGUES constant — if the league filter is hardcoded to IDs that don't exist in the DB, the sidebar would filter out everything:
+
+I've found the core issue. The predictions page sends a client-side computed date (2026-04-03) to the backend. But the admin stats use the server's date.today(). In production, if the Render server's UTC date differs from the user's local date (especially at night in UTC+3), the two won't match — the admin shows 46 fixtures but predictions returns 0 because the dates don't align.
+
+The fix: add a relative param (today/tomorrow) to the backend so the server always computes the correct date itself, removing the dependency on the client's clock:
+
+Now I'll update the backend to accept a relative parameter and update the frontend to use it:
+
+Now update the frontend API function to use the relative parameter:
+
+Now update the predictions page to call with relative:

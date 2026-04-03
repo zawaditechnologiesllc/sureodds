@@ -46,14 +46,14 @@ function PredictionsContent() {
     setWakingUp(false);
 
     const isLive = filter === "live";
-    const dateStr = isLive ? undefined : getDateStr(filter);
+    const relative = isLive ? undefined : (filter as "today" | "tomorrow");
 
     // Retry logic: Render free tier can take 60-90s to cold-start.
     // On first timeout/network failure, show "waking up" and auto-retry.
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const [data] = await Promise.all([
-          fetchPredictions(dateStr, selectedLeague ?? undefined, isLive),
+          fetchPredictions(relative, selectedLeague ?? undefined, isLive),
           fetchUserCredits().then((c) => setCredits(c.remaining_picks)).catch(() => null),
         ]);
         setPredictions(data);
