@@ -31,6 +31,7 @@ function PredictionsContent() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [wakingUp, setWakingUp] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
   const [unlocking, setUnlocking] = useState<number | null>(null);
 
@@ -47,18 +48,47 @@ function PredictionsContent() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const isLive = filter === "live";
-      const dateStr = isLive ? undefined : getDateStr(filter);
-      const [data] = await Promise.all([
-        fetchPredictions(dateStr, selectedLeague ?? undefined, isLive),
-        fetchUserCredits().then((c) => setCredits(c.remaining_picks)).catch(() => null),
-      ]);
-      setPredictions(data);
-    } catch {
-      setError("Could not load predictions. Please try again.");
-    } finally {
-      setLoading(false);
+    setWakingUp(false);
+
+    const isLive = filter === "live";
+    const dateStr = isLive ? undefined : getDateStr(filter);
+
+    // Retry logic: Render free tier can take 60-90s to cold-start.
+    // On first timeout/network failure, show "waking up" and auto-retry.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const [data] = await Promise.all([
+          fetchPredictions(dateStr, selectedLeague ?? undefined, isLive),
+          fetchUserCredits().then((c) => setCredits(c.remaining_picks)).catch(() => null),
+        ]);
+        setPredictions(data);
+        setWakingUp(false);
+        setLoading(false);
+        return;
+      } catch (err: unknown) {
+        const isTimeout =
+          err &&
+          typeof err === "object" &&
+          "code" in err &&
+          (err as { code?: string }).code === "ECONNABORTED";
+        const isNetwork =
+          err &&
+          typeof err === "object" &&
+          "message" in err &&
+          typeof (err as { message?: string }).message === "string" &&
+          (err as { message: string }).message.toLowerCase().includes("network");
+
+        if ((isTimeout || isNetwork) && attempt < 2) {
+          setWakingUp(true);
+          await new Promise((res) => setTimeout(res, 5000));
+          continue;
+        }
+        // Final attempt failed or non-timeout error
+        setWakingUp(false);
+        setError("Could not load predictions. Please try again.");
+        setLoading(false);
+        return;
+      }
     }
   }, [filter, selectedLeague]);
 
@@ -257,6 +287,17 @@ function PredictionsContent() {
                   className="h-28 rounded-lg bg-brand-card border border-brand-border animate-pulse"
                 />
               ))}
+              {wakingUp && (
+                <div className="flex items-center gap-3 bg-yellow-950/30 border border-yellow-900/40 rounded-lg px-4 py-3 mt-2">
+                  <Loader2 className="w-4 h-4 text-yellow-400 animate-spin shrink-0" />
+                  <div>
+                    <p className="text-yellow-300 text-sm font-semibold">Server waking up&hellip;</p>
+                    <p className="text-yellow-500/80 text-xs mt-0.5">
+                      The prediction server is starting. This takes about 30 seconds — retrying automatically.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

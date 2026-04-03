@@ -11,27 +11,40 @@ const API_URL =
 
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 30000,
+  timeout: 90000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-api.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const isAdminCall = config.url?.startsWith("/admin");
-    if (isAdminCall) {
-      // Admin calls use the stored password as x-admin-key
-      const adminToken = sessionStorage.getItem("admin_token");
-      if (adminToken) config.headers["x-admin-key"] = adminToken;
-    } else {
-      // Regular calls use the logged-in user's bearer token
-      const token = localStorage.getItem("access_token");
-      if (token) config.headers.Authorization = `Bearer ${token}`;
-    }
-  }
-  return config;
+// Long-timeout instance for admin scrape operations that can take 60-120 seconds
+// on Render free tier (fixture updates, predictions generation, etc.)
+export const longApi = axios.create({
+  baseURL: API_URL,
+  timeout: 180000,
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
+
+function attachInterceptor(instance: ReturnType<typeof axios.create>) {
+  instance.interceptors.request.use((config) => {
+    if (typeof window !== "undefined") {
+      const isAdminCall = config.url?.startsWith("/admin");
+      if (isAdminCall) {
+        const adminToken = sessionStorage.getItem("admin_token");
+        if (adminToken) config.headers["x-admin-key"] = adminToken;
+      } else {
+        const token = localStorage.getItem("access_token");
+        if (token) config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    return config;
+  });
+}
+
+attachInterceptor(api);
+attachInterceptor(longApi);
 
 // Admin session helpers
 export const saveAdminToken = (token: string) => {
@@ -178,17 +191,17 @@ export const fetchApiStatus = async () => {
 };
 
 export const triggerUpdateFixtures = async () => {
-  const res = await api.post("/admin/run-update");
+  const res = await longApi.post("/admin/run-update");
   return res.data;
 };
 
 export const triggerRunPredictions = async () => {
-  const res = await api.post("/admin/run-predictions");
+  const res = await longApi.post("/admin/run-predictions");
   return res.data;
 };
 
 export const triggerUpdateResults = async () => {
-  const res = await api.post("/admin/run-results");
+  const res = await longApi.post("/admin/run-results");
   return res.data;
 };
 
@@ -390,12 +403,12 @@ export const trackReferralClick = async (referralCode: string) => {
 // ─── Admin — Targeted day refresh ────────────────────────────────────────────
 
 export const triggerTodayRefresh = async () => {
-  const res = await api.post("/admin/run-today");
+  const res = await longApi.post("/admin/run-today");
   return res.data;
 };
 
 export const triggerTomorrowRefresh = async () => {
-  const res = await api.post("/admin/run-tomorrow");
+  const res = await longApi.post("/admin/run-tomorrow");
   return res.data;
 };
 

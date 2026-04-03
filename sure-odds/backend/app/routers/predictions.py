@@ -2,10 +2,10 @@ import logging
 from fastapi import APIRouter, Depends, Query, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, Date
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional, List
 from app.core.database import get_db
-from app.models.models import Fixture, Prediction, League, User, UserPackage
+from app.models.models import Fixture, Prediction, League, User, UserPackage, UserVipAccess
 from app.services.prediction_engine import generate_prediction
 from pydantic import BaseModel
 
@@ -41,11 +41,24 @@ def resolve_user(authorization: Optional[str], db: Session) -> Optional[User]:
 
 
 def can_access_premium(user: Optional[User], db: Session) -> bool:
-    """Check if user has paid subscription or remaining picks."""
+    """Check if user has paid subscription, active VIP access, or remaining picks."""
     if not user:
         return False
     if user.subscription_status == "paid":
         return True
+    # Check active VIP access (IntaSend / Paystack VIP packages)
+    now = datetime.now(timezone.utc)
+    vip = (
+        db.query(UserVipAccess)
+        .filter(
+            UserVipAccess.user_id == user.id,
+            UserVipAccess.expires_at > now,
+        )
+        .first()
+    )
+    if vip:
+        return True
+    # Check pay-per-pick credits
     pkg = db.query(UserPackage).filter(UserPackage.user_id == user.id).first()
     return bool(pkg and pkg.remaining_picks > 0)
 
