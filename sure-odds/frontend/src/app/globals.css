@@ -69,3 +69,19 @@ body {
 .odds-btn.best-pick .value {
   @apply text-brand-green;
 }
+
+
+/* ─── Tidio Chat — mobile position fix ──────────────────────────────────────
+   The default bottom-right position overlaps the Account icon in MobileNav.
+   Push it up above the nav bar (≈64 px tall) and slightly left so it never
+   sits on top of the rightmost tab icon.
+   Targets both the outer container and the launcher iframe Tidio creates.    */
+@media (max-width: 768px) {
+  #tidio-chat-iframe,
+  #tidio-chat-code,
+  #tidio-chat > iframe,
+  #tidio-chat {
+    bottom: 72px !important;
+    right: 8px !important;
+  }
+}
