@@ -172,6 +172,26 @@ const PICK_LABELS: Record<string, string> = {
   btts: "BTTS",
 };
 
+function getBestPickLabel(p: any): string {
+  const pick = p.bestPick;
+  if (pick === "1") return `${p.match.homeTeam.name} Win`;
+  if (pick === "X") return "Draw";
+  if (pick === "2") return `${p.match.awayTeam.name} Win`;
+  if (pick === "over25") return "Over 2.5 Goals";
+  if (pick === "btts") return "Both Teams to Score";
+  return "—";
+}
+
+function getBestPickPct(p: any): number {
+  const pick = p.bestPick;
+  if (pick === "1") return p.homeWinPct;
+  if (pick === "X") return p.drawPct;
+  if (pick === "2") return p.awayWinPct;
+  if (pick === "over25") return p.over25Pct;
+  if (pick === "btts") return p.bttsPct;
+  return 0;
+}
+
 function offsetDate(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -356,17 +376,39 @@ export default async function HomePage() {
               const badgeClass = CONFIDENCE_BADGE[p.confidence] ?? CONFIDENCE_BADGE.low;
               const confidenceLabel = `${p.confidence.toUpperCase()} ${Math.max(p.homeWinPct, p.drawPct, p.awayWinPct)}%`;
 
+              const bestLabel = getBestPickLabel(p);
+              const bestPct = getBestPickPct(p);
+
               return (
-                <div key={p.matchId} className="bg-brand-card border border-brand-border rounded-lg p-4 relative overflow-hidden">
-                  <div className="flex justify-between items-start mb-3">
+                <div key={p.matchId} className="bg-brand-card border border-brand-border rounded-lg overflow-hidden relative">
+                  {/* Header */}
+                  <div className="flex justify-between items-start px-4 pt-4 pb-3">
                     <div>
                       <p className="text-brand-muted text-xs mb-1">{p.match.league} · {timeStr} UTC</p>
                       <p className="text-white font-bold">{p.match.homeTeam.name} vs {p.match.awayTeam.name}</p>
                     </div>
-                    <span className={`text-[10px] font-black px-2 py-1 rounded border ${badgeClass}`}>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded border ${badgeClass} shrink-0 ml-2`}>
                       {confidenceLabel}
                     </span>
                   </div>
+                  {/* Our Pick recommendation banner */}
+                  {!p.locked && p.bestPick && p.bestPick !== "?" && (
+                    <div className={`flex items-center justify-between px-4 py-2 border-y border-brand-border ${
+                      p.confidence === "high_confidence" || p.confidence === "high"
+                        ? "bg-green-950/30"
+                        : p.confidence === "medium"
+                        ? "bg-yellow-950/20"
+                        : "bg-orange-950/20"
+                    }`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Star className="w-3.5 h-3.5 text-brand-red shrink-0" />
+                        <span className="text-[10px] text-brand-muted font-semibold uppercase tracking-wide shrink-0">Our Pick</span>
+                        <span className="text-white font-black text-sm truncate">{bestLabel}</span>
+                      </div>
+                      <span className="text-brand-green font-black text-sm tabular-nums shrink-0 ml-2">{bestPct}%</span>
+                    </div>
+                  )}
+                  <div className="px-4 pb-4 pt-3">
                   {!p.locked ? (
                     <div className="grid grid-cols-3 gap-1.5">
                       {[
@@ -401,6 +443,7 @@ export default async function HomePage() {
                       </div>
                     </div>
                   )}
+                  </div>
                 </div>
               );
             })}
