@@ -17,7 +17,7 @@ from app.services.fixtures_service import (
     SOFASCORE_HEADERS,
 )
 from app.services.results_service import update_results
-from app.services.prediction_engine import generate_prediction
+from app.services.prediction_engine import generate_prediction, get_engine_accuracy_stats
 from app.services.bundle_generator import generate_and_save_bundle, TIER_CONFIG
 from app.core.config import settings
 from pydantic import BaseModel
@@ -258,7 +258,7 @@ async def trigger_run_update(db: Session = Depends(get_db)):
         try:
             probs = await generate_prediction(
                 fixture.home_team_id, fixture.away_team_id,
-                fixture.league_id, fixture.season, db=db,
+                fixture.league_id, fixture.season, db=db, fixture=fixture,
             )
             db.add(Prediction(fixture_id=fixture.id, **probs))
             created += 1
@@ -298,7 +298,7 @@ async def trigger_update_fixtures(db: Session = Depends(get_db)):
         try:
             probs = await generate_prediction(
                 fixture.home_team_id, fixture.away_team_id,
-                fixture.league_id, fixture.season, db=db,
+                fixture.league_id, fixture.season, db=db, fixture=fixture,
             )
             db.add(Prediction(fixture_id=fixture.id, **probs))
             created += 1
@@ -334,6 +334,7 @@ async def trigger_run_predictions(db: Session = Depends(get_db)):
                 fixture.league_id,
                 fixture.season,
                 db=db,
+                fixture=fixture,
             )
             prediction = Prediction(fixture_id=fixture.id, **probabilities)
             db.add(prediction)
@@ -357,6 +358,17 @@ async def trigger_run_results(db: Session = Depends(get_db)):
 async def trigger_update_results(db: Session = Depends(get_db)):
     result = await update_results(db)
     return {"success": True, **result}
+
+
+@router.get("/engine/accuracy", dependencies=[Depends(verify_admin)])
+async def engine_accuracy_stats(db: Session = Depends(get_db)):
+    """
+    Return prediction hit-rate statistics broken down by confidence tier.
+    Reads from settled predictions already in the DB (no calculation lag).
+    Use this to monitor engine quality and calibrate confidence thresholds.
+    """
+    stats = get_engine_accuracy_stats(db)
+    return {"success": True, **stats}
 
 
 # ---------------------------------------------------------------------------
@@ -706,7 +718,7 @@ async def trigger_run_today(db: Session = Depends(get_db)):
         try:
             probabilities = await generate_prediction(
                 fixture.home_team_id, fixture.away_team_id,
-                fixture.league_id, fixture.season, db=db,
+                fixture.league_id, fixture.season, db=db, fixture=fixture,
             )
             db.add(Prediction(fixture_id=fixture.id, **probabilities))
             created += 1
@@ -758,7 +770,7 @@ async def trigger_run_tomorrow(db: Session = Depends(get_db)):
         try:
             probabilities = await generate_prediction(
                 fixture.home_team_id, fixture.away_team_id,
-                fixture.league_id, fixture.season, db=db,
+                fixture.league_id, fixture.season, db=db, fixture=fixture,
             )
             db.add(Prediction(fixture_id=fixture.id, **probabilities))
             created += 1

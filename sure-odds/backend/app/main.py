@@ -100,6 +100,7 @@ async def _generate_predictions_for_window(db, days_ahead: int = 7) -> int:
                 fixture.league_id,
                 fixture.season,
                 db=db,
+                fixture=fixture,
             )
             db.add(Prediction(fixture_id=fixture.id, **probs))
             created += 1
@@ -276,6 +277,11 @@ def ensure_schema(db):
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
         """,
+
+        # predictions — v2 engine fields (xG and market blend flag)
+        "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS home_xg FLOAT",
+        "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS away_xg FLOAT",
+        "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS market_blended BOOLEAN DEFAULT FALSE",
     ]
 
     for stmt in statements:

@@ -86,6 +86,10 @@ class Prediction(Base):
     prediction_date = Column(DateTime(timezone=True), server_default=func.now())
     is_correct = Column(Boolean, nullable=True)
     actual_result = Column(String, nullable=True)
+    # v2 engine fields
+    home_xg = Column(Float, nullable=True)       # Poisson expected goals (home)
+    away_xg = Column(Float, nullable=True)       # Poisson expected goals (away)
+    market_blended = Column(Boolean, default=False, nullable=True)  # True if bookmaker odds were used
 
     fixture = relationship("Fixture", back_populates="prediction")
 
