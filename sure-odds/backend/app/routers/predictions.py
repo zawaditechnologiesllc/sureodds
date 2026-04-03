@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, Query, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, Date
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional, List
 from app.core.database import get_db
 from app.models.models import Fixture, Prediction, League, User, UserPackage, UserVipAccess
@@ -108,6 +108,7 @@ class PredictionOut(BaseModel):
 @router.get("", response_model=List[PredictionOut])
 async def get_predictions(
     date_filter: Optional[str] = Query(None, alias="date"),
+    relative: Optional[str] = Query(None),  # "today" | "tomorrow" — server computes the date
     league_id: Optional[int] = Query(None),
     live: bool = Query(False),
     authorization: Optional[str] = Header(None),
@@ -116,8 +117,8 @@ async def get_predictions(
     """
     Serve predictions from the database.
     - If live=true: returns all currently in-progress matches regardless of date.
-    - Otherwise: returns scheduled/live fixtures for the requested date.
-    - Predictions are generated on-the-fly for any fixture that lacks one.
+    - If relative="today" or "tomorrow": server computes the date (avoids client timezone mismatch).
+    - Otherwise: returns scheduled/live fixtures for the explicit date sent by the client.
     Free users see 2 unlocked picks; paid users or pick-package users see all.
     """
     user = resolve_user(authorization, db)
@@ -132,7 +133,14 @@ async def get_predictions(
             .order_by(Fixture.kickoff)
         )
     else:
-        target_date = date.today() if not date_filter else date.fromisoformat(date_filter)
+        # Prefer server-relative date to avoid client timezone drift
+        if relative == "today":
+            target_date = date.today()
+        elif relative == "tomorrow":
+            target_date = date.today() + timedelta(days=1)
+        else:
+            target_date = date.today() if not date_filter else date.fromisoformat(date_filter)
+
         query = (
             db.query(Fixture, League, Prediction)
             .outerjoin(League, Fixture.league_id == League.id)

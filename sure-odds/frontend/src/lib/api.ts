@@ -87,11 +87,22 @@ export const testApiConnection = async () => {
 
 // ─── Predictions ───────────────────────────────────────────────────────────────
 
-export const fetchPredictions = async (date?: string, leagueId?: number, live?: boolean) => {
+export const fetchPredictions = async (
+  relative?: "today" | "tomorrow",
+  leagueId?: number,
+  live?: boolean,
+  date?: string,
+) => {
   const params: Record<string, string | number | boolean> = {};
-  if (date && !live) params.date = date;
+  if (live) {
+    params.live = true;
+  } else if (relative) {
+    // Let the server compute the correct date — avoids client/server timezone mismatch
+    params.relative = relative;
+  } else if (date) {
+    params.date = date;
+  }
   if (leagueId) params.league_id = leagueId;
-  if (live) params.live = true;
   const res = await api.get("/predictions", { params });
   return res.data;
 };
