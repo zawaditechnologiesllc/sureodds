@@ -282,6 +282,18 @@ def ensure_schema(db):
         "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS home_xg FLOAT",
         "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS away_xg FLOAT",
         "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS market_blended BOOLEAN DEFAULT FALSE",
+
+        # model_calibration — self-learning: stores per-tier and per-market hit rates
+        """
+        CREATE TABLE IF NOT EXISTS model_calibration (
+            id                 SERIAL PRIMARY KEY,
+            calibration_type   VARCHAR NOT NULL,
+            key                VARCHAR NOT NULL,
+            hit_rate           FLOAT NOT NULL,
+            sample_size        INTEGER NOT NULL,
+            updated_at         TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
     ]
 
     for stmt in statements:

@@ -1,0 +1,59 @@
+how can we make the model to learn from its mistakes and wins?
+
+Great question — this is the difference between a static formula and a genuinely intelligent system. Let me explain how self-learning works in this context and what's realistic for your setup.
+
+How a model "learns from mistakes"
+At its core, learning means: comparing what the engine predicted vs what actually happened, then adjusting the engine's behaviour so it would have been closer to correct.
+
+You already have the foundation. Every settled prediction in your database has:
+
+best_pick — what the engine recommended
+confidence — how sure it was
+is_correct — whether it was right
+actual_result — what really happened
+That's the training data. The question is how to use it to change future predictions.
+
+Three levels of learning — from simple to advanced
+Level 1 — Confidence calibration (buildable now, high value)
+The problem: If the engine labels a pick "high_confidence" but those picks only win 48% of the time, the label is lying. Customers see "high confidence" and lose.
+
+The fix: After every results batch settles, compute the real hit rate for each confidence tier. Use those real rates to automatically shift the thresholds.
+
+Example: if "high_confidence" picks (≥72%) are only hitting 58% historically, the engine recalibrates to only award that label when the raw probability is ≥78%. The threshold moves until the label becomes truthful.
+
+This is called Platt scaling and it runs on data already in your DB.
+
+Level 2 — Market-type accuracy weighting (buildable now)
+The problem: Draws ("X") are the hardest thing to predict in football. Bookmakers know this — draw odds are almost always inflated. If the engine recommends draws too often and they keep losing, it should learn to be more cautious about them.
+
+The fix: Track is_correct grouped by best_pick type — separately for 1, X, 2, over25, btts. If "X" picks are only hitting 22% while "over25" hits 68%, the engine applies a penalty multiplier to draw confidence. Over time these multipliers converge on real-world accuracy.
+
+Level 3 — Feature weight re-fitting (medium term)
+The problem: The current 55/30/15 split between form, H2H, and home advantage is an educated guess. The real optimal split is whatever combination of those factors has historically been most predictive of correct outcomes.
+
+The fix: Once you have 300–500 settled predictions, run a logistic regression (a very simple form of ML) using each prediction's raw inputs as features:
+
+home_form_score
+away_form_score
+h2h_advantage
+home_xg
+away_xg
+was_market_blended
+And the label: is_correct (1 or 0).
+
+The regression learns which features actually drive correctness in your data and outputs new weights. Those weights replace the hardcoded 55/30/15. You re-run this once a month as data accumulates.
+
+This requires adding scikit-learn to the backend — it's a standard Python library.
+
+Level 4 — Full gradient boosting (longer term, 1000+ settled predictions)
+Replace logistic regression with XGBoost or LightGBM. Same idea but can model non-linear relationships — e.g. "home advantage matters a lot in the Premier League but very little in cup matches". This is what serious prediction companies like Opta actually run.
+
+What I'd recommend building next
+Given where you are now, the highest ROI move is Level 1 + Level 2 — both run on data already in your DB and can be implemented as a scheduled job that runs after every results reconciliation. No new data sources needed.
+
+The flow would be:
+
+Results reconcile → is_correct gets populated
+Calibration job runs → computes real hit rates by tier and market type
+Engine reads calibration table → adjusts confidence labels on future predictions
+Would you like me to build this? It would mean adding a small calibration_service.py, a calibration table to the DB, and hooking it into the nightly results run automatically.

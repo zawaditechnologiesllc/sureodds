@@ -271,3 +271,25 @@ class Notification(Base):
     target = Column(String, nullable=False, default="all")  # "users" | "partners" | "all"
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ModelCalibration(Base):
+    """
+    Stores calibration data computed from settled predictions.
+
+    Two row types (calibration_type):
+      "tier"   — real hit rate for a confidence tier (high_confidence, high, medium, low)
+      "market" — real hit rate for a best_pick market type (1, X, 2, over25, btts)
+
+    The prediction engine reads these rows to adjust confidence thresholds
+    (Level 1) and apply market accuracy penalties (Level 2) so that
+    confidence labels reflect actual historical performance.
+    """
+    __tablename__ = "model_calibration"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    calibration_type = Column(String, nullable=False)   # "tier" | "market"
+    key = Column(String, nullable=False)                # tier name or market type
+    hit_rate = Column(Float, nullable=False)            # actual hit rate [0, 1]
+    sample_size = Column(Integer, nullable=False)       # number of settled predictions used
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

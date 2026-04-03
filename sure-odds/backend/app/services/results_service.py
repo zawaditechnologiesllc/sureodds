@@ -15,6 +15,7 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, Date
 from app.models.models import Fixture, Prediction
+from app.services.calibration_service import run_calibration
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,13 @@ def reconcile_results(db: Session, days_back: int = RESULTS_WINDOW_DAYS) -> dict
     logger.info(
         f"Results reconcile: {updated} updated, {correct} correct, {accuracy}% accuracy"
     )
+
+    # Run calibration after every reconciliation batch so the prediction
+    # engine's confidence thresholds and market multipliers stay current.
+    calibration_result = run_calibration(db)
+    if not calibration_result.get("skipped"):
+        logger.info(f"Calibration updated: {calibration_result}")
+
     return {"updated": updated, "correct": correct, "accuracy_pct": accuracy}
 
 

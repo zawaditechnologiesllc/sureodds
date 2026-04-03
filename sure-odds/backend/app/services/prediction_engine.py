@@ -22,6 +22,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 from app.models.models import Fixture, Prediction
 from app.core.database import SessionLocal
+from app.services.calibration_service import (
+    load_calibration,
+    compute_calibrated_thresholds,
+    compute_market_multipliers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -320,22 +325,26 @@ def _strength_model(
 # ---------------------------------------------------------------------------
 
 def _assemble(
-    home_form:       float,
-    away_form:       float,
-    h2h_adv:         float,
-    home_attack:     float,
-    home_concede:    float,
-    away_attack:     float,
-    away_concede:    float,
-    league_home_avg: float,
-    league_away_avg: float,
-    market:          dict | None,
+    home_form:          float,
+    away_form:          float,
+    h2h_adv:            float,
+    home_attack:        float,
+    home_concede:       float,
+    away_attack:        float,
+    away_concede:       float,
+    league_home_avg:    float,
+    league_away_avg:    float,
+    market:             dict | None,
+    calibrated_thresholds: dict | None = None,
+    market_multipliers:    dict | None = None,
 ) -> dict:
     """
     Combines:
       - Poisson goal model (50%)
       - Form + H2H strength model (50%)
       - Blends with bookmaker market odds if available (30% market / 70% model)
+      - Applies calibrated confidence thresholds (Level 1) when available
+      - Applies per-market accuracy multipliers (Level 2) when available
     """
 
     # Expected goals using Dixon-Coles-style attack × defence / league normalisation
@@ -383,11 +392,33 @@ def _assemble(
     best_pick = max(picks, key=lambda k: picks[k])
     best_pct  = picks[best_pick]
 
-    if best_pct >= 72:
+    # ---------------------------------------------------------------------------
+    # Level 2 — Market-type accuracy weighting
+    # Apply a per-market multiplier derived from historical hit rates so that
+    # markets that consistently underperform (e.g. draws) don't get falsely
+    # elevated confidence labels.
+    # ---------------------------------------------------------------------------
+    effective_pct = best_pct
+    if market_multipliers:
+        multiplier = market_multipliers.get(best_pick, 1.0)
+        effective_pct = best_pct * multiplier
+
+    # ---------------------------------------------------------------------------
+    # Level 1 — Calibrated confidence thresholds
+    # Use adjusted thresholds when calibration data is available; fall back to
+    # the original hardcoded values for fresh deploys with no history yet.
+    # ---------------------------------------------------------------------------
+    thresholds = calibrated_thresholds or {
+        "high_confidence": 72.0,
+        "high":            62.0,
+        "medium":          50.0,
+    }
+
+    if effective_pct >= thresholds["high_confidence"]:
         confidence = "high_confidence"
-    elif best_pct >= 62:
+    elif effective_pct >= thresholds["high"]:
         confidence = "high"
-    elif best_pct >= 50:
+    elif effective_pct >= thresholds["medium"]:
         confidence = "medium"
     else:
         confidence = "low"
@@ -516,6 +547,12 @@ async def generate_prediction(
                 getattr(fixture, "away_odds", None),
             )
 
+        # --- Load calibration data (Level 1 + Level 2) ---
+        # Falls back gracefully to hardcoded defaults if no calibration exists yet.
+        calibration         = load_calibration(db)
+        calibrated_thresholds = compute_calibrated_thresholds(calibration.get("tier", {}))
+        market_multipliers    = compute_market_multipliers(calibration.get("market", {}))
+
         return _assemble(
             home_form=home_form,
             away_form=away_form,
@@ -527,6 +564,8 @@ async def generate_prediction(
             league_home_avg=league_home_avg,
             league_away_avg=league_away_avg,
             market=market,
+            calibrated_thresholds=calibrated_thresholds,
+            market_multipliers=market_multipliers,
         )
 
     finally:
