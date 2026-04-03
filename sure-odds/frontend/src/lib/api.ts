@@ -268,6 +268,11 @@ export const deactivateBundle = async (bundleId: string) => {
   return res.data;
 };
 
+export const refreshBundle = async (bundleId: string) => {
+  const res = await api.post(`/admin/bundles/${bundleId}/refresh`);
+  return res.data;
+};
+
 // ─── IntaSend (M-Pesa / Mobile Money — KE, TZ, UG) ──────────────────────────
 
 export const initializeMpesa = async (

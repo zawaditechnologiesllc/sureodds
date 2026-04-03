@@ -81,6 +81,7 @@ import {
   testAdminEmail,
   syncAdminUsers,
   wakeBackend,
+  refreshBundle,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance" | "vip" | "packages";
@@ -308,6 +309,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   });
   const [adminBundles, setAdminBundles] = useState<any[]>([]);
   const [bundlesLoading, setBundlesLoading] = useState(false);
+  const [refreshingBundleId, setRefreshingBundleId] = useState<string | null>(null);
 
   // Payments
   const [payments, setPayments] = useState<AdminPayment[]>([]);
@@ -583,6 +585,22 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
       fetchAdminBundles().then(setAdminBundles).catch(() => null);
     } catch {
       toast.error("Could not update bundle status.");
+    }
+  };
+
+  const handleRefreshBundle = async (bundleId: string, bundleName: string) => {
+    setRefreshingBundleId(bundleId);
+    try {
+      const res = await refreshBundle(bundleId);
+      toast.success(
+        `Bundle refreshed — dropped ${res.dropped} played pick(s), added ${res.added} new pick(s). Now ${res.pick_count} picks at ${res.total_odds}x odds.`
+      );
+      fetchAdminBundles().then(setAdminBundles).catch(() => null);
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || `Could not refresh "${bundleName}".`;
+      toast.error(msg);
+    } finally {
+      setRefreshingBundleId(null);
     }
   };
 
@@ -1661,7 +1679,7 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-brand-border">
-                        {["Name", "Tier", "Odds", "Picks", "Price", "Status", "Created", "Actions"].map((h) => (
+                        {["Name", "Tier", "Odds", "Picks", "Price", "Status", "Created", "Actions (Refresh · Publish)"].map((h) => (
                           <th key={h} className="text-left text-xs text-brand-muted font-medium py-2 pr-4 whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -1683,16 +1701,29 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                             {b.created_at ? new Date(b.created_at).toLocaleDateString("en-GB") : "—"}
                           </td>
                           <td className="py-3">
-                            <button
-                              onClick={() => handleToggleBundleActive(b.id, b.is_active)}
-                              className={`text-xs font-bold px-2.5 py-1 rounded border transition-colors ${
-                                b.is_active
-                                  ? "border-red-900 text-brand-red hover:bg-red-950"
-                                  : "border-green-900 text-brand-green hover:bg-green-950"
-                              }`}
-                            >
-                              {b.is_active ? "Unpublish" : "Publish"}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleRefreshBundle(b.id, b.name)}
+                                disabled={refreshingBundleId === b.id}
+                                title="Drop played picks and top up with fresh upcoming games"
+                                className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded border border-blue-900 text-blue-400 hover:bg-blue-950 disabled:opacity-50 transition-colors"
+                              >
+                                {refreshingBundleId === b.id
+                                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                                  : <RefreshCw className="w-3 h-3" />}
+                                {refreshingBundleId === b.id ? "Refreshing..." : "Refresh"}
+                              </button>
+                              <button
+                                onClick={() => handleToggleBundleActive(b.id, b.is_active)}
+                                className={`text-xs font-bold px-2.5 py-1 rounded border transition-colors ${
+                                  b.is_active
+                                    ? "border-red-900 text-brand-red hover:bg-red-950"
+                                    : "border-green-900 text-brand-green hover:bg-green-950"
+                                }`}
+                              >
+                                {b.is_active ? "Unpublish" : "Publish"}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
