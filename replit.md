@@ -1,6 +1,7 @@
 # Sure Odds — Sports Prediction Platform
 
 ## Key Fixes Applied (April 2026)
+- **VIP currency fix**: User VIP page (`/vip`) was hardcoding `$` (USD) for all plan prices. DB stores VIP packages in KES. Fixed by: (1) carrying `currency` field through the live-package merge, (2) adding `formatPlanPrice` helper that shows `KSh` for KES and `$` for USD. Removed broken `useCurrency`/`formatPrice` usage that was treating KES amounts as USD and double-converting them.
 - **CRITICAL BUG FIX**: `predictions/page.tsx` was calling `getDateStr(filter)` which was never defined — this threw a `ReferenceError` at runtime and silently prevented all predictions from loading. Also, the old call passed a client-side date string as the `relative` param instead of `"today"`/`"tomorrow"`. Fixed: removed `getDateStr`, now passes `filter` directly as `relative` (type-cast to `"today" | "tomorrow"`) so the backend always computes the correct server-side date. This resolves the mismatch where admin showed 46 fixtures but users saw none.
 
 - **CRITICAL BUG FIX**: Fixed `/paystack/status` — was only checking `subscription_status == "paid"` but VIP users are stored in `user_vip_access` table. VIP customers now correctly show as paid/VIP active. Response now includes `vip_active` and `vip_expires_at` fields.

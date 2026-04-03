@@ -8,7 +8,6 @@ import Footer from "@/components/layout/Footer";
 import { Crown, CheckCircle, Loader2, ArrowRight, ShieldCheck, Zap, Clock } from "lucide-react";
 import { fetchVipPackages, fetchVipStatus, verifyPayment } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
-import { useCurrency } from "@/lib/useCurrency";
 import toast from "react-hot-toast";
 import PaymentMethodModal from "@/components/payment/PaymentMethodModal";
 
@@ -65,11 +64,25 @@ const STATIC_PLANS = [
   },
 ];
 
+function currencySymbol(currency: string): string {
+  if (currency === "KES" || currency === "KSH") return "KSh";
+  if (currency === "GBP") return "£";
+  if (currency === "EUR") return "€";
+  return "$";
+}
+
+function formatPlanPrice(price: number, currency: string): string {
+  const sym = currencySymbol(currency);
+  if (currency === "KES" || currency === "KSH") {
+    return `${sym} ${Math.round(price).toLocaleString()}`;
+  }
+  return `${sym}${price.toFixed(2)}`;
+}
+
 function VipContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
-  const { formatPrice } = useCurrency();
 
   const [plans, setPlans] = useState<typeof STATIC_PLANS>(STATIC_PLANS);
   const [selected, setSelected] = useState<number>(STATIC_PLANS[1].id);
@@ -87,7 +100,7 @@ function VipContent() {
             if (!live) return sp;
             let features = sp.features;
             try { const parsed = JSON.parse(live.features || "[]"); if (parsed.length) features = parsed; } catch {}
-            return { ...sp, price: live.price, name: live.name, features };
+            return { ...sp, price: live.price, name: live.name, currency: live.currency || sp.currency, features };
           });
           setPlans(merged);
         }
@@ -217,9 +230,8 @@ function VipContent() {
                 <p className="text-white font-black text-lg leading-tight">{plan.name}</p>
                 <div className="text-right shrink-0 ml-3">
                   <p className="text-brand-green font-black text-xl leading-tight">
-                    ${plan.price.toFixed(2)}
+                    {formatPlanPrice(plan.price, plan.currency)}
                   </p>
-                  <p className="text-brand-muted text-[10px]">≈ {formatPrice(plan.price)}</p>
                 </div>
               </div>
 
@@ -238,7 +250,7 @@ function VipContent() {
                 onClick={() => handlePay(plan.id)}
                 className="w-full py-3.5 rounded-xl font-black text-sm text-white transition-all bg-[#1a3d2b] hover:bg-[#1f4d35] border border-green-900/60 hover:border-green-700"
               >
-                Pay — ${plan.price.toFixed(2)} <span className="text-[11px] opacity-70">(≈ {formatPrice(plan.price)})</span>
+                Pay — {formatPlanPrice(plan.price, plan.currency)}
               </button>
             </div>
           ))}
