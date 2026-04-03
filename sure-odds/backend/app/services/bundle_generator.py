@@ -158,6 +158,150 @@ def generate_bundle(pool: List[Dict], target_odds: float, min_picks: int, max_pi
 
 
 # ---------------------------------------------------------------------------
+# Bundle refresh — drop played/live picks, top up, recalculate price
+# ---------------------------------------------------------------------------
+
+def refresh_bundle_picks(db: Session, bundle: Bundle) -> dict:
+    """
+    Drop picks whose kickoff has already passed (played or currently live),
+    top up to the tier's min_picks with fresh upcoming games, recalculate
+    total_odds, and persist the updated bundle.
+
+    Called both manually (admin button) and by the hourly scheduler job.
+    Returns a summary dict with keys: dropped, added, total_picks, total_odds.
+    """
+    now_utc = datetime.now(timezone.utc)
+    tier = bundle.tier
+    config = TIER_CONFIG.get(tier)
+    if not config:
+        return {"skipped": True, "reason": f"Unknown tier: {tier}"}
+
+    current_picks: list = json.loads(bundle.picks) if bundle.picks else []
+
+    # Separate upcoming from played/live (kickoff in the past)
+    kept = []
+    dropped = 0
+    for pick in current_picks:
+        raw = pick.get("kickoff") or ""
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if dt > now_utc:
+                kept.append(pick)
+            else:
+                dropped += 1
+        except Exception:
+            kept.append(pick)  # can't parse → keep conservatively
+
+    if dropped == 0:
+        return {"skipped": True, "reason": "no_played_picks", "total_picks": len(kept)}
+
+    # How many fresh picks needed to fill back up to min_picks?
+    need = max(config["min_picks"] - len(kept), 0)
+    used_ids = {p["fixture_id"] for p in kept}
+    new_picks: list = []
+
+    if need > 0:
+        pool = _build_match_pool(db, days_ahead=3)
+        available = [p for p in pool if p["fixture_id"] not in used_ids]
+        if available:
+            result = generate_bundle(
+                available,
+                target_odds=config["target_odds"],
+                min_picks=need,
+                max_picks=config["max_picks"] - len(kept),
+            )
+            new_picks = result["picks"]
+
+    refreshed = kept + new_picks
+
+    if not refreshed:
+        # Nothing left and nothing to fill with — deactivate
+        bundle.is_active = False
+        db.commit()
+        return {"skipped": False, "dropped": dropped, "added": 0, "total_picks": 0, "deactivated": True}
+
+    # Recalculate total_odds and reset price to the tier's full price
+    # (all picks are now upcoming so the bundle is back at full value)
+    total_odds = 1.0
+    for pick in refreshed:
+        total_odds *= pick.get("odds", 1.0)
+    total_odds = round(total_odds, 2)
+
+    # expires_at = earliest kickoff in the refreshed list
+    kickoffs = [p["kickoff"] for p in refreshed if p.get("kickoff")]
+    expires_at = None
+    if kickoffs:
+        try:
+            expires_at = datetime.fromisoformat(min(kickoffs).replace("Z", "+00:00"))
+        except Exception:
+            expires_at = None
+
+    bundle.picks = json.dumps(refreshed)
+    bundle.total_odds = total_odds
+    bundle.price = config["price"]     # reset to full tier price — all picks are upcoming
+    bundle.expires_at = expires_at
+    bundle.is_active = True
+    db.commit()
+
+    logger.info(
+        f"Bundle {bundle.id} [{tier}] auto-refreshed — dropped {dropped}, "
+        f"added {len(new_picks)}, total {len(refreshed)} picks, {total_odds}x odds."
+    )
+    return {
+        "skipped": False,
+        "dropped": dropped,
+        "added": len(new_picks),
+        "total_picks": len(refreshed),
+        "total_odds": total_odds,
+        "expires_at": expires_at.isoformat() if expires_at else None,
+    }
+
+
+def auto_refresh_all_active_bundles(db: Session) -> dict:
+    """
+    Check all active bundles. For each one that has any picks with a kickoff
+    in the past (played or live), run refresh_bundle_picks() to drop those
+    picks and top up with fresh upcoming games.
+
+    Called by the hourly APScheduler job in main.py.
+    Returns a summary of how many bundles were checked and refreshed.
+    """
+    active_bundles = db.query(Bundle).filter(Bundle.is_active == True).all()
+    now_utc = datetime.now(timezone.utc)
+    checked = 0
+    refreshed = 0
+
+    for bundle in active_bundles:
+        checked += 1
+        picks = json.loads(bundle.picks) if bundle.picks else []
+        has_played = any(
+            _pick_has_started(p, now_utc) for p in picks
+        )
+        if has_played:
+            result = refresh_bundle_picks(db, bundle)
+            if not result.get("skipped"):
+                refreshed += 1
+
+    return {"checked": checked, "refreshed": refreshed}
+
+
+def _pick_has_started(pick: dict, now_utc: datetime) -> bool:
+    """Return True if a pick's kickoff is in the past (match started or finished)."""
+    raw = pick.get("kickoff") or ""
+    if not raw:
+        return False
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt <= now_utc
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Public API — called by admin endpoints
 # ---------------------------------------------------------------------------
 

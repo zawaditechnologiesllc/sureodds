@@ -608,9 +608,13 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
     setRefreshingBundleId(bundleId);
     try {
       const res = await refreshBundle(bundleId);
-      toast.success(
-        `Bundle refreshed — dropped ${res.dropped} played pick(s), added ${res.added} new pick(s). Now ${res.pick_count} picks at ${res.total_odds}x odds.`
-      );
+      if (res.message) {
+        toast.success(`Already up to date — no played picks found.`);
+      } else {
+        toast.success(
+          `Refreshed — removed ${res.dropped} played pick(s), added ${res.added} fresh pick(s). Now ${res.pick_count} picks at ${res.total_odds}x odds.`
+        );
+      }
       fetchAdminBundles().then(setAdminBundles).catch(() => null);
     } catch (err: any) {
       const msg = err?.response?.data?.detail || `Could not refresh "${bundleName}".`;

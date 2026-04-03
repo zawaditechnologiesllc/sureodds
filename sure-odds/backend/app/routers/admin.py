@@ -534,118 +534,45 @@ async def activate_bundle(bundle_id: str, db: Session = Depends(get_db)):
 @router.post("/bundles/{bundle_id}/refresh", dependencies=[Depends(verify_admin)])
 async def refresh_bundle(bundle_id: str, db: Session = Depends(get_db)):
     """
-    Refresh a live bundle by dropping played picks and topping up with
-    fresh upcoming games — keeping the bundle on sale continuously.
+    Manually refresh a live bundle:
+      - Drop all picks whose kickoff has already passed (played or live).
+      - Top up with fresh upcoming games to meet the tier's min_picks.
+      - Reset price to the full tier price (all remaining picks are upcoming).
+      - Recalculate total_odds.
 
-    Logic:
-      1. Remove all picks whose kickoff has already passed.
-      2. Pull a new pool of upcoming predictions (excluding fixture IDs
-         already in the bundle to avoid duplicates).
-      3. Top up to the tier's min_picks, recalculate total_odds.
-      4. Update expires_at to the earliest kickoff in the refreshed pick list.
-      5. Keep original_price unchanged — current_price auto-reduces on the fly.
+    This same logic runs automatically every hour via the scheduler.
     """
-    import json as _json
-    from datetime import datetime, timezone
-    from app.services.bundle_generator import (
-        _build_match_pool, generate_bundle, prob_to_odds, TIER_CONFIG
-    )
+    from app.services.bundle_generator import refresh_bundle_picks
 
     bundle = db.query(Bundle).filter(Bundle.id == bundle_id).first()
     if not bundle:
         raise HTTPException(status_code=404, detail="Bundle not found")
 
-    tier = bundle.tier
-    config = TIER_CONFIG.get(tier)
-    if not config:
-        raise HTTPException(status_code=400, detail=f"Unknown tier: {tier}")
+    result = refresh_bundle_picks(db, bundle)
 
-    now_utc = datetime.now(timezone.utc)
-    current_picks: list = _json.loads(bundle.picks) if bundle.picks else []
+    if result.get("skipped") and result.get("reason") == "no_played_picks":
+        return {
+            "success": True,
+            "bundle_id": bundle_id,
+            "message": "No played picks found — bundle is already up to date.",
+            "total_picks": result.get("total_picks", 0),
+        }
 
-    # Keep picks that haven't kicked off yet
-    kept = []
-    for pick in current_picks:
-        raw = pick.get("kickoff") or ""
-        try:
-            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            if dt > now_utc:
-                kept.append(pick)
-        except Exception:
-            kept.append(pick)
-
-    dropped = len(current_picks) - len(kept)
-
-    # How many new picks do we need to top up to min_picks?
-    need = max(config["min_picks"] - len(kept), 0)
-
-    # IDs already in the kept list — exclude from pool to avoid duplicates
-    used_ids = {p["fixture_id"] for p in kept}
-
-    new_picks: list = []
-    if need > 0:
-        pool = _build_match_pool(db, days_ahead=3)
-        available = [p for p in pool if p["fixture_id"] not in used_ids]
-
-        if not available:
-            raise HTTPException(
-                status_code=422,
-                detail="Not enough upcoming fixtures to top up this bundle. "
-                       "Run predictions first or generate a fresh bundle."
-            )
-
-        result = generate_bundle(
-            available,
-            target_odds=config["target_odds"],
-            min_picks=need,
-            max_picks=config["max_picks"] - len(kept),
-        )
-        new_picks = result["picks"]
-
-    refreshed_picks = kept + new_picks
-
-    if not refreshed_picks:
+    if result.get("deactivated"):
         raise HTTPException(
             status_code=422,
-            detail="No picks remain and no upcoming fixtures found. Generate a fresh bundle instead."
+            detail="All picks have played and no upcoming fixtures are available. "
+                   "Generate a fresh bundle instead."
         )
-
-    # Recalculate total_odds
-    total_odds = 1.0
-    for pick in refreshed_picks:
-        total_odds *= pick.get("odds", 1.0)
-    total_odds = round(total_odds, 2)
-
-    # New expires_at = earliest kickoff in the refreshed list
-    kickoffs = [p["kickoff"] for p in refreshed_picks if p.get("kickoff")]
-    expires_at = None
-    if kickoffs:
-        try:
-            expires_at = datetime.fromisoformat(min(kickoffs).replace("Z", "+00:00"))
-        except Exception:
-            expires_at = None
-
-    bundle.picks = _json.dumps(refreshed_picks)
-    bundle.total_odds = total_odds
-    bundle.expires_at = expires_at
-    bundle.is_active = True
-    db.commit()
-
-    logger.info(
-        f"Bundle {bundle_id} refreshed — dropped {dropped} played pick(s), "
-        f"added {len(new_picks)} new pick(s), {len(refreshed_picks)} total, {total_odds}x odds."
-    )
 
     return {
         "success": True,
         "bundle_id": bundle_id,
-        "dropped": dropped,
-        "added": len(new_picks),
-        "pick_count": len(refreshed_picks),
-        "total_odds": total_odds,
-        "expires_at": expires_at.isoformat() if expires_at else None,
+        "dropped": result["dropped"],
+        "added": result["added"],
+        "pick_count": result["total_picks"],
+        "total_odds": result["total_odds"],
+        "expires_at": result.get("expires_at"),
     }
 
 

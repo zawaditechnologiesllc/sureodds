@@ -207,6 +207,29 @@ def run_weekly_lr_training():
         db.close()
 
 
+def run_bundle_auto_refresh():
+    """
+    Runs every hour.
+    Scans all active bundles: for each one that has picks whose kickoff has
+    already passed (match started or finished), drops those picks, tops up
+    with fresh upcoming games, and resets the price to the full tier price.
+    This keeps bundles continuously live and fairly priced without admin input.
+    """
+    from app.services.bundle_generator import auto_refresh_all_active_bundles
+    db = SessionLocal()
+    try:
+        summary = auto_refresh_all_active_bundles(db)
+        if summary["refreshed"] > 0:
+            logger.info(
+                f"Bundle auto-refresh: checked {summary['checked']} bundles, "
+                f"refreshed {summary['refreshed']}."
+            )
+    except Exception as e:
+        logger.error(f"Bundle auto-refresh error: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # Schema guard — add missing columns / tables directly via SQL
 # ---------------------------------------------------------------------------
@@ -554,10 +577,19 @@ async def lifespan(app: FastAPI):
         id="lr_weekly_sun_03h", replace_existing=True,
     )
 
+    # Hourly bundle auto-refresh — drops played/live picks, tops up with fresh games,
+    # resets price to full tier price so the bundle stays relevant all day.
+    scheduler.add_job(
+        run_bundle_auto_refresh,
+        "interval", hours=1,
+        id="bundle_refresh_1h", replace_existing=True,
+    )
+
     scheduler.start()
     logger.info(
         "Scheduler started — fixture poll every 6h, live scores every 5 min, "
-        "bundle auto-gen daily at 07:00 UTC, LR training weekly on Sundays."
+        "bundle auto-gen daily at 07:00 UTC, bundle auto-refresh every hour, "
+        "LR training weekly on Sundays."
     )
 
     yield
