@@ -103,6 +103,8 @@ class PredictionOut(BaseModel):
     confidence: str
     locked: bool
     computing: bool
+    homeXg: Optional[float] = None
+    awayXg: Optional[float] = None
 
 
 @router.get("", response_model=List[PredictionOut])
@@ -201,6 +203,8 @@ async def get_predictions(
                 confidence=pred.confidence if has_pred else "computing",
                 locked=locked,
                 computing=not has_pred,
+                homeXg=round(pred.home_xg, 2) if has_pred and not locked and pred.home_xg is not None else None,
+                awayXg=round(pred.away_xg, 2) if has_pred and not locked and pred.away_xg is not None else None,
             )
         )
 

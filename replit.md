@@ -1,5 +1,47 @@
 # Sure Odds — Sports Prediction Platform
 
+## Roadmap Features Implemented (April 2026 — Batch 2)
+
+### Priority 2 — Logistic Regression Weight Re-Fitting
+- `scikit-learn` and `slowapi` added to `requirements.txt`
+- New `model_weights` DB table (stores: poisson_weight, strength_weight, form_weight, h2h_weight, home_adv_weight, sample_size, cv_accuracy)
+- New `logistic_regression_service.py` — trains LR on (home_form_score, away_form_score, h2h_adv_score, home_xg, away_xg) → is_correct; derives optimal blending weights; stores in DB
+- `prediction_engine.py` updated: `_strength_model()` now accepts fitted weights as params; `_assemble()` reads LR weights from DB and replaces hardcoded 50/50 / 55/30/15 splits when available; `generate_prediction()` now stores feature columns (home_form_score, away_form_score, h2h_adv_score) in every prediction row for future training
+- Requires ≥ 300 settled predictions with v3 feature columns; silently falls back to hardcoded defaults until then
+
+### Priority 3 — 60-Day Historical Backfill
+- New `POST /admin/backfill?days_back=60` endpoint in admin.py — runs as background task; fetches N days of history then re-reconciles results
+- Frontend: "60-Day Backfill" button in admin overview Engine Accuracy panel; triggers with toast confirmation
+- New API helper `triggerBackfill(daysBack)` in api.ts
+
+### Priority 4 — xG Display on Prediction Cards
+- `PredictionOut` in `fixtures.py` and `predictions.py` now include `homeXg` and `awayXg` optional fields
+- `Prediction` type in `types/index.ts` extended with `homeXg?: number` and `awayXg?: number`
+- `MatchCard.tsx` updated — shows "xG 1.8" / "xG 0.9" labels inline next to each team name for unlocked, non-computing predictions
+
+### Priority 5 — Daily Bundle Auto-Generation at 07:00 UTC
+- `run_daily_bundle_generation()` async function added to `main.py`
+- APScheduler cron job: `bundle_daily_07h` — fires every day at 07:00 UTC, generates all 4 tiers (safe, medium, high, mega) via existing `generate_and_save_bundle()` service
+
+### Priority 6 — Admin Accuracy Panel
+- Engine Accuracy panel added to admin overview tab
+- Shows: Total Settled, Overall Accuracy %, Last 7 Days Accuracy, per-tier breakdown (high_confidence/high/medium/low hit rates)
+- Loads on tab open; manual refresh button available
+- New API helpers: `fetchEngineAccuracy()`, `fetchEngineWeights()`, `triggerTrainModel()`, `triggerBackfill()`
+
+### Priority 6 — LR Model Training (Admin)
+- `POST /admin/engine/train` — triggers LR training immediately (useful for testing before weekly job fires)
+- `GET /admin/engine/weights` — returns current fitted weights or message that defaults are in use
+- Weekly scheduler job: `lr_weekly_sun_03h` — every Sunday at 03:00 UTC
+- Admin panel: "Train LR Model" button in Engine Accuracy section; shows sample count and CV accuracy on success
+
+### Priority 6 — Score Re-Reconciliation on Correction
+- `results_service.py` updated: if `prediction.actual_result != actual` (score changed after settlement), re-evaluates `is_correct` and updates — handles score corrections after initial settlement
+
+### Priority 6 — Rate Limiting
+- `slowapi` integrated globally — 60 requests per minute per IP
+- `Limiter` attached to app state; `RateLimitExceeded` handler registered
+
 ## Key Fixes Applied (April 2026)
 - **VIP currency fix**: User VIP page (`/vip`) was hardcoding `$` (USD) for all plan prices. DB stores VIP packages in KES. Fixed by: (1) carrying `currency` field through the live-package merge, (2) adding `formatPlanPrice` helper that shows `KSh` for KES and `$` for USD. Removed broken `useCurrency`/`formatPrice` usage that was treating KES amounts as USD and double-converting them.
 - **CRITICAL BUG FIX**: `predictions/page.tsx` was calling `getDateStr(filter)` which was never defined — this threw a `ReferenceError` at runtime and silently prevented all predictions from loading. Also, the old call passed a client-side date string as the `relative` param instead of `"today"`/`"tomorrow"`. Fixed: removed `getDateStr`, now passes `filter` directly as `relative` (type-cast to `"today" | "tomorrow"`) so the backend always computes the correct server-side date. This resolves the mismatch where admin showed 46 fixtures but users saw none.

@@ -1,0 +1,94 @@
+Absolutely — here's everything worth saving for when you're back. Think of this as your roadmap.
+
+Sure Odds — Full Improvement Roadmap
+🔴 Priority 1 — Make the engine self-learning (next session)
+Confidence calibration + market-type accuracy weighting
+
+Add a prediction_calibration table to the DB storing real hit rates per confidence tier and per pick type (1, X, 2, over25, btts)
+Hook a calibration job into the nightly results run — after results reconcile, it recalculates real accuracy and writes to that table
+Engine reads the calibration table before labelling confidence — if "high_confidence" draws are only hitting 22%, it won't label a draw pick "high_confidence" anymore
+This is the single most customer-facing improvement possible — your confidence labels become honest
+Cost: ~1 session, no new libraries or data sources needed
+
+🔴 Priority 2 — Logistic regression weight re-fitting
+Once you have 300+ settled predictions (check with GET /admin/engine/accuracy):
+
+Add scikit-learn to the backend
+Build a weekly training job that fits a logistic regression on home_form, away_form, h2h_adv, home_xg, away_xg → is_correct
+Replace the hardcoded 55/30/15 form/H2H/home-advantage weights with the fitted coefficients
+Engine becomes genuinely data-driven instead of formula-driven
+Cost: ~1 session
+
+🟡 Priority 3 — Data quality improvements
+Expand fixture history window
+
+Currently fetching 7 days ahead; the engine needs historical finished matches to compute form
+Add a one-time "backfill" scrape that pulls the past 60 days of results from Sofascore
+More history = better form scores, especially for teams early in a season
+API-Football for injury & lineup data
+
+Sofascore doesn't expose squad/injury data easily
+API-Football (free tier: 100 calls/day) has injury reports, confirmed lineups 1 hour before kickoff
+A missing striker or suspended goalkeeper is the single biggest signal the engine currently cannot see
+Hook it into the prediction run: if a team's top scorer is out, apply a -15% attack multiplier
+🟡 Priority 4 — Customer-facing improvements
+Show xG on prediction cards
+
+home_xg and away_xg are now stored per prediction
+Display them on the prediction detail page: "Arsenal xG: 1.8 — Chelsea xG: 0.9"
+This makes your product look professional and builds customer trust in the methodology
+Show prediction accuracy stats publicly
+
+A public /results/accuracy page showing overall hit rate, breakdown by tier
+Customers want to see receipts — "Sure Odds: 71% hit rate on high-confidence picks this month"
+This is your biggest marketing asset once the numbers are real
+Email/push notifications before kickoff
+
+When a purchased pick is 1 hour from kickoff, send the customer a reminder
+Needs a simple email service (Resend has a generous free tier)
+🟢 Priority 5 — Business model improvements
+Bundle auto-generation schedule
+
+Right now bundles are generated manually in the admin panel
+Add a cron job: every day at 07:00 UTC, auto-generate one bundle per tier for games kicking off that day
+Means customers always have fresh bundles without you lifting a finger
+Affiliate/partner dashboard
+
+Partners currently have no visibility into how many clicks converted or what their pending payout is
+A simple /partner/dashboard page showing clicks, conversions, and estimated earnings would dramatically improve partner retention
+Payment fallback — Flutterwave
+
+If Paystack is unavailable or not working for a user's region, Flutterwave covers a broader African market
+Worth adding as an alternative payment method, especially for West African customers
+🟢 Priority 6 — Infrastructure / reliability
+Prediction regeneration on result correction
+
+If a fixture score gets corrected (Sofascore sometimes publishes wrong scores briefly), predictions are never re-evaluated
+Add a re-reconciliation trigger that re-checks is_correct whenever a finished fixture's score changes
+Admin dashboard accuracy panel
+
+Wire the /admin/engine/accuracy endpoint you now have into the admin UI
+Show a table: confidence tier → total predictions → correct → hit rate
+You should check this every week to see if the engine is improving
+Rate limiting on the API
+
+If someone hammers your Render endpoint (or a scraper hits it), it eats your free tier resources
+Add slowapi (1 line of code) to throttle abusive IPs
+Quick reference — what's already live
+Feature	Status
+Sofascore fixture scraping	✅ Live
+Venue-specific form (v2 engine)	✅ Live
+Recency weighting	✅ Live
+Poisson goal model	✅ Live
+Bookmaker odds as Bayesian prior	✅ Live
+xG stored per prediction	✅ Live
+Accuracy tracking endpoint	✅ Live
+Bundle refresh (drop played picks)	✅ Live
+Render keep-alive monitoring	✅ Live
+Self-learning / calibration	🔲 Next
+Logistic regression weight fitting	🔲 After 300+ predictions
+Injury/lineup data	🔲 Later
+Save this, come back when credits reset, and we'll start at Priority 1. The calibration work alone will meaningfully improve what customers experience. Good luck!
+
+
+Scroll to latest

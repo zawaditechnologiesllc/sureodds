@@ -82,6 +82,9 @@ import {
   syncAdminUsers,
   wakeBackend,
   refreshBundle,
+  fetchEngineAccuracy,
+  triggerTrainModel,
+  triggerBackfill,
 } from "@/lib/api";
 
 type AdminTab = "overview" | "bundles" | "partners" | "users" | "payments" | "notifications" | "finance" | "vip" | "packages";
@@ -357,6 +360,12 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const [testEmailLoading, setTestEmailLoading] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<{ sent: boolean; reason?: string; smtp_host?: string; smtp_user?: string } | null>(null);
 
+  // Engine (ML) — accuracy panel + backfill/train actions
+  const [engineAccuracy, setEngineAccuracy] = useState<any>(null);
+  const [engineAccuracyLoading, setEngineAccuracyLoading] = useState(false);
+  const [trainModelStatus, setTrainModelStatus] = useState<ActionStatus>("idle");
+  const [backfillStatus, setBackfillStatus] = useState<ActionStatus>("idle");
+
   useEffect(() => {
     fetchAdminStats()
       .then((data) => setStats(data))
@@ -440,6 +449,13 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
         .then(setValuePacks)
         .catch(() => null)
         .finally(() => setValuePacksLoading(false));
+    }
+    if (tab === "overview") {
+      setEngineAccuracyLoading(true);
+      fetchEngineAccuracy()
+        .then(setEngineAccuracy)
+        .catch(() => null)
+        .finally(() => setEngineAccuracyLoading(false));
     }
   }, [tab]);
 
@@ -908,6 +924,117 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                   >
                     <StatusIcon status={tomorrowStatus} />
                     {tomorrowStatus === "loading" ? "Running..." : "Refresh Tomorrow"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Engine Accuracy + ML Controls */}
+            <div className="mt-6 bg-brand-card border border-brand-border rounded-xl p-5 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-white font-bold text-lg flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-brand-green" />
+                    Engine Accuracy
+                  </h2>
+                  <p className="text-brand-muted text-xs mt-0.5">
+                    Hit-rate by confidence tier · LR model re-fits weekly once 300+ settled predictions are available
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setEngineAccuracyLoading(true);
+                    fetchEngineAccuracy().then(setEngineAccuracy).catch(() => null).finally(() => setEngineAccuracyLoading(false));
+                  }}
+                  className="text-brand-muted hover:text-white transition-colors"
+                  title="Refresh accuracy stats"
+                >
+                  <RefreshCw className={`w-4 h-4 ${engineAccuracyLoading ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+
+              {engineAccuracyLoading && !engineAccuracy && (
+                <div className="flex items-center gap-2 text-brand-muted text-sm py-4">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading accuracy stats…
+                </div>
+              )}
+
+              {engineAccuracy && (
+                <>
+                  {/* Overall stats */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    {[
+                      { label: "Total Settled", value: engineAccuracy.total_settled ?? "—", color: "text-white" },
+                      { label: "Overall Accuracy", value: engineAccuracy.total_settled > 0 ? `${engineAccuracy.overall_accuracy ?? "—"}%` : "—", color: "text-brand-green" },
+                      { label: "Last 7 Days", value: engineAccuracy.last_7_days?.accuracy != null ? `${engineAccuracy.last_7_days.accuracy}%` : "—", color: "text-brand-yellow" },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className="bg-brand-dark border border-brand-border rounded-lg p-3">
+                        <p className="text-brand-muted text-[10px] uppercase font-bold mb-1">{label}</p>
+                        <p className={`text-xl font-black ${color}`}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Per-tier breakdown */}
+                  {engineAccuracy.by_tier && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                      {Object.entries(engineAccuracy.by_tier as Record<string, { total: number; correct: number; accuracy: number }>).map(([tier, data]) => (
+                        <div key={tier} className="bg-brand-dark border border-brand-border rounded-lg p-3">
+                          <p className="text-brand-muted text-[10px] uppercase font-bold mb-1">{tier.replace("_", " ")}</p>
+                          <p className="text-white font-black text-lg">{data.accuracy}%</p>
+                          <p className="text-brand-muted text-[10px]">{data.correct}/{data.total} correct</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ML Action Buttons */}
+              <div className="grid sm:grid-cols-2 gap-3 mt-4 pt-4 border-t border-brand-border">
+                <div className="bg-brand-dark border border-brand-border rounded-lg p-4">
+                  <p className="text-white font-bold text-sm mb-1">60-Day Backfill</p>
+                  <p className="text-brand-muted text-xs mb-3">
+                    Fetch 60 days of historical fixtures and re-reconcile results to build up training data for the LR model.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setBackfillStatus("loading");
+                      triggerBackfill(60)
+                        .then(() => { setBackfillStatus("success"); toast.success("60-day backfill started in background."); })
+                        .catch(() => { setBackfillStatus("error"); toast.error("Backfill failed."); });
+                    }}
+                    disabled={backfillStatus === "loading"}
+                    className="w-full flex items-center justify-center gap-2 bg-blue-900/40 hover:bg-blue-900/60 border border-blue-800/50 text-blue-400 text-sm font-bold py-2 rounded transition-colors disabled:opacity-60"
+                  >
+                    {backfillStatus === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                    {backfillStatus === "loading" ? "Starting…" : "Run Backfill"}
+                  </button>
+                </div>
+                <div className="bg-brand-dark border border-brand-border rounded-lg p-4">
+                  <p className="text-white font-bold text-sm mb-1">Train LR Model</p>
+                  <p className="text-brand-muted text-xs mb-3">
+                    Fit logistic regression on settled predictions to optimise Poisson/strength blend weights. Requires ≥300 samples.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setTrainModelStatus("loading");
+                      triggerTrainModel()
+                        .then((res: any) => {
+                          setTrainModelStatus("success");
+                          if (res.skipped) {
+                            toast.error(`Training skipped — only ${res.total_with_features ?? 0} samples (need ${res.need ?? 300}).`);
+                          } else {
+                            toast.success(`Model trained on ${res.sample_size} samples · CV accuracy ${res.cv_accuracy}%`);
+                          }
+                        })
+                        .catch(() => { setTrainModelStatus("error"); toast.error("Training failed."); });
+                    }}
+                    disabled={trainModelStatus === "loading"}
+                    className="w-full flex items-center justify-center gap-2 bg-purple-900/40 hover:bg-purple-900/60 border border-purple-800/50 text-purple-400 text-sm font-bold py-2 rounded transition-colors disabled:opacity-60"
+                  >
+                    {trainModelStatus === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
+                    {trainModelStatus === "loading" ? "Training…" : "Train Model"}
                   </button>
                 </div>
               </div>

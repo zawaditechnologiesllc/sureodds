@@ -137,9 +137,19 @@ export default function MatchCard({ prediction, onAddToSlip, selectedPick, onUnl
       <div className="px-3 py-3">
         <div className="flex items-center justify-between mb-3">
           <div className="flex flex-col">
-            <span className="text-white font-bold text-sm">{match.homeTeam.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-white font-bold text-sm">{match.homeTeam.name}</span>
+              {prediction.homeXg != null && !prediction.locked && !prediction.computing && (
+                <span className="text-[10px] text-brand-muted font-medium tabular-nums">xG {prediction.homeXg}</span>
+              )}
+            </div>
             <span className="text-brand-muted text-xs my-0.5">vs</span>
-            <span className="text-white font-bold text-sm">{match.awayTeam.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-white font-bold text-sm">{match.awayTeam.name}</span>
+              {prediction.awayXg != null && !prediction.locked && !prediction.computing && (
+                <span className="text-[10px] text-brand-muted font-medium tabular-nums">xG {prediction.awayXg}</span>
+              )}
+            </div>
           </div>
           {prediction.locked ? (
             <button

@@ -371,6 +371,84 @@ async def engine_accuracy_stats(db: Session = Depends(get_db)):
     return {"success": True, **stats}
 
 
+@router.post("/engine/train", dependencies=[Depends(verify_admin)])
+async def trigger_lr_training(db: Session = Depends(get_db)):
+    """
+    Manually trigger logistic regression weight re-fitting.
+    Requires ≥ 300 settled predictions that have the v3 feature columns
+    (home_form_score, away_form_score, h2h_adv_score) populated.
+    The weekly scheduler calls this automatically every Sunday at 03:00 UTC.
+    """
+    from app.services.logistic_regression_service import train_model_weights
+    result = train_model_weights(db)
+    return {"success": True, **result}
+
+
+@router.get("/engine/weights", dependencies=[Depends(verify_admin)])
+async def get_model_weights(db: Session = Depends(get_db)):
+    """Return the currently active LR-fitted model weights (if any)."""
+    from app.models.models import ModelWeights
+    row = db.query(ModelWeights).order_by(ModelWeights.updated_at.desc()).first()
+    if not row:
+        return {
+            "fitted": False,
+            "weights": None,
+            "message": "No fitted weights yet. Engine is using hardcoded defaults (50/50 Poisson/Strength, 55/30/15 form/H2H/home).",
+        }
+    return {
+        "fitted": True,
+        "weights": {
+            "poisson_weight":  row.poisson_weight,
+            "strength_weight": row.strength_weight,
+            "form_weight":     row.form_weight,
+            "h2h_weight":      row.h2h_weight,
+            "home_adv_weight": row.home_adv_weight,
+        },
+        "sample_size": row.sample_size,
+        "cv_accuracy": row.cv_accuracy,
+        "updated_at":  row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+@router.post("/backfill", dependencies=[Depends(verify_admin)])
+async def trigger_backfill(
+    background_tasks: BackgroundTasks,
+    days_back: int = 60,
+    db: Session = Depends(get_db),
+):
+    """
+    Kick off a 60-day historical fixture backfill.
+    Fetches fixtures from the past N days (default: 60), re-generates any
+    missing predictions, and re-reconciles results — giving the calibration
+    and LR trainer more data to learn from.
+    Runs as a background task — returns immediately.
+    """
+    async def _do_backfill():
+        from app.core.database import SessionLocal as _SL
+        from app.services.fixtures_service import fetch_window
+        from app.services.results_service import reconcile_results
+        _db = _SL()
+        try:
+            logger.info(f"Backfill: fetching {days_back} days of history…")
+            fetch_result = await fetch_window(_db, days_back=days_back, days_ahead=0)
+            logger.info(f"Backfill: fetch done — {fetch_result}")
+
+            # Re-run reconciliation over the full backfill window
+            recon = reconcile_results(_db, days_back=days_back)
+            logger.info(f"Backfill: reconciliation done — {recon}")
+        except Exception as exc:
+            logger.error(f"Backfill error: {exc}", exc_info=True)
+        finally:
+            _db.close()
+
+    background_tasks.add_task(_do_backfill)
+    return {
+        "success": True,
+        "message": f"Backfill of {days_back} days started in the background.",
+        "days_back": days_back,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Bundle management
 # ---------------------------------------------------------------------------

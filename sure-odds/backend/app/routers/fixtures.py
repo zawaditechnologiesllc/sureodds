@@ -48,6 +48,8 @@ class PredictionOut(BaseModel):
     bttsPct: float
     bestPick: str
     confidence: str
+    homeXg: Optional[float] = None
+    awayXg: Optional[float] = None
 
 
 class FixtureOut(BaseModel):
@@ -146,6 +148,8 @@ async def get_fixtures(
                 bttsPct=pred.btts_pct,
                 bestPick=pred.best_pick,
                 confidence=pred.confidence,
+                homeXg=round(pred.home_xg, 2) if pred.home_xg is not None else None,
+                awayXg=round(pred.away_xg, 2) if pred.away_xg is not None else None,
             )
             h2h = _build_h2h_stub(pred.home_win_pct, pred.away_win_pct)
 

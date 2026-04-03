@@ -90,6 +90,10 @@ class Prediction(Base):
     home_xg = Column(Float, nullable=True)       # Poisson expected goals (home)
     away_xg = Column(Float, nullable=True)       # Poisson expected goals (away)
     market_blended = Column(Boolean, default=False, nullable=True)  # True if bookmaker odds were used
+    # v3 engine fields — stored for logistic regression training
+    home_form_score = Column(Float, nullable=True)  # venue-specific form [0,1]
+    away_form_score = Column(Float, nullable=True)  # venue-specific form [0,1]
+    h2h_adv_score   = Column(Float, nullable=True)  # H2H advantage [-1,1]
 
     fixture = relationship("Fixture", back_populates="prediction")
 
@@ -271,6 +275,27 @@ class Notification(Base):
     target = Column(String, nullable=False, default="all")  # "users" | "partners" | "all"
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ModelWeights(Base):
+    """
+    Stores fitted logistic regression mixing weights for the prediction engine.
+
+    Trained weekly once 300+ settled predictions are available.
+    The engine reads these weights to replace the hardcoded 50/50 Poisson/strength
+    blend and 55/30/15 form/H2H/home-advantage split with data-fitted values.
+    """
+    __tablename__ = "model_weights"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    poisson_weight  = Column(Float, nullable=False, default=0.50)
+    strength_weight = Column(Float, nullable=False, default=0.50)
+    form_weight     = Column(Float, nullable=False, default=0.55)
+    h2h_weight      = Column(Float, nullable=False, default=0.30)
+    home_adv_weight = Column(Float, nullable=False, default=0.15)
+    sample_size     = Column(Integer, nullable=False)
+    cv_accuracy     = Column(Float, nullable=True)
+    updated_at      = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class ModelCalibration(Base):

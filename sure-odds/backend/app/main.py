@@ -4,11 +4,14 @@ import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import cast, Date, func
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
@@ -36,6 +39,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler(timezone="UTC")
+
+# Global rate limiter — 60 requests per minute per IP on all public endpoints
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 _SERVER_START_TIME = time.time()
 
@@ -153,6 +159,50 @@ async def run_live_update():
             logger.info(f"Live update: {result}")
     except Exception as e:
         logger.error(f"Live update error: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+async def run_daily_bundle_generation():
+    """
+    Runs every day at 07:00 UTC.
+    Generates all 4 bundle tiers (safe, medium, high, mega) and deactivates any
+    previous bundles of the same tier so users always see today's freshest picks.
+    """
+    from app.services.bundle_generator import generate_and_save_bundle, TIER_CONFIG
+    db = SessionLocal()
+    try:
+        logger.info("Daily bundle auto-gen: starting…")
+        for tier in TIER_CONFIG:
+            try:
+                bundle = generate_and_save_bundle(db, tier)
+                if bundle:
+                    logger.info(f"Daily bundle auto-gen: {tier} — {bundle.id} created.")
+                else:
+                    logger.warning(f"Daily bundle auto-gen: {tier} — not enough qualifying matches.")
+            except Exception as e:
+                logger.error(f"Daily bundle auto-gen: {tier} failed — {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+def run_weekly_lr_training():
+    """
+    Runs every Sunday at 03:00 UTC.
+    Fits logistic regression on settled predictions to derive optimal mixing weights.
+    Silently skips if < 300 settled predictions with v3 feature columns are available.
+    """
+    from app.services.logistic_regression_service import train_model_weights
+    db = SessionLocal()
+    try:
+        logger.info("Weekly LR training: starting…")
+        result = train_model_weights(db)
+        if result.get("skipped"):
+            logger.info(f"Weekly LR training: skipped — {result}")
+        else:
+            logger.info(f"Weekly LR training: complete — {result}")
+    except Exception as e:
+        logger.error(f"Weekly LR training error: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -283,6 +333,11 @@ def ensure_schema(db):
         "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS away_xg FLOAT",
         "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS market_blended BOOLEAN DEFAULT FALSE",
 
+        # predictions — v3 engine fields (form scores stored for LR training)
+        "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS home_form_score FLOAT",
+        "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS away_form_score FLOAT",
+        "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS h2h_adv_score FLOAT",
+
         # model_calibration — self-learning: stores per-tier and per-market hit rates
         """
         CREATE TABLE IF NOT EXISTS model_calibration (
@@ -292,6 +347,21 @@ def ensure_schema(db):
             hit_rate           FLOAT NOT NULL,
             sample_size        INTEGER NOT NULL,
             updated_at         TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+
+        # model_weights — LR-fitted mixing weights for the prediction engine
+        """
+        CREATE TABLE IF NOT EXISTS model_weights (
+            id              SERIAL PRIMARY KEY,
+            poisson_weight  FLOAT NOT NULL DEFAULT 0.50,
+            strength_weight FLOAT NOT NULL DEFAULT 0.50,
+            form_weight     FLOAT NOT NULL DEFAULT 0.55,
+            h2h_weight      FLOAT NOT NULL DEFAULT 0.30,
+            home_adv_weight FLOAT NOT NULL DEFAULT 0.15,
+            sample_size     INTEGER NOT NULL DEFAULT 0,
+            cv_accuracy     FLOAT,
+            updated_at      TIMESTAMPTZ DEFAULT NOW()
         )
         """,
     ]
@@ -469,8 +539,26 @@ async def lifespan(app: FastAPI):
     # Live score update every 5 minutes — direct Sofascore request, no proxy credits used.
     scheduler.add_job(run_live_update, "interval", minutes=5, id="live_5m", replace_existing=True)
 
+    # Daily bundle auto-generation at 07:00 UTC — generates all 4 tiers (safe/medium/high/mega).
+    scheduler.add_job(
+        run_daily_bundle_generation,
+        "cron", hour=7, minute=0,
+        id="bundle_daily_07h", replace_existing=True,
+    )
+
+    # Weekly logistic regression training — every Sunday at 03:00 UTC.
+    # Silently skips until 300+ settled predictions with v3 feature columns exist.
+    scheduler.add_job(
+        run_weekly_lr_training,
+        "cron", day_of_week="sun", hour=3, minute=0,
+        id="lr_weekly_sun_03h", replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("Scheduler started — fixture poll every 6h, live scores every 5 min.")
+    logger.info(
+        "Scheduler started — fixture poll every 6h, live scores every 5 min, "
+        "bundle auto-gen daily at 07:00 UTC, LR training weekly on Sundays."
+    )
 
     yield
 
@@ -488,6 +576,10 @@ app = FastAPI(
     version="4.2.0",
     lifespan=lifespan,
 )
+
+# Attach rate limiter — 60 req/min per IP on all public endpoints
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(GZipMiddleware, minimum_size=500)
 

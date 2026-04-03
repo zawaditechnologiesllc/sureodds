@@ -28,6 +28,8 @@ export interface Prediction {
   confidence: "high_confidence" | "high" | "medium" | "low" | "computing";
   locked?: boolean;
   computing?: boolean;
+  homeXg?: number;
+  awayXg?: number;
 }
 
 export interface PredictionResult {

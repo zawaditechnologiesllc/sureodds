@@ -78,7 +78,25 @@ def reconcile_results(db: Session, days_back: int = RESULTS_WINDOW_DAYS) -> dict
             .first()
         )
 
-        if prediction and prediction.actual_result is None:
+        if prediction is None:
+            continue
+
+        if prediction.actual_result is None:
+            # First-time settlement
+            is_correct = check_prediction_correct(
+                prediction, actual, fixture.home_score, fixture.away_score
+            )
+            prediction.actual_result = actual
+            prediction.is_correct = is_correct
+            updated += 1
+            if is_correct:
+                correct += 1
+        elif prediction.actual_result != actual:
+            # Score correction — result changed after initial settlement; re-evaluate
+            logger.info(
+                f"Score correction: fixture {fixture.id} was {prediction.actual_result} "
+                f"→ now {actual} ({fixture.home_score}-{fixture.away_score}). Re-settling."
+            )
             is_correct = check_prediction_correct(
                 prediction, actual, fixture.home_score, fixture.away_score
             )

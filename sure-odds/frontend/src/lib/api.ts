@@ -550,3 +550,25 @@ export const testAdminEmail = async (to: string) => {
   const res = await api.post("/admin/test-email", { to }, { timeout: 90000 });
   return res.data;
 };
+
+// ─── Admin — Engine (ML) ──────────────────────────────────────────────────────
+
+export const fetchEngineAccuracy = async () => {
+  const res = await api.get("/admin/engine/accuracy");
+  return res.data;
+};
+
+export const fetchEngineWeights = async () => {
+  const res = await api.get("/admin/engine/weights");
+  return res.data;
+};
+
+export const triggerTrainModel = async () => {
+  const res = await longApi.post("/admin/engine/train");
+  return res.data;
+};
+
+export const triggerBackfill = async (daysBack = 60) => {
+  const res = await longApi.post(`/admin/backfill?days_back=${daysBack}`);
+  return res.data;
+};

@@ -27,6 +27,7 @@ from app.services.calibration_service import (
     compute_calibrated_thresholds,
     compute_market_multipliers,
 )
+from app.services.logistic_regression_service import load_model_weights
 
 logger = logging.getLogger(__name__)
 
@@ -299,12 +300,15 @@ def _strength_model(
     h2h_adv: float,
     league_home_avg: float,
     league_away_avg: float,
+    form_weight:     float = 0.55,
+    h2h_weight:      float = 0.30,
+    home_adv_weight: float = 0.15,
 ) -> tuple[float, float, float]:
     """
     Returns (home_win_prob, draw_prob, away_win_prob) from a form+H2H
     strength model.
 
-    Weighting:
+    Default weighting (overridden by fitted model weights when available):
       55% venue-specific recency-weighted form
       30% H2H historical advantage
       15% dynamic home-field advantage (derived from league scoring ratio)
@@ -312,8 +316,8 @@ def _strength_model(
     ha_ratio  = league_home_avg / max(league_away_avg, 0.5)
     ha_boost  = min(0.15, max(0.03, (ha_ratio - 1) * 0.1 + 0.08))
 
-    home_str  = home_form * 0.55 + (h2h_adv + 1) / 2 * 0.30 + ha_boost * 0.15
-    away_str  = away_form * 0.55 + (1 - (h2h_adv + 1) / 2) * 0.30
+    home_str  = home_form * form_weight + (h2h_adv + 1) / 2 * h2h_weight + ha_boost * home_adv_weight
+    away_str  = away_form * form_weight + (1 - (h2h_adv + 1) / 2) * h2h_weight
     draw_str  = 0.22  # draw has a baseline "pull"
 
     total = home_str + away_str + draw_str
@@ -337,14 +341,16 @@ def _assemble(
     market:             dict | None,
     calibrated_thresholds: dict | None = None,
     market_multipliers:    dict | None = None,
+    model_weights:         dict | None = None,
 ) -> dict:
     """
     Combines:
-      - Poisson goal model (50%)
-      - Form + H2H strength model (50%)
+      - Poisson goal model (default 50%)
+      - Form + H2H strength model (default 50%)
       - Blends with bookmaker market odds if available (30% market / 70% model)
       - Applies calibrated confidence thresholds (Level 1) when available
       - Applies per-market accuracy multipliers (Level 2) when available
+      - Applies LR-fitted mixing weights (Priority 2) when available
     """
 
     # Expected goals using Dixon-Coles-style attack × defence / league normalisation
@@ -357,12 +363,23 @@ def _assemble(
     away_xg = max(0.2, min(5.0, away_xg))
 
     poisson  = _poisson_probs(home_xg, away_xg)
-    strength = _strength_model(home_form, away_form, h2h_adv, league_home_avg, league_away_avg)
 
-    # 50/50 blend of Poisson matrix and form/H2H strength model
-    blend_home = poisson["home_win"] * 0.50 + strength[0] * 0.50
-    blend_draw = poisson["draw"]     * 0.50 + strength[1] * 0.50
-    blend_away = poisson["away_win"] * 0.50 + strength[2] * 0.50
+    # Use LR-fitted weights when available, fall back to defaults
+    poisson_w  = model_weights["poisson_weight"]  if model_weights else 0.50
+    strength_w = model_weights["strength_weight"] if model_weights else 0.50
+    fw         = model_weights["form_weight"]      if model_weights else 0.55
+    hw         = model_weights["h2h_weight"]       if model_weights else 0.30
+    haw        = model_weights["home_adv_weight"]  if model_weights else 0.15
+
+    strength = _strength_model(
+        home_form, away_form, h2h_adv,
+        league_home_avg, league_away_avg,
+        form_weight=fw, h2h_weight=hw, home_adv_weight=haw,
+    )
+
+    blend_home = poisson["home_win"] * poisson_w + strength[0] * strength_w
+    blend_draw = poisson["draw"]     * poisson_w + strength[1] * strength_w
+    blend_away = poisson["away_win"] * poisson_w + strength[2] * strength_w
 
     # Normalise
     total = blend_home + blend_draw + blend_away
@@ -549,11 +566,15 @@ async def generate_prediction(
 
         # --- Load calibration data (Level 1 + Level 2) ---
         # Falls back gracefully to hardcoded defaults if no calibration exists yet.
-        calibration         = load_calibration(db)
+        calibration           = load_calibration(db)
         calibrated_thresholds = compute_calibrated_thresholds(calibration.get("tier", {}))
         market_multipliers    = compute_market_multipliers(calibration.get("market", {}))
 
-        return _assemble(
+        # --- Load LR-fitted model weights (Priority 2) ---
+        # Returns None until 300 settled predictions are available.
+        model_weights = load_model_weights(db)
+
+        result = _assemble(
             home_form=home_form,
             away_form=away_form,
             h2h_adv=h2h_adv,
@@ -566,7 +587,15 @@ async def generate_prediction(
             market=market,
             calibrated_thresholds=calibrated_thresholds,
             market_multipliers=market_multipliers,
+            model_weights=model_weights,
         )
+
+        # Store v3 feature columns so the LR trainer can use them later
+        result["home_form_score"] = round(home_form, 4)
+        result["away_form_score"] = round(away_form, 4)
+        result["h2h_adv_score"]   = round(h2h_adv,   4)
+
+        return result
 
     finally:
         if _owns_session:
