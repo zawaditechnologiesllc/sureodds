@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 
@@ -35,6 +36,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler(timezone="UTC")
+
+_SERVER_START_TIME = time.time()
 
 # How long since the last fixture was inserted before we consider data stale.
 # If data is fresher than this, the startup scrape is skipped entirely.
@@ -510,23 +513,52 @@ async def public_stats():
         db.close()
 
 
+@app.get("/ping")
+async def ping():
+    """
+    Lightweight keep-alive endpoint — no DB calls, instant response.
+    Intended for UptimeRobot / external monitors to prevent Render
+    free-tier cold starts. Ping this every 5 minutes.
+    """
+    uptime_seconds = int(time.time() - _SERVER_START_TIME)
+    hours, remainder = divmod(uptime_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return {
+        "status": "ok",
+        "uptime": f"{hours}h {minutes}m {seconds}s",
+    }
+
+
 @app.get("/health")
 async def health():
+    """
+    Full health check for Render deployment verification.
+    Includes DB freshness and API status — configure this as
+    Render's health check path in the dashboard.
+    """
+    db_ok = True
+    data_freshness = "unknown"
     db = SessionLocal()
     try:
         hours_old = _hours_since_last_scrape(db)
         data_freshness = f"{hours_old:.1f}h ago" if hours_old is not None else "no data"
     except Exception:
-        data_freshness = "unknown"
+        db_ok = False
     finally:
         db.close()
 
     status = await get_api_status()
+    uptime_seconds = int(time.time() - _SERVER_START_TIME)
+    hours, remainder = divmod(uptime_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
     return {
-        "status": "ok",
+        "status": "ok" if db_ok else "degraded",
         "service": "sure-odds-api",
         "version": "4.2.0",
+        "uptime": f"{hours}h {minutes}m {seconds}s",
         "season": get_current_season(),
+        "db": "ok" if db_ok else "error",
         "data_source": "sofascore.com (db-cached)",
         "data_freshness": data_freshness,
         "poll_interval_hours": 6,
