@@ -290,14 +290,13 @@ export default function Navbar() {
               </>
             )}
 
-            {!isAuthenticated && (
-              <button
-                className="md:hidden text-gray-300"
-                onClick={() => setMobileOpen(!mobileOpen)}
-              >
-                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-            )}
+            <button
+              className="md:hidden p-2 rounded-lg text-gray-300 hover:text-white hover:bg-brand-card transition-colors"
+              onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label="Open menu"
+            >
+              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
       </div>
@@ -305,46 +304,60 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {mobileOpen && (
         <div className="md:hidden bg-brand-darker border-t border-brand-border">
+          {/* Authenticated user header */}
+          {isAuthenticated && user && (
+            <div className="px-4 py-3 border-b border-brand-border bg-brand-card/40">
+              <p className="text-brand-muted text-[10px] uppercase tracking-wide font-semibold">Signed in as</p>
+              <p className="text-white text-sm font-bold truncate mt-0.5">{user.email}</p>
+            </div>
+          )}
+
           <div className="px-4 py-3 flex flex-col gap-1">
+            {/* Navigation links */}
             {mobilePublicLinks.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
-                className={cn("text-sm text-gray-300 hover:text-white py-2.5 border-b border-brand-border last:border-0")}
+                className="text-sm text-gray-300 hover:text-white py-2.5 border-b border-brand-border last:border-0"
                 onClick={() => setMobileOpen(false)}
               >
                 {label}
               </Link>
             ))}
+
             {isAuthenticated ? (
               <>
                 <Link
                   href="/dashboard"
-                  className="text-sm text-brand-green hover:text-white py-2.5 border-b border-brand-border font-bold"
+                  className="flex items-center gap-2 text-sm text-brand-green hover:text-white py-2.5 border-b border-brand-border font-bold"
                   onClick={() => setMobileOpen(false)}
                 >
+                  <LayoutDashboard className="w-4 h-4" />
                   Dashboard
                 </Link>
                 <Link
                   href="/partner-dashboard"
-                  className="text-sm text-gray-300 hover:text-white py-2.5 border-b border-brand-border"
+                  className="flex items-center gap-2 text-sm text-gray-300 hover:text-white py-2.5 border-b border-brand-border"
                   onClick={() => setMobileOpen(false)}
                 >
+                  <Users className="w-4 h-4" />
                   Partner Dashboard
                 </Link>
                 <button
-                  onClick={handleLogout}
-                  className="text-left text-sm text-brand-muted hover:text-white py-2.5"
+                  onClick={() => { setMobileOpen(false); handleLogout(); }}
+                  className="flex items-center gap-2 text-left text-sm text-red-400 hover:text-white py-2.5 mt-1"
                 >
+                  <LogIn className="w-4 h-4 rotate-180" />
                   Sign Out
                 </button>
               </>
             ) : (
               <Link
                 href="/auth/login"
-                className="text-sm text-gray-300 hover:text-white py-2.5"
+                className="flex items-center gap-2 text-sm text-gray-300 hover:text-white py-2.5"
                 onClick={() => setMobileOpen(false)}
               >
+                <LogIn className="w-4 h-4" />
                 Login
               </Link>
             )}
