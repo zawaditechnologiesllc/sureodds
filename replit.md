@@ -1,5 +1,10 @@
 # Sure Odds — Sports Prediction Platform
 
+## Key Fixes Applied (April 2026)
+- **CRITICAL BUG FIX**: Fixed `/paystack/status` — was only checking `subscription_status == "paid"` but VIP users are stored in `user_vip_access` table. VIP customers now correctly show as paid/VIP active. Response now includes `vip_active` and `vip_expires_at` fields.
+- Dashboard (`/dashboard`) updated: VIP users now see a gold "VIP Active" crown badge with their expiry date instead of "Free Plan". Stats row shows "VIP" plan with correct color. Imports Crown and Clock icons.
+- Admin panel: Supabase sync button promoted from Users tab → now also on the Overview tab as a prominent card with description ("Sync from Supabase"). Fixes cases where Supabase auth users aren't in the backend DB.
+
 ## Key Fixes Applied (March 2026)
 - Removed duplicate `next.config.js` — merged into single `next.config.mjs` (was causing Vercel build failure)
 - Fixed league IDs in `src/types/index.ts` — updated to Football-Data.org IDs (2021/2014/2019/2002 instead of old 39/140/135/78)

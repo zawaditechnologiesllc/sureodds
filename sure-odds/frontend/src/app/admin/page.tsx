@@ -717,6 +717,40 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
               )}
             </div>
 
+            {/* Supabase User Sync */}
+            <div className="bg-brand-card border border-blue-900/40 rounded-xl p-5 mb-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-white font-bold text-lg flex items-center gap-2">
+                    <Database className="w-5 h-5 text-blue-400" />
+                    Supabase User Sync
+                  </h2>
+                  <p className="text-brand-muted text-xs mt-1">
+                    Pull all Supabase Auth users into the backend database. Run this if users show up in Supabase but are missing from the customer panel or user list.
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    setSyncingUsers(true);
+                    try {
+                      const result = await syncAdminUsers();
+                      toast.success(`Synced ${result.synced} new user${result.synced !== 1 ? "s" : ""} from Supabase (${result.already_present} already present).`);
+                      fetchAdminUsers().then(setUsers).catch(() => null);
+                    } catch {
+                      toast.error("Sync failed. Check Supabase keys are set on the backend.");
+                    } finally {
+                      setSyncingUsers(false);
+                    }
+                  }}
+                  disabled={syncingUsers}
+                  className="flex items-center gap-2 bg-blue-900/40 hover:bg-blue-900/60 border border-blue-800/50 text-blue-400 text-sm font-bold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {syncingUsers ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  Sync from Supabase
+                </button>
+              </div>
+            </div>
+
             {/* Automation Controls */}
             <div className="bg-brand-card border border-brand-border rounded-xl p-5 mb-6">
               <h2 className="text-white font-bold text-lg mb-1">Automation Controls</h2>

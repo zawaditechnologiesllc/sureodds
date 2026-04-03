@@ -268,7 +268,22 @@ async def payment_status(
     db: Session = Depends(get_db),
 ):
     """Return current user's subscription and credits status."""
-    is_paid = current_user.subscription_status == "paid"
+    is_subscription_paid = current_user.subscription_status == "paid"
+
+    # Check for active VIP time-based access
+    now = datetime.utcnow()
+    vip_access = (
+        db.query(UserVipAccess)
+        .filter(
+            UserVipAccess.user_id == current_user.id,
+            UserVipAccess.expires_at > now,
+        )
+        .order_by(UserVipAccess.expires_at.desc())
+        .first()
+    )
+    is_vip_active = vip_access is not None
+    is_paid = is_subscription_paid or is_vip_active
+
     user_pkg = db.query(UserPackage).filter(UserPackage.user_id == current_user.id).first()
     picks_remaining = user_pkg.remaining_picks if user_pkg else 0
 
@@ -277,6 +292,8 @@ async def payment_status(
         "subscription_status": current_user.subscription_status,
         "picks_remaining": picks_remaining,
         "can_access_premium": is_paid or picks_remaining > 0,
+        "vip_active": is_vip_active,
+        "vip_expires_at": vip_access.expires_at.isoformat() if vip_access else None,
     }
 
 

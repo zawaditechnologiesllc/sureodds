@@ -8,7 +8,7 @@ import MobileNav from "@/components/layout/MobileNav";
 import Footer from "@/components/layout/Footer";
 import {
   Zap, CreditCard, TrendingUp, CheckCircle, Lock, BarChart2,
-  Star, Loader2, ArrowRight, Gift, Users, PlusCircle, RefreshCw,
+  Star, Loader2, ArrowRight, Gift, Users, PlusCircle, RefreshCw, Crown, Clock,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { fetchPaymentStatus } from "@/lib/api";
@@ -18,6 +18,8 @@ interface PaymentStatus {
   subscription_status: string;
   picks_remaining: number;
   can_access_premium: boolean;
+  vip_active?: boolean;
+  vip_expires_at?: string | null;
 }
 
 function DashboardContent() {
@@ -74,6 +76,8 @@ function DashboardContent() {
   }
 
   const isPaid = paymentStatus?.is_paid ?? false;
+  const isVip = paymentStatus?.vip_active ?? false;
+  const vipExpiresAt = paymentStatus?.vip_expires_at ?? null;
   const username = user?.email?.split("@")[0] ?? "User";
 
   return (
@@ -87,16 +91,27 @@ function DashboardContent() {
           <div>
             <p className="text-brand-muted text-sm mb-1">Welcome back,</p>
             <h1 className="text-white font-black text-3xl">{username}</h1>
-            <div className="flex items-center gap-2 mt-2">
-              <span
-                className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
-                  isPaid
-                    ? "bg-brand-yellow/10 text-brand-yellow border-brand-yellow/30"
-                    : "bg-brand-card text-brand-muted border-brand-border"
-                }`}
-              >
-                {isPaid ? "Premium" : "Free"} Plan
-              </span>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {isVip ? (
+                <span className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border bg-yellow-950/30 text-yellow-400 border-yellow-600/40">
+                  <Crown className="w-3 h-3" />
+                  VIP Active
+                </span>
+              ) : isPaid ? (
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full border bg-brand-yellow/10 text-brand-yellow border-brand-yellow/30">
+                  Premium Plan
+                </span>
+              ) : (
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full border bg-brand-card text-brand-muted border-brand-border">
+                  Free Plan
+                </span>
+              )}
+              {isVip && vipExpiresAt && (
+                <span className="flex items-center gap-1 text-xs text-brand-muted">
+                  <Clock className="w-3 h-3" />
+                  expires {new Date(vipExpiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+              )}
               <span className="text-brand-muted text-xs hidden sm:block">{user?.email}</span>
             </div>
           </div>
@@ -158,11 +173,11 @@ function DashboardContent() {
             },
             {
               label: "Plan",
-              value: dataLoading ? "—" : isPaid ? "Premium" : "Free",
-              icon: Star,
-              color: "text-brand-yellow",
-              bg: "bg-yellow-950/20",
-              border: "border-yellow-900/30",
+              value: dataLoading ? "—" : isVip ? "VIP" : isPaid ? "Premium" : "Free",
+              icon: isVip ? Crown : Star,
+              color: isVip ? "text-yellow-400" : "text-brand-yellow",
+              bg: isVip ? "bg-yellow-950/30" : "bg-yellow-950/20",
+              border: isVip ? "border-yellow-700/40" : "border-yellow-900/30",
             },
             {
               label: "Daily Picks",
@@ -174,7 +189,7 @@ function DashboardContent() {
             },
             {
               label: "Status",
-              value: isPaid ? "Active" : "Free",
+              value: isVip ? "VIP Active" : isPaid ? "Active" : "Free",
               icon: CheckCircle,
               color: isPaid ? "text-brand-green" : "text-brand-muted",
               bg: isPaid ? "bg-green-950/20" : "bg-brand-dark",
