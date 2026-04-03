@@ -4,6 +4,12 @@
 - **CRITICAL BUG FIX**: Fixed `/paystack/status` — was only checking `subscription_status == "paid"` but VIP users are stored in `user_vip_access` table. VIP customers now correctly show as paid/VIP active. Response now includes `vip_active` and `vip_expires_at` fields.
 - Dashboard (`/dashboard`) updated: VIP users now see a gold "VIP Active" crown badge with their expiry date instead of "Free Plan". Stats row shows "VIP" plan with correct color. Imports Crown and Clock icons.
 - Admin panel: Supabase sync button promoted from Users tab → now also on the Overview tab as a prominent card with description ("Sync from Supabase"). Fixes cases where Supabase auth users aren't in the backend DB.
+- **Predictions not showing to users** — Root causes fixed:
+  1. Admin stats now report `scheduled_today` (what users see) vs `today_predictions` (misleading all-matches count).
+  2. `run-today` and `run-tomorrow` now scrape Sofascore first, then generate predictions.
+  3. `run-update` endpoint (used by "Fetch + Predict" button) now also generates predictions after fetching.
+  4. Admin overview now shows a red warning banner when `scheduled_today == 0` and a green confirmation when > 0.
+- **Timezone fix**: Predictions and results pages now use local calendar date (not UTC) for day filtering, fixing the issue for users in UTC+3 (EAT) checking at midnight.
 
 ## Key Fixes Applied (March 2026)
 - Removed duplicate `next.config.js` — merged into single `next.config.mjs` (was causing Vercel build failure)

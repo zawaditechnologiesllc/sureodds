@@ -10,11 +10,18 @@ import type { PredictionResult } from "@/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api-proxy";
 
+function getLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function getPastDates(days: number) {
   return Array.from({ length: days }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (i + 1));
-    return d.toISOString().split("T")[0];
+    return getLocalDateStr(d);
   });
 }
 

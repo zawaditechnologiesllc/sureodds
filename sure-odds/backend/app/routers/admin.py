@@ -185,6 +185,24 @@ async def get_stats(db: Session = Depends(get_db)):
         .filter(cast(Fixture.kickoff, Date) == today)
         .count()
     )
+    # scheduled_today = fixtures users can currently see (status scheduled/live)
+    scheduled_today = (
+        db.query(Fixture)
+        .filter(
+            cast(Fixture.kickoff, Date) == today,
+            Fixture.status.in_(["scheduled", "live"]),
+        )
+        .count()
+    )
+    tomorrow = today + timedelta(days=1)
+    scheduled_tomorrow = (
+        db.query(Fixture)
+        .filter(
+            cast(Fixture.kickoff, Date) == tomorrow,
+            Fixture.status.in_(["scheduled", "live"]),
+        )
+        .count()
+    )
     return {
         "total_users": total_users,
         "paid_users": paid_users,
@@ -192,6 +210,8 @@ async def get_stats(db: Session = Depends(get_db)):
         "today_predictions": today_predictions,
         "total_fixtures": total_fixtures,
         "today_fixtures": today_fixtures,
+        "scheduled_today": scheduled_today,
+        "scheduled_tomorrow": scheduled_tomorrow,
         "api_key_configured": True,   # Sofascore needs no key
         "environment": settings.ENVIRONMENT,
         "current_season": get_current_season(),
@@ -210,18 +230,82 @@ async def admin_api_status():
     }
 
 
-# /admin/run-update — full fixture refresh (past 5 days + today + next 3 days)
+# /admin/run-update — full fixture refresh (3 days back + 7 days ahead) + predictions
 @router.post("/run-update", dependencies=[Depends(verify_admin)])
 async def trigger_run_update(db: Session = Depends(get_db)):
-    """Manually trigger a full fixture fetch (2 API calls)."""
-    result = await update_all_fixtures(db)
-    return {"success": True, **result}
+    """
+    Fetch fixtures for the rolling 10-day window from Sofascore, then
+    generate predictions for all upcoming scheduled fixtures that lack one.
+    This is the main admin action for populating data visible to users.
+    """
+    from app.services.fixtures_service import fetch_window
+    fetch_result = await fetch_window(db, days_back=3, days_ahead=7)
+
+    # Generate predictions for upcoming fixtures that don't have one yet
+    today = date.today()
+    upcoming_dates = [today + timedelta(days=i) for i in range(8)]
+    fixtures = (
+        db.query(Fixture)
+        .filter(
+            cast(Fixture.kickoff, Date).in_(upcoming_dates),
+            Fixture.status == "scheduled",
+        )
+        .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
+        .all()
+    )
+    created = 0
+    for fixture in fixtures:
+        try:
+            probs = await generate_prediction(
+                fixture.home_team_id, fixture.away_team_id,
+                fixture.league_id, fixture.season, db=db,
+            )
+            db.add(Prediction(fixture_id=fixture.id, **probs))
+            created += 1
+        except Exception:
+            continue
+    db.commit()
+
+    visible_today = (
+        db.query(Fixture)
+        .filter(cast(Fixture.kickoff, Date) == today, Fixture.status.in_(["scheduled", "live"]))
+        .count()
+    )
+
+    return {"success": True, "predictions_created": created, "visible_today": visible_today, **fetch_result}
 
 
 @router.post("/update-fixtures", dependencies=[Depends(verify_admin)])
 async def trigger_update_fixtures(db: Session = Depends(get_db)):
-    result = await update_all_fixtures(db)
-    return {"success": True, **result}
+    """Fetch fixtures for today ±3 days and next 7 days, then generate missing predictions."""
+    from app.services.fixtures_service import fetch_window
+    fetch_result = await fetch_window(db, days_back=3, days_ahead=7)
+
+    # After fetching, generate predictions for all upcoming unpredicted fixtures
+    today = date.today()
+    upcoming_dates = [today + timedelta(days=i) for i in range(8)]
+    fixtures = (
+        db.query(Fixture)
+        .filter(
+            cast(Fixture.kickoff, Date).in_(upcoming_dates),
+            Fixture.status == "scheduled",
+        )
+        .filter(~Fixture.id.in_(db.query(Prediction.fixture_id)))
+        .all()
+    )
+    created = 0
+    for fixture in fixtures:
+        try:
+            probs = await generate_prediction(
+                fixture.home_team_id, fixture.away_team_id,
+                fixture.league_id, fixture.season, db=db,
+            )
+            db.add(Prediction(fixture_id=fixture.id, **probs))
+            created += 1
+        except Exception:
+            continue
+    db.commit()
+    return {"success": True, "predictions_created": created, **fetch_result}
 
 
 # /admin/run-predictions — generate predictions for today and next 14 days
@@ -480,9 +564,19 @@ async def test_email(body: TestEmailRequest):
 
 @router.post("/run-today", dependencies=[Depends(verify_admin)])
 async def trigger_run_today(db: Session = Depends(get_db)):
-    """Refresh predictions and results for today only."""
+    """
+    Full refresh for today:
+    1. Scrape Sofascore for today's fixtures (1 HTTP call).
+    2. Generate predictions for any scheduled fixture that lacks one.
+    3. Reconcile finished match results.
+    """
+    from app.services.fixtures_service import fetch_window
     today = date.today()
 
+    # Step 1 — fetch today's live fixture statuses from Sofascore
+    fetch_result = await fetch_window(db, days_back=1, days_ahead=1)
+
+    # Step 2 — fill missing predictions for scheduled fixtures
     fixtures_today = (
         db.query(Fixture)
         .filter(cast(Fixture.kickoff, Date) == today, Fixture.status == "scheduled")
@@ -502,15 +596,39 @@ async def trigger_run_today(db: Session = Depends(get_db)):
             continue
     db.commit()
 
+    # Step 3 — reconcile results for finished matches
     results = await update_results(db)
-    return {"success": True, "predictions_created": created, "results": results}
+
+    # Count how many predictions users can now actually see
+    visible = (
+        db.query(Fixture)
+        .filter(cast(Fixture.kickoff, Date) == today, Fixture.status.in_(["scheduled", "live"]))
+        .count()
+    )
+
+    return {
+        "success": True,
+        "predictions_created": created,
+        "visible_to_users": visible,
+        "fetch": fetch_result,
+        "results": results,
+    }
 
 
 @router.post("/run-tomorrow", dependencies=[Depends(verify_admin)])
 async def trigger_run_tomorrow(db: Session = Depends(get_db)):
-    """Refresh predictions for tomorrow only."""
+    """
+    Full refresh for tomorrow:
+    1. Scrape Sofascore for tomorrow's fixtures (1 HTTP call).
+    2. Generate predictions for any scheduled fixture that lacks one.
+    """
+    from app.services.fixtures_service import fetch_window
     tomorrow = date.today() + timedelta(days=1)
 
+    # Step 1 — fetch tomorrow's fixtures from Sofascore
+    fetch_result = await fetch_window(db, days_back=0, days_ahead=2)
+
+    # Step 2 — fill missing predictions
     fixtures_tomorrow = (
         db.query(Fixture)
         .filter(cast(Fixture.kickoff, Date) == tomorrow, Fixture.status == "scheduled")
@@ -529,7 +647,14 @@ async def trigger_run_tomorrow(db: Session = Depends(get_db)):
         except Exception:
             continue
     db.commit()
-    return {"success": True, "predictions_created": created}
+
+    visible = (
+        db.query(Fixture)
+        .filter(cast(Fixture.kickoff, Date) == tomorrow, Fixture.status.in_(["scheduled", "live"]))
+        .count()
+    )
+
+    return {"success": True, "predictions_created": created, "visible_to_users": visible, "fetch": fetch_result}
 
 
 # ---------------------------------------------------------------------------

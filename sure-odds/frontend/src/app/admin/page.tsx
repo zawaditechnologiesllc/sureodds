@@ -93,6 +93,8 @@ interface AdminStats {
   today_predictions: number;
   total_fixtures: number;
   today_fixtures: number;
+  scheduled_today: number;
+  scheduled_tomorrow: number;
   api_key_configured: boolean;
   environment: string;
 }
@@ -600,9 +602,19 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
   const pendingPaymentsCount = payments.length;
 
   const overviewCards = stats ? [
-    { label: "Total Fixtures", value: stats.total_fixtures.toLocaleString(), icon: Database, color: "text-white" },
-    { label: "Today's Matches", value: stats.today_fixtures.toLocaleString(), icon: BarChart2, color: "text-brand-yellow" },
-    { label: "Today Predictions", value: stats.today_predictions.toLocaleString(), icon: Zap, color: "text-brand-green" },
+    { label: "Total Fixtures in DB", value: stats.total_fixtures.toLocaleString(), icon: Database, color: "text-white" },
+    {
+      label: "Visible to Users Today",
+      value: (stats.scheduled_today ?? stats.today_fixtures).toLocaleString(),
+      icon: BarChart2,
+      color: stats.scheduled_today > 0 ? "text-brand-green" : "text-brand-red",
+    },
+    {
+      label: "Tomorrow (Visible)",
+      value: (stats.scheduled_tomorrow ?? 0).toLocaleString(),
+      icon: Zap,
+      color: "text-brand-yellow",
+    },
     { label: "Total Users", value: stats.total_users.toLocaleString(), icon: Users, color: "text-brand-red" },
   ] : [];
 
@@ -658,15 +670,37 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
                 <Loader2 className="w-8 h-8 text-brand-red animate-spin" />
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-                {overviewCards.map(({ label, value, icon: Icon, color }) => (
-                  <div key={label} className="bg-brand-card border border-brand-border rounded-xl p-4">
-                    <Icon className={`w-5 h-5 ${color} mb-2`} />
-                    <div className={`text-2xl font-black ${color}`}>{value}</div>
-                    <div className="text-brand-muted text-xs mt-1">{label}</div>
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  {overviewCards.map(({ label, value, icon: Icon, color }) => (
+                    <div key={label} className="bg-brand-card border border-brand-border rounded-xl p-4">
+                      <Icon className={`w-5 h-5 ${color} mb-2`} />
+                      <div className={`text-2xl font-black ${color}`}>{value}</div>
+                      <div className="text-brand-muted text-xs mt-1">{label}</div>
+                    </div>
+                  ))}
+                </div>
+                {stats && stats.scheduled_today === 0 && (
+                  <div className="mb-6 bg-red-950/50 border border-red-900/60 rounded-xl p-4 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-brand-red shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-white font-bold text-sm">No predictions visible to users today</p>
+                      <p className="text-red-400 text-xs mt-1">
+                        All of today&apos;s fixtures are either finished or not yet in the DB. Users see 0 predictions.
+                        Click <strong>Refresh Today</strong> below to scrape Sofascore and re-populate today&apos;s data.
+                      </p>
+                    </div>
                   </div>
-                ))}
-              </div>
+                )}
+                {stats && stats.scheduled_today > 0 && (
+                  <div className="mb-6 bg-green-950/30 border border-green-900/30 rounded-xl p-3 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-brand-green shrink-0" />
+                    <p className="text-green-300 text-xs">
+                      <strong>{stats.scheduled_today}</strong> fixture{stats.scheduled_today !== 1 ? "s" : ""} visible to users today · {stats.scheduled_tomorrow ?? 0} tomorrow
+                    </p>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Data Source Status */}
@@ -754,12 +788,12 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
             {/* Automation Controls */}
             <div className="bg-brand-card border border-brand-border rounded-xl p-5 mb-6">
               <h2 className="text-white font-bold text-lg mb-1">Automation Controls</h2>
-              <p className="text-brand-muted text-xs mb-4">Full range (14-day window). Use targeted buttons below if only today or tomorrow needs refreshing.</p>
+              <p className="text-brand-muted text-xs mb-4">7-day rolling window. &quot;Fetch + Predict&quot; is the main action — it scrapes Sofascore AND generates predictions in one step.</p>
               <div className="grid md:grid-cols-3 gap-3">
                 {[
-                  { label: "Update Fixtures", desc: "Scrape Sofascore for the next 14-day window (no API key required)", status: fixturesStatus, action: () => runAction(triggerUpdateFixtures, setFixturesStatus, "Update Fixtures") },
-                  { label: "Run Predictions", desc: "Generate predictions from DB form data (no API calls)", status: predictionsStatus, action: () => runAction(triggerRunPredictions, setPredictionsStatus, "Run Predictions") },
-                  { label: "Update Results", desc: "Reconcile finished match results from DB", status: resultsStatus, action: () => runAction(triggerUpdateResults, setResultsStatus, "Update Results") },
+                  { label: "Fetch + Predict (7 days)", desc: "Scrapes Sofascore for the next 7 days AND generates predictions. Use this to populate data.", status: fixturesStatus, action: () => runAction(triggerUpdateFixtures, setFixturesStatus, "Fetch + Predict") },
+                  { label: "Run Predictions Only", desc: "Generate predictions from fixtures already in DB — no scraping. Run after 'Fetch' if needed.", status: predictionsStatus, action: () => runAction(triggerRunPredictions, setPredictionsStatus, "Run Predictions") },
+                  { label: "Update Results", desc: "Reconcile finished match results and accuracy scores from DB.", status: resultsStatus, action: () => runAction(triggerUpdateResults, setResultsStatus, "Update Results") },
                 ].map(({ label, desc, status, action }) => (
                   <div key={label} className="bg-brand-dark border border-brand-border rounded-lg p-4">
                     <p className="text-white font-bold text-sm mb-1">{label}</p>
@@ -780,14 +814,14 @@ function AdminPanel({ onSignOut }: { onSignOut: () => void }) {
             {/* Targeted Day Refresh */}
             <div className="bg-brand-card border border-brand-border rounded-xl p-5">
               <h2 className="text-white font-bold text-lg mb-1">Targeted Day Refresh</h2>
-              <p className="text-brand-muted text-xs mb-4">Quickly refresh predictions and results for a specific day without running the full 14-day pipeline.</p>
+              <p className="text-brand-muted text-xs mb-4">Scrapes Sofascore for that day, generates missing predictions, and reconciles results — all in one click.</p>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="bg-brand-dark border border-brand-border rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <CalendarCheck className="w-4 h-4 text-brand-green" />
                     <p className="text-white font-bold text-sm">Refresh Today</p>
                   </div>
-                  <p className="text-brand-muted text-xs mb-3">Fills missing predictions for today&apos;s fixtures and reconciles any finished results.</p>
+                  <p className="text-brand-muted text-xs mb-3">Fetches today&apos;s fixtures from Sofascore, generates missing predictions, and reconciles results. Use this when users see 0 predictions.</p>
                   <button
                     onClick={() => runAction(triggerTodayRefresh, setTodayStatus, "Today Refresh")}
                     disabled={todayStatus === "loading"}

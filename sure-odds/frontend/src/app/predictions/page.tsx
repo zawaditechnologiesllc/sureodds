@@ -19,7 +19,11 @@ import Link from "next/link";
 function getDateStr(filter: "today" | "tomorrow" | "live"): string {
   const d = new Date();
   if (filter === "tomorrow") d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
+  // Use local calendar date (not UTC) so users in UTC+3 see the correct day
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function PredictionsContent() {
